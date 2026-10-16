@@ -74,3 +74,9 @@ venv.bak/
 temp/
 tmp/
 .python-version
+
+# Runtime predictions and artifacts
+webui/prediction_results/
+graphify-out/
+data/_temp*
+

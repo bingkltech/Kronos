@@ -6,6 +6,7 @@
     <title>Kronos Financial Prediction Web UI</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="/static/js/lightweight-charts.standalone.production.js"></script>
     <style>
         * {
             margin: 0;
@@ -201,7 +202,7 @@
 
         #chart {
             width: 100%;
-            height: 600px;
+            min-height: 720px;
         }
 
         .data-info {
@@ -453,9 +454,9 @@
                 <div class="form-group">
                     <label for="model-select">Select Model:</label>
                     <select id="model-select">
-                        <option value="">Please load available models first</option>
+                        <option value="kronos-base" selected>Kronos-base (102.3M) - Base model, provides better prediction quality (Default)</option>
                     </select>
-                    <small class="form-text">Select the Kronos model to use</small>
+                    <small class="form-text">Select the Kronos model to use (Default: Kronos-base 102.3M)</small>
                 </div>
 
                 <!-- Device Selection -->
@@ -480,6 +481,58 @@
                 </button>
 
                 <hr style="margin: 20px 0; border: 1px solid #e2e8f0;">
+
+                <!-- Live Binance Data Source -->
+                <div style="background: #ebf8ff; border: 1px solid #bee3f8; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                    <h3 style="color: #2b6cb0; font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                        <span>⚡</span> Live Binance Market Data (Free API)
+                    </h3>
+                    
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="binance-asset-select" style="font-size: 13px;">Crypto Asset:</label>
+                        <select id="binance-asset-select">
+                            <option value="BTCUSDT" selected>Bitcoin (BTC/USDT)</option>
+                            <option value="ETHUSDT">Ethereum (ETH/USDT)</option>
+                            <option value="SOLUSDT">Solana (SOL/USDT)</option>
+                            <option value="BNBUSDT">BNB (BNB/USDT)</option>
+                            <option value="DOGEUSDT">Dogecoin (DOGE/USDT)</option>
+                            <option value="XRPUSDT">Ripple (XRP/USDT)</option>
+                            <option value="ADAUSDT">Cardano (ADA/USDT)</option>
+                            <option value="AVAXUSDT">Avalanche (AVAX/USDT)</option>
+                            <option value="LINKUSDT">Chainlink (LINK/USDT)</option>
+                            <option value="NEARUSDT">NEAR Protocol (NEAR/USDT)</option>
+                            <option value="SUIUSDT">Sui Network (SUI/USDT)</option>
+                            <option value="PEPEUSDT">Pepe (PEPE/USDT)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="binance-interval-select" style="font-size: 13px;">Timeframe:</label>
+                            <select id="binance-interval-select">
+                                <option value="1h" selected>1 Hour (1h)</option>
+                                <option value="15m">15 Minutes (15m)</option>
+                                <option value="5m">5 Minutes (5m)</option>
+                                <option value="4h">4 Hours (4h)</option>
+                                <option value="1d">1 Day (1d)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="binance-limit-select" style="font-size: 13px;">Candles Count:</label>
+                            <select id="binance-limit-select">
+                                <option value="520" selected>520 (400+120)</option>
+                                <option value="700">700</option>
+                                <option value="1000">1000 (Max)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="fetch-binance-btn" class="btn" style="background: linear-gradient(135deg, #3182ce 0%, #2b6cb0 100%); width: 100%; margin-top: 5px; color: white;">
+                        ⚡ Fetch & Load Live Binance Candles
+                    </button>
+                </div>
+
+                <div style="text-align: center; color: #718096; font-size: 12px; margin-bottom: 15px; font-weight: 600;">— OR LOAD LOCAL DATA FILE —</div>
 
                 <!-- Data File Selection -->
                 <div class="form-group">
@@ -576,9 +629,46 @@
                 </div>
             </div>
 
-            <div class="chart-container">
-                <h2>📈 Prediction Results Chart</h2>
-                <div id="chart"></div>
+            <div class="chart-container" style="background: #ffffff; border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+                <!-- Header & Controls -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f7; padding-bottom: 12px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <h2 style="margin: 0; border: none; padding: 0; font-size: 1.35rem; color: #2d3748; display: flex; align-items: center; gap: 8px;">
+                            <span>📈</span>
+                            <span>Kronos Quant Terminal</span>
+                        </h2>
+                        <span id="tv-symbol-badge" style="background: #2b6cb0; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;">BTC/USDT · 1H</span>
+                        <div style="display: inline-flex; border: 1px solid #cbd5e0; border-radius: 6px; overflow: hidden;">
+                            <button id="btn-engine-tv" type="button" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border: none; background: #667eea; color: white; cursor: pointer;" onclick="switchChartEngine('tradingview')">⚡ TradingView Pro</button>
+                            <button id="btn-engine-plotly" type="button" style="padding: 4px 10px; font-size: 11px; font-weight: 700; border: none; background: #f7fafc; color: #4a5568; cursor: pointer;" onclick="switchChartEngine('plotly')">📊 Plotly</button>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        <button type="button" style="padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid #667eea; border-radius: 6px; background: #ebf4ff; color: #434190; cursor: pointer; transition: all 0.2s;" onclick="tvFocusTransition()">🔍 Focus Transition</button>
+                        <button type="button" style="padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e0; border-radius: 6px; background: white; color: #4a5568; cursor: pointer; transition: all 0.2s;" onclick="tvFitAll()">🌐 Fit All (520)</button>
+                        <button type="button" style="padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid #3182ce; border-radius: 6px; background: white; color: #2b6cb0; cursor: pointer; transition: all 0.2s;" onclick="tvToggleActual()">📊 Toggle Actual Path</button>
+                        <button type="button" style="padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid #718096; border-radius: 6px; background: #2d3748; color: #edf2f7; cursor: pointer; transition: all 0.2s;" onclick="tvToggleTheme()">🌓 Theme</button>
+                    </div>
+                </div>
+
+                <!-- Live OHLC Legend Banner (TradingView style) -->
+                <div id="tv-legend" style="display: flex; gap: 16px; font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; padding: 6px 12px; background: #1e222d; color: #d1d4dc; border-radius: 6px; margin-bottom: 8px; flex-wrap: wrap;">
+                    <span style="font-weight: 700; color: #667eea;">KRONOS AI</span>
+                    <span>Date: <strong id="leg-date" style="color: #ffffff;">-</strong></span>
+                    <span>O: <strong id="leg-open" style="color: #26a69a;">-</strong></span>
+                    <span>H: <strong id="leg-high" style="color: #26a69a;">-</strong></span>
+                    <span>L: <strong id="leg-low" style="color: #ef5350;">-</strong></span>
+                    <span>C: <strong id="leg-close" style="color: #26a69a;">-</strong></span>
+                    <span>Vol: <strong id="leg-vol" style="color: #90cdf4;">-</strong></span>
+                    <span id="leg-status" style="margin-left: auto; color: #00E676; font-weight: 700;">🟢 TradingView Chart Active</span>
+                </div>
+
+                <!-- TradingView Lightweight Chart Container -->
+                <div id="tv-chart-container" style="position: relative; width: 100%; height: 620px; border-radius: 8px; overflow: hidden; background: #131722; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);"></div>
+
+                <!-- Plotly Chart Container (Fallback / Dual Mode) -->
+                <div id="chart" style="width: 100%; min-height: 620px; display: none;"></div>
                 
                 <!-- Comparison Analysis -->
                 <div id="comparison-section" class="comparison-section" style="display: none;">
@@ -640,6 +730,21 @@
         let availableModels = [];
         let modelLoaded = false;
 
+        // TradingView Lightweight Charts State
+        let tvChart = null;
+        let tvHistCandleSeries = null;
+        let tvPredCandleSeries = null;
+        let tvPredLineSeries = null;
+        let tvActualCandleSeries = null;
+        let tvActualLineSeries = null;
+        let tvVolumeSeries = null;
+        let tvActiveTheme = 'dark';
+        let tvShowActual = true;
+        let activeChartEngine = 'tradingview';
+        let tvCachedHistBars = [];
+        let tvCachedPredBars = [];
+        let tvCachedActualBars = [];
+
         // Initialize after page loads
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
@@ -649,6 +754,9 @@
         async function initializeApp() {
             console.log('🚀 Initializing Kronos Web UI...');
             
+            // Initialize TradingView Chart
+            initTradingViewChart();
+
             // Load available models
             await loadAvailableModels();
             
@@ -685,14 +793,22 @@
         // Populate model selection dropdown
         function populateModelSelect() {
             const modelSelect = document.getElementById('model-select');
-            modelSelect.innerHTML = '<option value="">Please select model</option>';
+            modelSelect.innerHTML = '';
             
             Object.entries(availableModels).forEach(([key, model]) => {
                 const option = document.createElement('option');
                 option.value = key;
                 option.textContent = `${model.name} (${model.params}) - ${model.description}`;
+                if (key === 'kronos-base') {
+                    option.selected = true;
+                }
                 modelSelect.appendChild(option);
             });
+
+            // Always put the default value in kronos-base (102.3M)
+            if (availableModels['kronos-base']) {
+                modelSelect.value = 'kronos-base';
+            }
         }
 
         // Load model
@@ -814,6 +930,55 @@
             }
         }
 
+        // Fetch Live Binance Candles
+        async function fetchBinanceData() {
+            const symbol = document.getElementById('binance-asset-select').value;
+            const interval = document.getElementById('binance-interval-select').value;
+            const limit = parseInt(document.getElementById('binance-limit-select').value, 10);
+            
+            if (!symbol) {
+                showStatus('error', 'Please select a Binance asset');
+                return;
+            }
+            
+            try {
+                showLoading(true);
+                document.getElementById('fetch-binance-btn').disabled = true;
+                showStatus('info', `Connecting to Binance public API for ${symbol} (${interval})...`);
+                
+                const response = await axios.post('/api/binance/fetch-klines', {
+                    symbol: symbol,
+                    interval: interval,
+                    limit: limit
+                });
+                
+                if (response.data.success) {
+                    currentDataFile = response.data.file_path;
+                    currentDataInfo = response.data.data_info;
+                    showDataInfo(response.data.data_info);
+                    showStatus('success', response.data.message);
+                    
+                    // Refresh data files dropdown and select the newly fetched file
+                    await loadDataFiles();
+                    const dataFileSelect = document.getElementById('data-file-select');
+                    dataFileSelect.value = response.data.file_path;
+                    
+                    if (modelLoaded) {
+                        document.getElementById('predict-btn').disabled = false;
+                    }
+                    console.log('✅ Live Binance data loaded:', response.data.data_info);
+                } else {
+                    showStatus('error', response.data.error || 'Failed to fetch Binance data');
+                }
+            } catch (error) {
+                console.error('❌ Binance fetch failed:', error);
+                showStatus('error', `Binance error: ${error.response?.data?.error || error.message}`);
+            } finally {
+                showLoading(false);
+                document.getElementById('fetch-binance-btn').disabled = false;
+            }
+        }
+
         // Display data information
         function showDataInfo(dataInfo) {
             document.getElementById('data-info').style.display = 'block';
@@ -824,6 +989,17 @@
             document.getElementById('data-timeframe').textContent = dataInfo.timeframe;
             document.getElementById('data-prediction-cols').textContent = dataInfo.prediction_columns.join(', ');
             
+            // Update symbol badge on TradingView chart
+            const badgeEl = document.getElementById('tv-symbol-badge');
+            if (badgeEl) {
+                badgeEl.textContent = `${dataInfo.symbol || 'DATA'} · ${dataInfo.timeframe || dataInfo.interval || '1H'}`;
+            }
+
+            // Immediately display loaded candles in TradingView chart
+            if (dataInfo.candles && dataInfo.candles.length > 0) {
+                renderTradingViewData(dataInfo.candles, [], []);
+            }
+
             // Initialize time window slider
             initializeTimeWindowSlider(dataInfo);
         }
@@ -1096,17 +1272,340 @@
             }
         }
 
+        // Initialize TradingView Lightweight Chart
+        function initTradingViewChart() {
+            const container = document.getElementById('tv-chart-container');
+            if (!container || typeof LightweightCharts === 'undefined') return;
+
+            if (tvChart) {
+                try { tvChart.remove(); } catch(e){}
+                tvChart = null;
+            }
+            container.innerHTML = '';
+
+            const isDark = tvActiveTheme === 'dark';
+            const bg = isDark ? '#131722' : '#ffffff';
+            const textColor = isDark ? '#d1d4dc' : '#1e222d';
+            const gridColor = isDark ? '#1e222d' : '#f0f3fa';
+            const borderColor = isDark ? '#2a2e39' : '#e0e3eb';
+
+            tvChart = LightweightCharts.createChart(container, {
+                width: container.clientWidth || 900,
+                height: 620,
+                layout: {
+                    background: { type: 'solid', color: bg },
+                    textColor: textColor,
+                    fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
+                },
+                grid: {
+                    vertLines: { color: gridColor },
+                    horzLines: { color: gridColor },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: {
+                        color: '#758696',
+                        width: 1,
+                        style: LightweightCharts.LineStyle.Dashed,
+                        labelBackgroundColor: '#2a2e39',
+                    },
+                    horzLine: {
+                        color: '#758696',
+                        width: 1,
+                        style: LightweightCharts.LineStyle.Dashed,
+                        labelBackgroundColor: '#2a2e39',
+                    },
+                },
+                rightPriceScale: {
+                    borderColor: borderColor,
+                    autoScale: true,
+                    scaleMargins: {
+                        top: 0.08,
+                        bottom: 0.22,
+                    },
+                },
+                timeScale: {
+                    borderColor: borderColor,
+                    timeVisible: true,
+                    secondsVisible: false,
+                },
+            });
+
+            // 1. Volume Histogram (Bottom)
+            tvVolumeSeries = tvChart.addHistogramSeries({
+                priceFormat: { type: 'volume' },
+                priceScaleId: '',
+                scaleMargins: {
+                    top: 0.82,
+                    bottom: 0,
+                },
+            });
+
+            // 2. Historical Lookback Candlesticks (#26a69a / #ef5350)
+            tvHistCandleSeries = tvChart.addCandlestickSeries({
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+                borderVisible: false,
+                wickUpColor: '#26a69a',
+                wickDownColor: '#ef5350',
+                title: 'Historical',
+            });
+
+            // 3. Kronos AI Forecast Candlesticks (Neon Emerald #00E676 / Neon Coral #FF5252)
+            tvPredCandleSeries = tvChart.addCandlestickSeries({
+                upColor: '#00E676',
+                downColor: '#FF5252',
+                borderVisible: false,
+                wickUpColor: '#00E676',
+                wickDownColor: '#FF5252',
+                title: 'Kronos AI Pred',
+            });
+
+            // 4. Forecast Trajectory Line (Dotted)
+            tvPredLineSeries = tvChart.addLineSeries({
+                color: '#00E676',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dotted,
+                title: 'Forecast Close',
+            });
+
+            // 5. Actual Ground-Truth Candlesticks (Toggleable)
+            tvActualCandleSeries = tvChart.addCandlestickSeries({
+                upColor: '#2962FF',
+                downColor: '#FF9800',
+                borderVisible: false,
+                wickUpColor: '#2962FF',
+                wickDownColor: '#FF9800',
+                title: 'Actual Candles',
+                visible: false,
+            });
+
+            // 6. Actual Ground-Truth Close Line (Amber)
+            tvActualLineSeries = tvChart.addLineSeries({
+                color: '#FF9800',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                title: 'Actual Close',
+            });
+
+            // Crosshair Legend updates
+            tvChart.subscribeCrosshairMove(param => {
+                if (!param || !param.time || !param.seriesData) return;
+                
+                let bar = param.seriesData.get(tvPredCandleSeries) || 
+                          param.seriesData.get(tvHistCandleSeries) || 
+                          param.seriesData.get(tvActualCandleSeries);
+                          
+                let vol = param.seriesData.get(tvVolumeSeries);
+
+                if (bar && bar.open !== undefined) {
+                    const dt = new Date(param.time * 1000);
+                    document.getElementById('leg-date').textContent = dt.toISOString().replace('T', ' ').slice(0, 19);
+                    document.getElementById('leg-open').textContent = bar.open.toFixed(2);
+                    document.getElementById('leg-high').textContent = bar.high.toFixed(2);
+                    document.getElementById('leg-low').textContent = bar.low.toFixed(2);
+                    document.getElementById('leg-close').textContent = bar.close.toFixed(2);
+                    
+                    const isUp = bar.close >= bar.open;
+                    document.getElementById('leg-close').style.color = isUp ? '#26a69a' : '#ef5350';
+                    
+                    if (vol && vol.value !== undefined) {
+                        document.getElementById('leg-vol').textContent = vol.value.toLocaleString();
+                    }
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                if (tvChart && container) {
+                    tvChart.applyOptions({ width: container.clientWidth });
+                }
+            });
+        }
+
+        function cleanAndSortBars(rawBars) {
+            const map = new Map();
+            for (const b of rawBars) {
+                const t = parseInt(b.time, 10);
+                if (!t || isNaN(t)) continue;
+                map.set(t, {
+                    time: t,
+                    open: parseFloat(b.open),
+                    high: parseFloat(b.high),
+                    low: parseFloat(b.low),
+                    close: parseFloat(b.close),
+                    volume: parseFloat(b.volume || 0)
+                });
+            }
+            return Array.from(map.values()).sort((a, b) => a.time - b.time);
+        }
+
+        function renderTradingViewData(histBars, predBars, actualBars) {
+            if (!tvChart) initTradingViewChart();
+            if (!tvChart) return;
+
+            tvCachedHistBars = histBars || [];
+            tvCachedPredBars = predBars || [];
+            tvCachedActualBars = actualBars || [];
+
+            // 1. Historical Bars & Volume
+            if (histBars && histBars.length > 0) {
+                const sortedHist = cleanAndSortBars(histBars);
+                tvHistCandleSeries.setData(sortedHist);
+                
+                const volData = sortedHist.map(b => ({
+                    time: b.time,
+                    value: b.volume || 0,
+                    color: b.close >= b.open ? 'rgba(38, 166, 154, 0.45)' : 'rgba(239, 83, 80, 0.45)'
+                }));
+                tvVolumeSeries.setData(volData);
+            }
+
+            // 2. Prediction Bars & Trajectory
+            if (predBars && predBars.length > 0) {
+                const sortedPred = cleanAndSortBars(predBars);
+                tvPredCandleSeries.setData(sortedPred);
+                tvPredLineSeries.setData(sortedPred.map(b => ({ time: b.time, value: b.close })));
+
+                if (sortedPred.length > 0) {
+                    tvPredCandleSeries.setMarkers([
+                        {
+                            time: sortedPred[0].time,
+                            position: 'aboveBar',
+                            color: '#FF3366',
+                            shape: 'arrowDown',
+                            text: '🔮 Kronos AI Forecast'
+                        }
+                    ]);
+                }
+            } else {
+                tvPredCandleSeries.setData([]);
+                tvPredLineSeries.setData([]);
+                tvPredCandleSeries.setMarkers([]);
+            }
+
+            // 3. Actual Comparison Data
+            if (actualBars && actualBars.length > 0) {
+                const sortedActual = cleanAndSortBars(actualBars);
+                tvActualCandleSeries.setData(sortedActual);
+                tvActualLineSeries.setData(sortedActual.map(b => ({ time: b.time, value: b.close })));
+            } else {
+                tvActualCandleSeries.setData([]);
+                tvActualLineSeries.setData([]);
+            }
+
+            tvFocusTransition();
+        }
+
+        function tvFocusTransition() {
+            if (!tvChart) return;
+            const histData = tvCachedHistBars;
+            const predData = tvCachedPredBars;
+            
+            if (histData.length > 0 && predData.length > 0) {
+                const sortedHist = cleanAndSortBars(histData);
+                const sortedPred = cleanAndSortBars(predData);
+                const fromIdx = Math.max(0, sortedHist.length - 80);
+                const fromTime = sortedHist[fromIdx].time;
+                const toTime = sortedPred[sortedPred.length - 1].time;
+                tvChart.timeScale().setVisibleRange({ from: fromTime, to: toTime });
+            } else if (histData.length > 0) {
+                const sortedHist = cleanAndSortBars(histData);
+                const fromIdx = Math.max(0, sortedHist.length - 100);
+                const fromTime = sortedHist[fromIdx].time;
+                const toTime = sortedHist[sortedHist.length - 1].time;
+                tvChart.timeScale().setVisibleRange({ from: fromTime, to: toTime });
+            } else {
+                tvChart.timeScale().fitContent();
+            }
+        }
+
+        function tvFitAll() {
+            if (!tvChart) return;
+            tvChart.timeScale().fitContent();
+        }
+
+        function tvToggleActual() {
+            if (!tvActualLineSeries || !tvActualCandleSeries) return;
+            tvShowActual = !tvShowActual;
+            tvActualLineSeries.applyOptions({ visible: tvShowActual });
+            tvActualCandleSeries.applyOptions({ visible: tvShowActual });
+            showStatus('info', tvShowActual ? 'Actual data path visible' : 'Actual data path hidden');
+        }
+
+        function tvToggleTheme() {
+            if (!tvChart) return;
+            tvActiveTheme = (tvActiveTheme === 'dark') ? 'light' : 'dark';
+            const isDark = tvActiveTheme === 'dark';
+            const bg = isDark ? '#131722' : '#ffffff';
+            const textColor = isDark ? '#d1d4dc' : '#1e222d';
+            const gridColor = isDark ? '#1e222d' : '#f0f3fa';
+            const borderColor = isDark ? '#2a2e39' : '#e0e3eb';
+
+            tvChart.applyOptions({
+                layout: { background: { type: 'solid', color: bg }, textColor: textColor },
+                grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
+                rightPriceScale: { borderColor: borderColor },
+                timeScale: { borderColor: borderColor }
+            });
+
+            document.getElementById('tv-legend').style.background = isDark ? '#1e222d' : '#f7fafc';
+            document.getElementById('tv-legend').style.color = isDark ? '#d1d4dc' : '#4a5568';
+            document.getElementById('tv-chart-container').style.background = bg;
+        }
+
+        function switchChartEngine(engine) {
+            activeChartEngine = engine;
+            const tvContainer = document.getElementById('tv-chart-container');
+            const tvLegend = document.getElementById('tv-legend');
+            const plotlyContainer = document.getElementById('chart');
+            const btnTv = document.getElementById('btn-engine-tv');
+            const btnPlotly = document.getElementById('btn-engine-plotly');
+
+            if (engine === 'tradingview') {
+                tvContainer.style.display = 'block';
+                tvLegend.style.display = 'flex';
+                plotlyContainer.style.display = 'none';
+                btnTv.style.background = '#667eea';
+                btnTv.style.color = 'white';
+                btnPlotly.style.background = '#f7fafc';
+                btnPlotly.style.color = '#4a5568';
+                if (tvChart) tvChart.timeScale().fitContent();
+            } else {
+                tvContainer.style.display = 'none';
+                tvLegend.style.display = 'none';
+                plotlyContainer.style.display = 'block';
+                btnPlotly.style.background = '#667eea';
+                btnPlotly.style.color = 'white';
+                btnTv.style.background = '#f7fafc';
+                btnTv.style.color = '#4a5568';
+                Plotly.Plots.resize('chart');
+            }
+        }
+
         // Display prediction results
         function displayPredictionResult(result) {
-            // Display chart
-            const chartData = JSON.parse(result.chart);
-            Plotly.newPlot('chart', chartData.data, chartData.layout);
-            
-            // Display comparison analysis (if actual data exists)
-            if (result.has_comparison) {
-                displayComparisonAnalysis(result);
-            } else {
-                document.getElementById('comparison-section').style.display = 'none';
+            try {
+                // 1. Render TradingView Chart (Primary Engine)
+                if (result.historical_data && result.prediction_results) {
+                    renderTradingViewData(result.historical_data, result.prediction_results, result.actual_data || []);
+                }
+
+                // 2. Render Plotly (Secondary Engine)
+                if (result.chart) {
+                    const chartData = typeof result.chart === 'string' ? JSON.parse(result.chart) : result.chart;
+                    Plotly.newPlot('chart', chartData.data, chartData.layout, { responsive: true, displayModeBar: true });
+                }
+                console.log('✅ Prediction charts rendered successfully');
+                
+                // Display comparison analysis (if actual data exists)
+                if (result.has_comparison && result.actual_data && result.actual_data.length > 0) {
+                    displayComparisonAnalysis(result);
+                } else {
+                    document.getElementById('comparison-section').style.display = 'none';
+                }
+            } catch (err) {
+                console.error('❌ Failed to render chart:', err);
+                showStatus('error', `Chart render error: ${err.message}`);
             }
         }
 
@@ -1193,6 +1692,9 @@
             
             // Load data button
             document.getElementById('load-data-btn').addEventListener('click', loadData);
+            
+            // Live Binance data button
+            document.getElementById('fetch-binance-btn').addEventListener('click', fetchBinanceData);
             
             // Prediction button
             document.getElementById('predict-btn').addEventListener('click', startPrediction);

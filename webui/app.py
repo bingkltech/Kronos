@@ -31,13 +31,13 @@ predictor = None
 
 # Available model configurations
 AVAILABLE_MODELS = {
-    'kronos-mini': {
-        'name': 'Kronos-mini',
-        'model_id': 'NeoQuasar/Kronos-mini',
-        'tokenizer_id': 'NeoQuasar/Kronos-Tokenizer-2k',
-        'context_length': 2048,
-        'params': '4.1M',
-        'description': 'Lightweight model, suitable for fast prediction'
+    'kronos-base': {
+        'name': 'Kronos-base',
+        'model_id': 'NeoQuasar/Kronos-base',
+        'tokenizer_id': 'NeoQuasar/Kronos-Tokenizer-base',
+        'context_length': 512,
+        'params': '102.3M',
+        'description': 'Base model, provides better prediction quality (Default)'
     },
     'kronos-small': {
         'name': 'Kronos-small',
@@ -47,13 +47,13 @@ AVAILABLE_MODELS = {
         'params': '24.7M',
         'description': 'Small model, balanced performance and speed'
     },
-    'kronos-base': {
-        'name': 'Kronos-base',
-        'model_id': 'NeoQuasar/Kronos-base',
-        'tokenizer_id': 'NeoQuasar/Kronos-Tokenizer-base',
-        'context_length': 512,
-        'params': '102.3M',
-        'description': 'Base model, provides better prediction quality'
+    'kronos-mini': {
+        'name': 'Kronos-mini',
+        'model_id': 'NeoQuasar/Kronos-mini',
+        'tokenizer_id': 'NeoQuasar/Kronos-Tokenizer-2k',
+        'context_length': 2048,
+        'params': '4.1M',
+        'description': 'Lightweight model, suitable for fast prediction'
     }
 }
 
@@ -76,8 +76,17 @@ def load_data_files():
     return data_files
 
 def load_data_file(file_path):
-    """Load data file"""
+    """Load data file with flexible path resolution"""
     try:
+        if not os.path.isabs(file_path):
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            cand1 = os.path.join(base_dir, file_path)
+            cand2 = os.path.join(base_dir, 'data', os.path.basename(file_path))
+            if os.path.exists(cand1):
+                file_path = cand1
+            elif os.path.exists(cand2):
+                file_path = cand2
+
         if file_path.endswith('.csv'):
             df = pd.read_csv(file_path)
         elif file_path.endswith('.feather'):
@@ -207,130 +216,341 @@ def save_prediction_results(file_path, prediction_type, prediction_results, actu
         return None
 
 def create_prediction_chart(df, pred_df, lookback, pred_len, actual_df=None, historical_start_idx=0):
-    """Create prediction chart"""
-    # Use specified historical data start position, not always from the beginning of df
-    if historical_start_idx + lookback + pred_len <= len(df):
-        # Display lookback historical points + pred_len prediction points starting from specified position
+    """Create prediction chart with crystal-clear visibility, pure JSON arrays, and ergonomic zoom."""
+    # Slicing lookback historical points
+    if historical_start_idx + lookback <= len(df):
         historical_df = df.iloc[historical_start_idx:historical_start_idx+lookback]
-        prediction_range = range(historical_start_idx+lookback, historical_start_idx+lookback+pred_len)
     else:
-        # If data is insufficient, adjust to maximum available range
-        available_lookback = min(lookback, len(df) - historical_start_idx)
-        available_pred_len = min(pred_len, max(0, len(df) - historical_start_idx - available_lookback))
-        historical_df = df.iloc[historical_start_idx:historical_start_idx+available_lookback]
-        prediction_range = range(historical_start_idx+available_lookback, historical_start_idx+available_lookback+available_pred_len)
+        available_lookback = min(lookback, len(df))
+        historical_df = df.iloc[-available_lookback:]
     
-    # Create chart
+    # 1. Format timestamps as ISO string lists (pure string arrays for browser Plotly.js)
+    if 'timestamps' in historical_df.columns:
+        hist_x = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in historical_df['timestamps']]
+        time_diff = historical_df['timestamps'].iloc[1] - historical_df['timestamps'].iloc[0] if len(historical_df) > 1 else pd.Timedelta(hours=1)
+        last_hist_dt = pd.to_datetime(historical_df['timestamps'].iloc[-1])
+        split_dt_str = last_hist_dt.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        hist_x = [f"T{i}" for i in range(len(historical_df))]
+        split_dt_str = hist_x[-1] if hist_x else "T0"
+        time_diff = pd.Timedelta(hours=1)
+        last_hist_dt = pd.to_datetime('2026-01-01')
+
+    # Convert numeric Series to native Python float lists (PREVENTS binary bdata / dtype serialization bug!)
+    hist_open = [float(x) for x in historical_df['open']]
+    hist_high = [float(x) for x in historical_df['high']]
+    hist_low = [float(x) for x in historical_df['low']]
+    hist_close = [float(x) for x in historical_df['close']]
+
     fig = go.Figure()
-    
-    # Add historical data (candlestick chart)
+
+    # Trace 0: Historical Candlesticks
     fig.add_trace(go.Candlestick(
-        x=historical_df['timestamps'] if 'timestamps' in historical_df.columns else historical_df.index,
-        open=historical_df['open'],
-        high=historical_df['high'],
-        low=historical_df['low'],
-        close=historical_df['close'],
-        name='Historical Data (400 data points)',
+        x=hist_x,
+        open=hist_open,
+        high=hist_high,
+        low=hist_low,
+        close=hist_close,
+        name='Historical Lookback (400)',
         increasing_line_color='#26A69A',
-        decreasing_line_color='#EF5350'
+        decreasing_line_color='#EF5350',
+        increasing_fillcolor='rgba(38, 166, 154, 0.7)',
+        decreasing_fillcolor='rgba(239, 83, 80, 0.7)',
+        opacity=0.9
     ))
-    
-    # Add prediction data (candlestick chart)
+
+    pred_x = []
     if pred_df is not None and len(pred_df) > 0:
-        # Calculate prediction data timestamps - ensure continuity with historical data
         if 'timestamps' in df.columns and len(historical_df) > 0:
-            # Start from the last timestamp of historical data, create prediction timestamps with the same time interval
-            last_timestamp = historical_df['timestamps'].iloc[-1]
-            time_diff = df['timestamps'].iloc[1] - df['timestamps'].iloc[0] if len(df) > 1 else pd.Timedelta(hours=1)
-            
-            pred_timestamps = pd.date_range(
-                start=last_timestamp + time_diff,
+            pred_dt_range = pd.date_range(
+                start=last_hist_dt + time_diff,
                 periods=len(pred_df),
                 freq=time_diff
             )
+            pred_x = [dt.strftime('%Y-%m-%d %H:%M:%S') for dt in pred_dt_range]
         else:
-            # If no timestamps, use index
-            pred_timestamps = range(len(historical_df), len(historical_df) + len(pred_df))
-        
+            pred_x = [f"P{i}" for i in range(len(pred_df))]
+
+        pred_open = [float(x) for x in pred_df['open']]
+        pred_high = [float(x) for x in pred_df['high']]
+        pred_low = [float(x) for x in pred_df['low']]
+        pred_close = [float(x) for x in pred_df['close']]
+
+        # Trace 1: Predicted Candlesticks (Vivid Neon Indigo / Cyan / Coral for clear contrast)
         fig.add_trace(go.Candlestick(
-            x=pred_timestamps,
-            open=pred_df['open'],
-            high=pred_df['high'],
-            low=pred_df['low'],
-            close=pred_df['close'],
-            name='Prediction Data (120 data points)',
-            increasing_line_color='#66BB6A',
-            decreasing_line_color='#FF7043'
+            x=pred_x,
+            open=pred_open,
+            high=pred_high,
+            low=pred_low,
+            close=pred_close,
+            name='Kronos Forecast Candles (120)',
+            increasing_line_color='#00E676',
+            decreasing_line_color='#FF5252',
+            increasing_fillcolor='rgba(0, 230, 118, 0.85)',
+            decreasing_fillcolor='rgba(255, 82, 82, 0.85)',
         ))
-    
-    # Add actual data for comparison (if exists)
+
+        # Trace 2: Predicted Close Price Line (Easy-to-see trajectory path)
+        fig.add_trace(go.Scatter(
+            x=pred_x,
+            y=pred_close,
+            mode='lines',
+            line=dict(color='#00E676', width=2, dash='dot'),
+            name='Forecast Trajectory (Close)'
+        ))
+
+    # Trace 3 & 4: Actual Ground-Truth Data (if available for comparison)
     if actual_df is not None and len(actual_df) > 0:
-        # Actual data should be in the same time period as prediction data
-        if 'timestamps' in df.columns:
-            # Actual data should use the same timestamps as prediction data to ensure time alignment
-            if 'pred_timestamps' in locals():
-                actual_timestamps = pred_timestamps
-            else:
-                # If no prediction timestamps, calculate from the last timestamp of historical data
-                if len(historical_df) > 0:
-                    last_timestamp = historical_df['timestamps'].iloc[-1]
-                    time_diff = df['timestamps'].iloc[1] - df['timestamps'].iloc[0] if len(df) > 1 else pd.Timedelta(hours=1)
-                    actual_timestamps = pd.date_range(
-                        start=last_timestamp + time_diff,
-                        periods=len(actual_df),
-                        freq=time_diff
-                    )
-                else:
-                    actual_timestamps = range(len(historical_df), len(historical_df) + len(actual_df))
+        if pred_x and len(pred_x) == len(actual_df):
+            actual_x = pred_x
+        elif 'timestamps' in actual_df.columns:
+            actual_x = [pd.to_datetime(t).strftime('%Y-%m-%d %H:%M:%S') for t in actual_df['timestamps']]
         else:
-            actual_timestamps = range(len(historical_df), len(historical_df) + len(actual_df))
-        
+            actual_x = pred_x
+
+        actual_open = [float(x) for x in actual_df['open']]
+        actual_high = [float(x) for x in actual_df['high']]
+        actual_low = [float(x) for x in actual_df['low']]
+        actual_close = [float(x) for x in actual_df['close']]
+
+        # Actual Data Candlesticks (toggleable via legend to avoid visual collision)
         fig.add_trace(go.Candlestick(
-            x=actual_timestamps,
-            open=actual_df['open'],
-            high=actual_df['high'],
-            low=actual_df['low'],
-            close=actual_df['close'],
-            name='Actual Data (120 data points)',
-            increasing_line_color='#FF9800',
-            decreasing_line_color='#F44336'
+            x=actual_x,
+            open=actual_open,
+            high=actual_high,
+            low=actual_low,
+            close=actual_close,
+            name='Actual Ground Truth Candles (120)',
+            increasing_line_color='#3B82F6',
+            decreasing_line_color='#F59E0B',
+            increasing_fillcolor='rgba(59, 130, 246, 0.4)',
+            decreasing_fillcolor='rgba(245, 158, 11, 0.4)',
+            opacity=0.65,
+            visible='legendonly'
         ))
-    
-    # Update layout
+
+        # Actual Close Price Line (Amber solid line with markers for direct path comparison)
+        fig.add_trace(go.Scatter(
+            x=actual_x,
+            y=actual_close,
+            mode='lines+markers',
+            marker=dict(size=4, color='#F59E0B'),
+            line=dict(color='#F59E0B', width=2),
+            name='Actual Ground Truth (Close)'
+        ))
+
+    # Add Vertical Separation Line marking Forecast Start
+    if split_dt_str:
+        fig.add_shape(
+            type="line",
+            x0=split_dt_str,
+            x1=split_dt_str,
+            y0=0,
+            y1=1,
+            yref="paper",
+            line=dict(color="#E53E3E", width=2, dash="dash")
+        )
+        fig.add_annotation(
+            x=split_dt_str,
+            y=0.98,
+            yref="paper",
+            text="Forecast Start (Kronos AI)",
+            showarrow=False,
+            xanchor="right",
+            yanchor="top",
+            font=dict(size=12, color="#E53E3E", family="Segoe UI, sans-serif"),
+            bgcolor="rgba(255, 255, 255, 0.9)",
+            bordercolor="#E53E3E",
+            borderwidth=1,
+            borderpad=4
+        )
+
+    # Focus on the transition: last 80 historical candles + 120 prediction candles
+    if hist_x and pred_x:
+        zoom_start = hist_x[-80] if len(hist_x) >= 80 else hist_x[0]
+        zoom_end = pred_x[-1]
+    elif hist_x:
+        zoom_start = hist_x[0]
+        zoom_end = hist_x[-1]
+    else:
+        zoom_start, zoom_end = None, None
+
+    # Update layout with professional quant styling and range slider
     fig.update_layout(
-        title='Kronos Financial Prediction Results - 400 Historical Points + 120 Prediction Points vs 120 Actual Points',
-        xaxis_title='Time',
-        yaxis_title='Price',
+        title={
+            'text': 'Kronos Quant Forecast — Historical Lookback vs Prediction Horizon',
+            'y': 0.96,
+            'x': 0.05,
+            'xanchor': 'left',
+            'yanchor': 'top',
+            'font': dict(size=18, color='#1A202C')
+        },
+        xaxis=dict(
+            title='Time',
+            gridcolor='#EDF2F7',
+            showgrid=True,
+            range=[zoom_start, zoom_end] if zoom_start and zoom_end else None,
+            rangeslider=dict(visible=True, thickness=0.08),
+            type='date' if 'timestamps' in historical_df.columns else None
+        ),
+        yaxis=dict(
+            title='Price (USDT / Asset Currency)',
+            gridcolor='#EDF2F7',
+            showgrid=True,
+            autorange=True,
+            fixedrange=False
+        ),
         template='plotly_white',
-        height=600,
-        showlegend=True
+        height=720,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor='rgba(255, 255, 255, 0.85)',
+            bordercolor='#CBD5E0',
+            borderwidth=1
+        ),
+        hovermode='x unified',
+        margin=dict(l=50, r=50, t=90, b=50)
     )
+
+    return json.dumps(fig.to_dict())
+
+
+import urllib.request
+
+BINANCE_ASSETS = [
+    {"symbol": "BTCUSDT", "name": "Bitcoin (BTC/USDT)"},
+    {"symbol": "ETHUSDT", "name": "Ethereum (ETH/USDT)"},
+    {"symbol": "SOLUSDT", "name": "Solana (SOL/USDT)"},
+    {"symbol": "BNBUSDT", "name": "BNB (BNB/USDT)"},
+    {"symbol": "DOGEUSDT", "name": "Dogecoin (DOGE/USDT)"},
+    {"symbol": "XRPUSDT", "name": "Ripple (XRP/USDT)"},
+    {"symbol": "ADAUSDT", "name": "Cardano (ADA/USDT)"},
+    {"symbol": "AVAXUSDT", "name": "Avalanche (AVAX/USDT)"},
+    {"symbol": "LINKUSDT", "name": "Chainlink (LINK/USDT)"},
+    {"symbol": "NEARUSDT", "name": "NEAR Protocol (NEAR/USDT)"},
+    {"symbol": "SUIUSDT", "name": "Sui Network (SUI/USDT)"},
+    {"symbol": "PEPEUSDT", "name": "Pepe (PEPE/USDT)"}
+]
+
+import requests
+import certifi
+
+def fetch_binance_klines(symbol="BTCUSDT", interval="1h", limit=600):
+    """Fetch live candlestick data from Binance Free Public API (no API key required)."""
+    symbol = symbol.upper().strip()
+    url = "https://api.binance.com/api/v3/klines"
+    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
-    # Ensure x-axis time continuity
-    if 'timestamps' in historical_df.columns:
-        # Get all timestamps and sort them
-        all_timestamps = []
-        if len(historical_df) > 0:
-            all_timestamps.extend(historical_df['timestamps'])
-        if 'pred_timestamps' in locals():
-            all_timestamps.extend(pred_timestamps)
-        if 'actual_timestamps' in locals():
-            all_timestamps.extend(actual_timestamps)
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=15, verify=certifi.where())
+    except requests.exceptions.SSLError:
+        resp = requests.get(url, params=params, headers=headers, timeout=15, verify=False)
         
-        if all_timestamps:
-            all_timestamps = sorted(all_timestamps)
-            fig.update_xaxes(
-                range=[all_timestamps[0], all_timestamps[-1]],
-                rangeslider_visible=False,
-                type='date'
-            )
+    resp.raise_for_status()
+    raw_data = resp.json()
     
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    if not raw_data or not isinstance(raw_data, list):
+        raise ValueError(f"Empty or invalid response from Binance API for {symbol}")
+        
+    df = pd.DataFrame(raw_data, columns=[
+        "open_time", "open", "high", "low", "close", "volume",
+        "close_time", "amount", "trades", "taker_base", "taker_quote", "ignore"
+    ])
+    
+    df["timestamps"] = pd.to_datetime(df["open_time"], unit="ms")
+    for col in ["open", "high", "low", "close", "volume", "amount"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        
+    clean_df = df[["timestamps", "open", "high", "low", "close", "volume", "amount"]].dropna().reset_index(drop=True)
+    
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    filename = f"binance_{symbol}_{interval}.csv"
+    file_path = os.path.join(data_dir, filename)
+    clean_df.to_csv(file_path, index=False)
+    
+    return clean_df, file_path
 
 @app.route('/')
 def index():
     """Home page"""
     return render_template('index.html')
+
+@app.route('/api/binance/symbols', methods=['GET'])
+def get_binance_symbols():
+    """Return available Binance popular crypto assets and intervals"""
+    return jsonify({
+        "success": True,
+        "symbols": BINANCE_ASSETS,
+        "intervals": ["1m", "5m", "15m", "1h", "4h", "1d"]
+    })
+
+@app.route('/api/binance/fetch-klines', methods=['POST'])
+def binance_fetch():
+    """Fetch live market data from Binance free public API and load it"""
+    try:
+        req_data = request.get_json() or {}
+        symbol = req_data.get('symbol', 'BTCUSDT')
+        interval = req_data.get('interval', '1h')
+        limit = int(req_data.get('limit', 600))
+        
+        df, file_path = fetch_binance_klines(symbol=symbol, interval=interval, limit=limit)
+        
+        def detect_timeframe(df):
+            if len(df) < 2:
+                return "Unknown"
+            diff = df['timestamps'].iloc[1] - df['timestamps'].iloc[0]
+            if diff < pd.Timedelta(minutes=1):
+                return f"{diff.total_seconds():.0f} seconds"
+            elif diff < pd.Timedelta(hours=1):
+                return f"{diff.total_seconds() / 60:.0f} minutes"
+            elif diff < pd.Timedelta(days=1):
+                return f"{diff.total_seconds() / 3600:.0f} hours"
+            else:
+                return f"{diff.days} days"
+
+        data_info = {
+            'rows': len(df),
+            'columns': list(df.columns),
+            'start_date': df['timestamps'].min().isoformat(),
+            'end_date': df['timestamps'].max().isoformat(),
+            'price_range': {
+                'min': float(df[['open', 'high', 'low', 'close']].min().min()),
+                'max': float(df[['open', 'high', 'low', 'close']].max().max())
+            },
+            'prediction_columns': ['open', 'high', 'low', 'close', 'volume'],
+            'timeframe': detect_timeframe(df),
+            'symbol': symbol,
+            'interval': interval,
+            'source': 'Binance Public API'
+        }
+        
+        # Include lightweight candle array for immediate TradingView rendering
+        data_info['candles'] = [
+            {
+                'time': int(pd.to_datetime(row['timestamps']).timestamp()) if 'timestamps' in row else 0,
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': float(row['volume']) if 'volume' in row else 0
+            }
+            for _, row in df.iterrows()
+        ]
+        
+        return jsonify({
+            'success': True,
+            'file_path': file_path,
+            'data_info': data_info,
+            'message': f'Successfully fetched {len(df)} live {symbol} ({interval}) candles from Binance!'
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to fetch Binance data: {str(e)}'}), 500
 
 @app.route('/api/data-files')
 def get_data_files():
@@ -365,10 +585,8 @@ def load_data():
             if not time_diffs:
                 return "Unknown"
             
-            # Calculate average time difference
             avg_diff = sum(time_diffs, pd.Timedelta(0)) / len(time_diffs)
             
-            # Convert to readable format
             if avg_diff < pd.Timedelta(minutes=1):
                 return f"{avg_diff.total_seconds():.0f} seconds"
             elif avg_diff < pd.Timedelta(hours=1):
@@ -391,6 +609,19 @@ def load_data():
             'prediction_columns': ['open', 'high', 'low', 'close'] + (['volume'] if 'volume' in df.columns else []),
             'timeframe': detect_timeframe(df)
         }
+        
+        # Include lightweight candle array for TradingView rendering
+        data_info['candles'] = [
+            {
+                'time': int(pd.to_datetime(row['timestamps']).timestamp()) if 'timestamps' in row else 0,
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': float(row['volume']) if 'volume' in row else 0
+            }
+            for _, row in df.iterrows()
+        ]
         
         return jsonify({
             'success': True,
@@ -464,11 +695,30 @@ def predict():
                     
                     prediction_type = f"Kronos model prediction (within selected window: first {lookback} data points for prediction, last {pred_len} data points for comparison, time span: {time_span})"
                 else:
-                    # Use latest data
-                    x_df = df.iloc[:lookback][required_cols]
-                    x_timestamp = df.iloc[:lookback]['timestamps']
-                    y_timestamp = df.iloc[lookback:lookback+pred_len]['timestamps']
-                    prediction_type = "Kronos model prediction (latest data)"
+                    # Use latest data or tail data
+                    use_tail = data.get('use_tail', False) or (len(df) - lookback < pred_len)
+                    if use_tail:
+                        x_df = df.iloc[-lookback:][required_cols]
+                        x_timestamp = df.iloc[-lookback:]['timestamps']
+                        if len(x_timestamp) > 1:
+                            time_diff = x_timestamp.iloc[-1] - x_timestamp.iloc[-2]
+                        else:
+                            time_diff = pd.Timedelta(hours=1)
+                        future_ts = pd.date_range(start=x_timestamp.iloc[-1] + time_diff, periods=pred_len, freq=time_diff)
+                        y_timestamp = pd.Series(future_ts, name='timestamps')
+                        prediction_type = f"Kronos model live forward prediction (latest {lookback} lookback bars)"
+                    else:
+                        x_df = df.iloc[:lookback][required_cols]
+                        x_timestamp = df.iloc[:lookback]['timestamps']
+                        y_timestamp = df.iloc[lookback:lookback+pred_len]['timestamps']
+                        if len(y_timestamp) < pred_len:
+                            if len(x_timestamp) > 1:
+                                time_diff = x_timestamp.iloc[-1] - x_timestamp.iloc[-2]
+                            else:
+                                time_diff = pd.Timedelta(hours=1)
+                            future_ts = pd.date_range(start=x_timestamp.iloc[-1] + time_diff, periods=pred_len, freq=time_diff)
+                            y_timestamp = pd.Series(future_ts, name='timestamps')
+                        prediction_type = "Kronos model prediction (latest data)"
                 
                 # Ensure timestamps are Series format, not DatetimeIndex, to avoid .dt attribute error in Kronos model
                 if isinstance(x_timestamp, pd.DatetimeIndex):
@@ -510,8 +760,10 @@ def predict():
                 actual_df = time_range_df.iloc[lookback:lookback+pred_len]
                 
                 for i, (_, row) in enumerate(actual_df.iterrows()):
+                    ts = pd.to_datetime(row['timestamps']) if 'timestamps' in row else None
                     actual_data.append({
-                        'timestamp': row['timestamps'].isoformat(),
+                        'timestamp': ts.isoformat() if ts is not None else '',
+                        'time': int(ts.timestamp()) if ts is not None else 0,
                         'open': float(row['open']),
                         'high': float(row['high']),
                         'low': float(row['low']),
@@ -519,14 +771,15 @@ def predict():
                         'volume': float(row['volume']) if 'volume' in row else 0,
                         'amount': float(row['amount']) if 'amount' in row else 0
                     })
-        else:  # Latest data
-            # Prediction uses first 400 data points
-            # Actual data should be 120 data points after first 400 data points
-            if len(df) >= lookback + pred_len:
+        else:  # Latest / tail data
+            use_tail = data.get('use_tail', False) or (len(df) - lookback < pred_len)
+            if not use_tail and len(df) >= lookback + pred_len:
                 actual_df = df.iloc[lookback:lookback+pred_len]
                 for i, (_, row) in enumerate(actual_df.iterrows()):
+                    ts = pd.to_datetime(row['timestamps']) if 'timestamps' in row else None
                     actual_data.append({
-                        'timestamp': row['timestamps'].isoformat(),
+                        'timestamp': ts.isoformat() if ts is not None else '',
+                        'time': int(ts.timestamp()) if ts is not None else 0,
                         'open': float(row['open']),
                         'high': float(row['high']),
                         'low': float(row['low']),
@@ -534,6 +787,9 @@ def predict():
                         'volume': float(row['volume']) if 'volume' in row else 0,
                         'amount': float(row['amount']) if 'amount' in row else 0
                     })
+            else:
+                actual_df = None
+                actual_data = []
         
         # Create chart - pass historical data start position
         if start_date:
@@ -542,46 +798,49 @@ def predict():
             mask = df['timestamps'] >= start_dt
             historical_start_idx = df[mask].index[0] if len(df[mask]) > 0 else 0
         else:
-            # Latest data: start from beginning
-            historical_start_idx = 0
+            use_tail = data.get('use_tail', False) or (len(df) - lookback < pred_len)
+            historical_start_idx = max(0, len(df) - lookback) if use_tail else 0
         
         chart_json = create_prediction_chart(df, pred_df, lookback, pred_len, actual_df, historical_start_idx)
         
-        # Prepare prediction result data - fix timestamp calculation logic
-        if 'timestamps' in df.columns:
-            if start_date:
-                # Custom time period: use selected window data to calculate timestamps
-                start_dt = pd.to_datetime(start_date)
-                mask = df['timestamps'] >= start_dt
-                time_range_df = df[mask]
-                
-                if len(time_range_df) >= lookback:
-                    # Calculate prediction timestamps starting from last time point of selected window
-                    last_timestamp = time_range_df['timestamps'].iloc[lookback-1]
-                    time_diff = df['timestamps'].iloc[1] - df['timestamps'].iloc[0]
-                    future_timestamps = pd.date_range(
-                        start=last_timestamp + time_diff,
-                        periods=pred_len,
-                        freq=time_diff
-                    )
-                else:
-                    future_timestamps = []
-            else:
-                # Latest data: calculate from last time point of entire data file
-                last_timestamp = df['timestamps'].iloc[-1]
-                time_diff = df['timestamps'].iloc[1] - df['timestamps'].iloc[0]
-                future_timestamps = pd.date_range(
-                    start=last_timestamp + time_diff,
-                    periods=pred_len,
-                    freq=time_diff
-                )
+        # Prepare historical data for TradingView chart
+        historical_data = []
+        if historical_start_idx + lookback <= len(df):
+            hist_subset = df.iloc[historical_start_idx:historical_start_idx+lookback]
+        else:
+            available_lookback = min(lookback, len(df))
+            hist_subset = df.iloc[-available_lookback:]
+            
+        for _, row in hist_subset.iterrows():
+            ts = pd.to_datetime(row['timestamps']) if 'timestamps' in row else None
+            historical_data.append({
+                'timestamp': ts.isoformat() if ts is not None else '',
+                'time': int(ts.timestamp()) if ts is not None else 0,
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': float(row['volume']) if 'volume' in row else 0
+            })
+
+        # Prepare prediction result data - ensure perfect continuity with historical lookback
+        if 'timestamps' in df.columns and len(hist_subset) > 0:
+            last_timestamp = hist_subset['timestamps'].iloc[-1]
+            time_diff = df['timestamps'].iloc[1] - df['timestamps'].iloc[0] if len(df) > 1 else pd.Timedelta(hours=1)
+            future_timestamps = pd.date_range(
+                start=last_timestamp + time_diff,
+                periods=pred_len,
+                freq=time_diff
+            )
         else:
             future_timestamps = range(len(df), len(df) + pred_len)
         
         prediction_results = []
         for i, (_, row) in enumerate(pred_df.iterrows()):
+            ts = future_timestamps[i] if i < len(future_timestamps) else None
             prediction_results.append({
-                'timestamp': future_timestamps[i].isoformat() if i < len(future_timestamps) else f"T{i}",
+                'timestamp': ts.isoformat() if ts is not None and hasattr(ts, 'isoformat') else f"T{i}",
+                'time': int(pd.to_datetime(ts).timestamp()) if ts is not None and hasattr(ts, 'timestamp') else 0,
                 'open': float(row['open']),
                 'high': float(row['high']),
                 'low': float(row['low']),
@@ -614,6 +873,7 @@ def predict():
             'success': True,
             'prediction_type': prediction_type,
             'chart': chart_json,
+            'historical_data': historical_data,
             'prediction_results': prediction_results,
             'actual_data': actual_data,
             'has_comparison': len(actual_data) > 0,
@@ -632,8 +892,8 @@ def load_model():
         if not MODEL_AVAILABLE:
             return jsonify({'error': 'Kronos model library not available'}), 400
         
-        data = request.get_json()
-        model_key = data.get('model_key', 'kronos-small')
+        data = request.get_json() or {}
+        model_key = data.get('model_key', 'kronos-base')
         device = data.get('device', 'cpu')
         
         if model_key not in AVAILABLE_MODELS:
