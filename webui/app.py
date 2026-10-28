@@ -22,6 +22,7 @@ except ImportError:
     print("Warning: Kronos model cannot be imported, will use simulated data for demonstration")
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 CORS(app)
 
 # Global variables to store models
@@ -398,7 +399,9 @@ def create_prediction_chart(df, pred_df, lookback, pred_len, actual_df=None, his
             gridcolor='#EDF2F7',
             showgrid=True,
             autorange=True,
-            fixedrange=False
+            fixedrange=False,
+            tickformat='.8f' if (hist_close and hist_close[-1] < 0.0001) else ('.6f' if (hist_close and hist_close[-1] < 0.01) else ('.4f' if (hist_close and hist_close[-1] < 1.0) else ('.3f' if (hist_close and hist_close[-1] < 100.0) else ',.2f'))),
+            hoverformat='.8f' if (hist_close and hist_close[-1] < 0.0001) else ('.6f' if (hist_close and hist_close[-1] < 0.01) else ('.4f' if (hist_close and hist_close[-1] < 1.0) else ('.3f' if (hist_close and hist_close[-1] < 100.0) else ',.2f')))
         ),
         template='plotly_white',
         height=720,
@@ -433,16 +436,18 @@ BINANCE_ASSETS = [
     {"symbol": "LINKUSDT", "name": "Chainlink (LINK/USDT)"},
     {"symbol": "NEARUSDT", "name": "NEAR Protocol (NEAR/USDT)"},
     {"symbol": "SUIUSDT", "name": "Sui Network (SUI/USDT)"},
-    {"symbol": "PEPEUSDT", "name": "Pepe (PEPE/USDT)"}
+    {"symbol": "1000PEPEUSDT", "name": "1000PEPE Futures (1000PEPE/USDT)"},
+    {"symbol": "PEPEUSDT", "name": "Pepe Spot (PEPE/USDT)"}
 ]
 
 import requests
 import certifi
 
 def fetch_binance_klines(symbol="BTCUSDT", interval="1h", limit=600):
-    """Fetch live candlestick data from Binance Free Public API (no API key required)."""
+    """Fetch live candlestick data from Binance Free Public API (Spot or Futures)."""
     symbol = symbol.upper().strip()
-    url = "https://api.binance.com/api/v3/klines"
+    is_futures = symbol.startswith("1000")
+    url = "https://fapi.binance.com/fapi/v1/klines" if is_futures else "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     
@@ -450,6 +455,14 @@ def fetch_binance_klines(symbol="BTCUSDT", interval="1h", limit=600):
         resp = requests.get(url, params=params, headers=headers, timeout=15, verify=certifi.where())
     except requests.exceptions.SSLError:
         resp = requests.get(url, params=params, headers=headers, timeout=15, verify=False)
+    
+    if not resp.ok and not is_futures:
+        # Fallback to Binance Futures endpoint if Spot returns 400 (e.g. futures-only symbols)
+        url = "https://fapi.binance.com/fapi/v1/klines"
+        try:
+            resp = requests.get(url, params=params, headers=headers, timeout=15, verify=certifi.where())
+        except requests.exceptions.SSLError:
+            resp = requests.get(url, params=params, headers=headers, timeout=15, verify=False)
         
     resp.raise_for_status()
     raw_data = resp.json()
@@ -957,6 +970,244 @@ def get_model_status():
             'message': 'Kronos model library not available, please install related dependencies'
         })
 
+# ==============================================================================
+# Quantitative Terminal & Multi-Agent Bot APIs
+# ==============================================================================
+
+from decimal import Decimal
+from src.quant.orchestrator import QuantBotOrchestrator
+from src.quant.config import ALL_SUPPORTED_SYMBOLS, DEFAULT_RISK_CONFIG
+from src.quant.binance_execution import BinanceAtomicExecutor, PositionState
+
+# Global singleton quant orchestrator
+quant_bot = QuantBotOrchestrator(
+    symbols_config=ALL_SUPPORTED_SYMBOLS,
+    risk_config=DEFAULT_RISK_CONFIG,
+    executor=BinanceAtomicExecutor(dry_run=True)
+)
+
+@app.route('/api/macro/overview', methods=['GET'])
+def get_macro_overview():
+    """Return live Top-10 composite breadth, funding rates, and news blackout status."""
+    try:
+        # 1. Systemic Market Breadth
+        macro_verdict = quant_bot.index_engine.evaluate_universe()
+        
+        # 2. Funding Rates & Carry Economics
+        funding_map = quant_bot.carry_specialist.fetch_funding_rates()
+        
+        # 3. Macro News Blackout Status
+        news_verdict = quant_bot.news_specialist.evaluate_blackout()
+        
+        # Format symbols data
+        symbols_data = []
+        for sym, stats in macro_verdict.symbol_stats.items():
+            sym_funding = funding_map.get(sym, {}).get("funding_rate", Decimal("0.0001"))
+            annualized = sym_funding * Decimal("3") * Decimal("365") * Decimal("100")
+            carry = quant_bot.carry_specialist.evaluate_carry(sym, "LONG", sym_funding)
+            
+            symbols_data.append({
+                "symbol": sym,
+                "current_price": float(stats.current_price),
+                "vwap_24h": float(stats.vwap_24h),
+                "above_vwap": stats.above_vwap,
+                "price_change_24h_pct": float(stats.price_change_24h_pct),
+                "volume_24h_usdt": float(stats.volume_24h_usdt),
+                "funding_rate_8h_pct": float(sym_funding * Decimal("100")),
+                "annualized_funding_pct": float(annualized),
+                "carry_verdict": carry.verdict
+            })
+            
+        return jsonify({
+            "success": True,
+            "macro_regime": macro_verdict.macro_regime,
+            "breadth_ratio": float(macro_verdict.breadth_ratio),
+            "breadth_pct": f"{float(macro_verdict.breadth_ratio) * 100:.1f}%",
+            "coins_above_vwap": macro_verdict.coins_above_vwap_count,
+            "total_coins": macro_verdict.total_coins_evaluated,
+            "news_blackout": {
+                "is_blackout": news_verdict.is_blackout,
+                "event_name": news_verdict.event_name,
+                "minutes_to_event": news_verdict.minutes_to_event,
+                "reason": news_verdict.reason
+            },
+            "symbols": symbols_data
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/status', methods=['GET'])
+def get_bot_status():
+    """Return quant bot operational status, active positions, and risk metrics."""
+    try:
+        calib = quant_bot.learning_governor.calculate_brier_calibration()
+        positions = []
+        for pos_id, pos in quant_bot.executor.active_positions.items():
+            if pos.state == PositionState.BRACKETS_ACTIVE:
+                duration_min = 0
+                if pos.entry_fill_time_utc:
+                    duration_min = int((datetime.datetime.now(datetime.timezone.utc) - pos.entry_fill_time_utc).total_seconds() / 60)
+                positions.append({
+                    "position_id": pos.position_id,
+                    "symbol": pos.symbol,
+                    "side": pos.side,
+                    "entry_price": float(pos.entry_price),
+                    "stop_loss": float(pos.stop_loss),
+                    "take_profit": float(pos.take_profit),
+                    "quantity": float(pos.quantity),
+                    "duration_minutes": duration_min,
+                    "duration_hours": round(duration_min / 60.0, 1),
+                    "state": pos.state.value,
+                    "entry_time": pos.entry_fill_time_utc.isoformat() if pos.entry_fill_time_utc else None
+                })
+                
+        return jsonify({
+            "success": True,
+            "bot_state": "ACTIVE" if positions else "IDLE_MONITORING",
+            "execution_mode": "DRY_RUN (SIMULATED)",
+            "account_equity": 10000.00,
+            "base_risk_budget_pct": "1.5%",
+            "max_leverage": 5,
+            "confidence_multiplier": float(calib.confidence_multiplier),
+            "calibration_status": calib.status,
+            "active_positions_count": len(positions),
+            "active_positions": positions
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/scan', methods=['POST'])
+def run_bot_scan():
+    """Trigger an immediate scan cycle across the universe."""
+    try:
+        req_data = request.get_json() or {}
+        equity = Decimal(str(req_data.get("account_equity", 10000.00)))
+        
+        # Load any active cached lookback files in data/
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        lookbacks = {}
+        for sym in ALL_SUPPORTED_SYMBOLS.keys():
+            cand_csv = os.path.join(data_dir, f"binance_{sym}_1h.csv")
+            if os.path.exists(cand_csv):
+                try:
+                    df = pd.read_csv(cand_csv)
+                    if len(df) >= 50:
+                        lookbacks[sym] = df
+                except Exception:
+                    pass
+                    
+        report = quant_bot.run_scan_cycle(
+            account_equity=equity,
+            lookback_data_map=lookbacks if lookbacks else None
+        )
+        
+        decisions_summary = []
+        for sym, dec in report.decisions.items():
+            decisions_summary.append({
+                "symbol": sym,
+                "side": dec.side,
+                "approved": dec.approved,
+                "veto_gate": dec.veto_gate_failed,
+                "reason": dec.veto_reason,
+                "adversarial_notes": dec.adversarial_notes,
+                "ticket": {
+                    "entry_price": float(dec.ticket.entry_price),
+                    "stop_loss": float(dec.ticket.stop_loss),
+                    "take_profit": float(dec.ticket.take_profit),
+                    "quantity": float(dec.ticket.quantity),
+                    "notional_usd": float(dec.ticket.notional_usd),
+                    "effective_leverage": dec.ticket.effective_leverage,
+                    "rr_ratio": float(dec.ticket.reward_risk_ratio),
+                    "net_gain_pct": float(dec.ticket.net_expected_gain_pct)
+                } if dec.ticket else None
+            })
+            
+        dispatched = [
+            {
+                "position_id": p.position_id,
+                "symbol": p.symbol,
+                "side": p.side,
+                "entry_price": float(p.entry_price),
+                "stop_loss": float(p.stop_loss),
+                "take_profit": float(p.take_profit),
+                "quantity": float(p.quantity)
+            }
+            for p in report.dispatched_trades
+        ]
+        
+        return jsonify({
+            "success": True,
+            "timestamp": report.timestamp_utc.isoformat(),
+            "macro_regime": report.macro_verdict.macro_regime,
+            "breadth_pct": f"{float(report.macro_verdict.breadth_ratio)*100:.1f}%",
+            "evaluated_count": len(decisions_summary),
+            "dispatched_count": len(dispatched),
+            "decisions": decisions_summary,
+            "dispatched_trades": dispatched
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/close-position', methods=['POST'])
+def close_bot_position():
+    """Manually flatten an active bracket position."""
+    try:
+        req_data = request.get_json() or {}
+        pos_id = req_data.get("position_id")
+        if not pos_id:
+            return jsonify({"error": "Missing position_id"}), 400
+            
+        pos = quant_bot.executor.active_positions.get(pos_id)
+        if not pos:
+            return jsonify({"error": f"Position {pos_id} not found"}), 404
+            
+        exit_price = Decimal(str(req_data.get("exit_price", pos.entry_price)))
+        closed = quant_bot.executor.close_position_manual(pos_id, reason="MANUAL_CLOSE", exit_price=exit_price)
+        
+        return jsonify({
+            "success": True,
+            "position_id": closed.position_id,
+            "symbol": closed.symbol,
+            "state": closed.state.value,
+            "realized_pnl_usd": float(closed.realized_pnl_usd),
+            "reason": closed.close_reason
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/learning/stats', methods=['GET'])
+def get_learning_stats():
+    """Return model Brier calibration report and SQLite lessons DB logs."""
+    try:
+        calib = quant_bot.learning_governor.calculate_brier_calibration()
+        outcomes = quant_bot.learning_governor._load_recent_outcomes(limit=15)
+        
+        formatted_outcomes = [
+            {
+                "trade_id": o.trade_id,
+                "symbol": o.symbol,
+                "side": o.side,
+                "confidence": float(o.forecast_confidence),
+                "hit": o.realized_hit,
+                "pnl_usd": float(o.realized_pnl_usd),
+                "exit_reason": o.exit_reason,
+                "timestamp": o.timestamp_utc.isoformat()
+            }
+            for o in outcomes
+        ]
+        
+        return jsonify({
+            "success": True,
+            "brier_score": float(calib.brier_score),
+            "confidence_multiplier": float(calib.confidence_multiplier),
+            "status": calib.status,
+            "reason": calib.reason,
+            "total_evaluations": calib.total_evaluations,
+            "recent_outcomes": formatted_outcomes
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 if __name__ == '__main__':
     print("Starting Kronos Web UI...")
     print(f"Model availability: {MODEL_AVAILABLE}")
@@ -964,5 +1215,5 @@ if __name__ == '__main__':
         print("Tip: You can load Kronos model through /api/load-model endpoint")
     else:
         print("Tip: Will use simulated data for demonstration")
-    
-    app.run(debug=True, host='0.0.0.0', port=7070)
+    # Use use_reloader=False to avoid Windows watchdog socket race conditions
+    app.run(debug=False, use_reloader=False, host='0.0.0.0', port=7070)

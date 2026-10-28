@@ -81,6 +81,43 @@ We release a family of pre-trained models with varying capacities to suit differ
 | Kronos-base  | [Kronos-Tokenizer-base](https://huggingface.co/NeoQuasar/Kronos-Tokenizer-base) | 512            | 102.3M | ✅ [NeoQuasar/Kronos-base](https://huggingface.co/NeoQuasar/Kronos-base)   |
 | Kronos-large | [Kronos-Tokenizer-base](https://huggingface.co/NeoQuasar/Kronos-Tokenizer-base) | 512            | 499.2M | ❌                                                                         |
 
+## ⚡ Institutional Quant Terminal & Multi-Agent Futures Platform
+
+Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic Trading Platform** designed for Binance USDⓈ-M Perpetual Futures and Spot markets.
+
+### Key Capabilities
+
+* **Unified 3-in-1 Web Terminal (`http://localhost:7070`):**
+  * **Macro Dashboard:** Real-time composite market breadth ($>60\%$ Bull Expansion, $<40\%$ Bear Distribution), 24h VWAP leaderboard, perpetual funding carry radar, and macroeconomic news blackout shield (FOMC/CPI event protection).
+  * **Neural Forecaster:** Interactive dual-engine charting (TradingView Pro Lightweight Charts + Plotly) with sub-penny precision quantization (e.g. 7–8 decimals on PEPE vs 2 decimals on BTC).
+  * **Quant Bot Control Station:** Live KEV.ai 6-point veto gate audit stream, active bracket positions with 12-hour temporal exit countdowns, and SQLite lessons memory feed.
+* **Role-Specialized Multi-Agent Architecture:**
+  * **Macro Specialists:** Asynchronous event catalyst shield + 8-hour crypto carry monitor.
+  * **Tactical Core:** 12-hour autoregressive trajectory engine with dynamic ATR-14 volatility envelopes.
+  * **KEV.ai Risk Arbiter & Supreme Veto Gate:** 6-point mathematical veto gate enforcing macro alignment, carry economics, fee hurdles ($0.04\%$), reward/risk $\ge 2.0$, Fractional Kelly dollar sizing, and adversarial Bull/Bear Devil's Advocate stress-tests.
+  * **The Learning Governor:** Rolling 48-hour Brier calibration scoring ($0.0\text{x}$ to $1.0\text{x}$ dynamic capital throttle) with persistent SQLite post-mortem logging in `data/lessons.db`.
+  * **Atomic Bracket Execution:** Entry limit orders paired with native SL/TP brackets, Anti-Naked-Position Guard (<1,000ms SL confirmation timeout), and 12-hour temporal stale-trade auto-expiry.
+* **Rigorous Institutional Invariants:** Strictly adheres to Zero-Float Financial Math (`decimal.Decimal` throughout), Context Slicing Contracts (`tail-sliced df.iloc[-512:]`), and Base Checkpoint Immutability.
+
+### Quickstart
+
+1. **Launch the Unified Trading Terminal:**
+   ```bash
+   $env:PYTHONIOENCODING="utf-8"  # Windows PowerShell
+   python -X utf8 webui/app.py
+   ```
+   Open your browser at `http://localhost:7070`.
+
+2. **Run Empirical Self-Verification Suite:**
+   ```bash
+   python -m pytest tests/ -q
+   ```
+
+### Documentation Links
+* 📘 [Quant Architecture Specification](docs/ARCHITECTURE.md)
+* 🖥️ [Unified Terminal User Guide](docs/UNIFIED_TERMINAL_GUIDE.md)
+* 📑 [Master Binance Futures Bot Guide](docs/KRONOS_BINANCE_FUTURES_BOT_GUIDE.md)
+
 
 ## 🚀 Getting Started
 
