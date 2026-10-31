@@ -189,10 +189,69 @@ class BinanceAtomicExecutor:
         position.close_time_utc = datetime.datetime.now(datetime.timezone.utc)
 
         # Compute realized PnL
-        if position.side == "BUY":
+        if position.side in ("BUY", "LONG"):
             pnl = (exit_price - position.entry_price) * position.quantity
         else:
             pnl = (position.entry_price - exit_price) * position.quantity
 
         position.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         return position
+
+    def check_bracket_price_triggers(
+        self,
+        current_prices: Dict[str, Decimal],
+        current_time_utc: Optional[datetime.datetime] = None
+    ) -> List[ActiveBracketPosition]:
+        """
+        Check active bracket positions against current market prices for Take-Profit or Stop-Loss triggers.
+        Returns list of closed positions with strictly Decimal realized PnL.
+        """
+        now_utc = current_time_utc or datetime.datetime.now(datetime.timezone.utc)
+        if now_utc.tzinfo is None:
+            now_utc = now_utc.replace(tzinfo=datetime.timezone.utc)
+
+        closed_positions: List[ActiveBracketPosition] = []
+
+        for pos_id, pos in list(self.active_positions.items()):
+            if pos.state != PositionState.BRACKETS_ACTIVE:
+                continue
+
+            curr_price = current_prices.get(pos.symbol)
+            if not curr_price:
+                continue
+
+            # LONG / BUY
+            if pos.side in ("BUY", "LONG"):
+                if curr_price >= pos.take_profit:
+                    pos.state = PositionState.CLOSED
+                    pos.close_reason = "TAKE_PROFIT_TRIGGERED"
+                    pos.close_time_utc = now_utc
+                    pnl = (pos.take_profit - pos.entry_price) * pos.quantity
+                    pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    closed_positions.append(pos)
+                elif curr_price <= pos.stop_loss:
+                    pos.state = PositionState.CLOSED
+                    pos.close_reason = "STOP_LOSS_TRIGGERED"
+                    pos.close_time_utc = now_utc
+                    pnl = (pos.stop_loss - pos.entry_price) * pos.quantity
+                    pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    closed_positions.append(pos)
+
+            # SHORT / SELL
+            elif pos.side in ("SELL", "SHORT"):
+                if curr_price <= pos.take_profit:
+                    pos.state = PositionState.CLOSED
+                    pos.close_reason = "TAKE_PROFIT_TRIGGERED"
+                    pos.close_time_utc = now_utc
+                    pnl = (pos.entry_price - pos.take_profit) * pos.quantity
+                    pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    closed_positions.append(pos)
+                elif curr_price >= pos.stop_loss:
+                    pos.state = PositionState.CLOSED
+                    pos.close_reason = "STOP_LOSS_TRIGGERED"
+                    pos.close_time_utc = now_utc
+                    pnl = (pos.entry_price - pos.stop_loss) * pos.quantity
+                    pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    closed_positions.append(pos)
+
+        return closed_positions

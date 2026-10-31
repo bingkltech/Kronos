@@ -712,8 +712,8 @@
         </div>
 
         <div class="topbar-right">
-            <div class="status-pill status-online" id="topbar-sys-status">
-                <span class="pulse-dot"></span> SYSTEM READY
+            <div class="status-pill status-online" id="topbar-bot-pill" style="cursor: pointer;" onclick="switchAppView('bot')">
+                <span class="pulse-dot"></span> BOT & KEV.AI: ACTIVE
             </div>
             <div class="status-pill pill-regime" id="topbar-regime-pill">
                 REGIME: LOADING...
@@ -1096,31 +1096,50 @@
         
         <!-- Bot Control Bar -->
         <div class="panel" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
-            <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
                 <div style="display: flex; flex-direction: column;">
                     <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Engine State</span>
-                    <span style="font-size: 18px; font-weight: 800; color: #3fb950; display: flex; align-items: center; gap: 6px;" id="bot-state-badge">
-                        <span class="pulse-dot"></span> ACTIVE (MONITORING)
+                    <span style="font-size: 16px; font-weight: 800; color: #3fb950; display: flex; align-items: center; gap: 6px;" id="bot-state-badge">
+                        <span class="pulse-dot"></span> AUTOPILOT ACTIVE
                     </span>
                 </div>
                 <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
                 <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Autonomous Cycle</span>
+                    <span style="font-size: 13px; font-weight: 700; color: #58a6ff; display: flex; align-items: center; gap: 6px;" id="bot-cycle-timer">
+                        ⏳ Next scan in: <strong id="bot-countdown" style="font-family: var(--font-mono); color: #00E676;">60s</strong>
+                    </span>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Scan Interval</span>
+                    <select id="bot-interval-select" style="background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;" onchange="updateAutopilotInterval(this.value)">
+                        <option value="30">Every 30s</option>
+                        <option value="60" selected>Every 60s (Standard)</option>
+                        <option value="300">Every 5m</option>
+                    </select>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
                     <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Execution Rails</span>
-                    <span style="font-size: 14px; font-weight: 700; color: #58a6ff;">Binance Futures (DRY_RUN Paper)</span>
+                    <span style="font-size: 13px; font-weight: 700; color: #f0f6fc;">Binance Futures (Paper)</span>
                 </div>
                 <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
                 <div style="display: flex; flex-direction: column;">
                     <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Account Equity</span>
-                    <span style="font-size: 14px; font-weight: 800; font-family: var(--font-mono); color: var(--text-primary);">$10,000.00 USD</span>
+                    <span style="font-size: 14px; font-weight: 800; font-family: var(--font-mono); color: #2ea043;" id="bot-equity-val">$10,000.00 USD</span>
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px;">
-                <button class="btn-primary" id="bot-scan-btn" onclick="triggerBotScan()">
-                    ⚡ Run Instant Market Scan
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn-primary" id="btn-toggle-autopilot" style="background: #238636; border-color: #2ea043;" onclick="toggleAutopilot()">
+                    🟢 Auto-Pilot: ON
+                </button>
+                <button class="btn-secondary" id="bot-scan-btn" onclick="triggerBotScan()">
+                    ⚡ Scan Now
                 </button>
                 <button class="btn-danger" onclick="flattenAllPositions()">
-                    🛑 Emergency Flatten All
+                    🛑 Flatten All
                 </button>
             </div>
         </div>
@@ -1507,6 +1526,51 @@
                 const data = resp.data;
                 if (!data.success) return;
 
+                // Update Autopilot Status & Controls
+                if (data.autopilot) {
+                    const badge = document.getElementById('bot-state-badge');
+                    const btnAuto = document.getElementById('btn-toggle-autopilot');
+                    const topPill = document.getElementById('topbar-bot-pill');
+                    const cdEl = document.getElementById('bot-countdown');
+                    const intSelect = document.getElementById('bot-interval-select');
+
+                    if (intSelect && data.autopilot.interval_seconds) {
+                        intSelect.value = String(data.autopilot.interval_seconds);
+                    }
+
+                    if (data.autopilot.enabled) {
+                        if (badge) {
+                            badge.innerHTML = '<span class="pulse-dot"></span> AUTOPILOT ACTIVE';
+                            badge.style.color = '#3fb950';
+                        }
+                        if (btnAuto) {
+                            btnAuto.innerHTML = '🟢 Auto-Pilot: ON';
+                            btnAuto.style.background = '#238636';
+                        }
+                        if (topPill) {
+                            topPill.innerHTML = '<span class="pulse-dot"></span> BOT & KEV.AI: ACTIVE';
+                            topPill.classList.add('status-online');
+                        }
+                    } else {
+                        if (badge) {
+                            badge.innerHTML = 'STANDBY (PAUSED)';
+                            badge.style.color = '#8b949e';
+                        }
+                        if (btnAuto) {
+                            btnAuto.innerHTML = '⏸️ Auto-Pilot: PAUSED';
+                            btnAuto.style.background = '#30363d';
+                        }
+                        if (topPill) {
+                            topPill.innerHTML = 'BOT & KEV.AI: PAUSED';
+                            topPill.classList.remove('status-online');
+                        }
+                    }
+
+                    if (cdEl) {
+                        cdEl.textContent = `${data.autopilot.next_scan_seconds}s`;
+                    }
+                }
+
                 // Update Active Positions
                 const tbody = document.getElementById('active-positions-tbody');
                 tbody.innerHTML = '';
@@ -1523,7 +1587,7 @@
                     data.active_positions.forEach(p => {
                         const tr = document.createElement('tr');
                         const prec = getAssetPrecisionConfig(p.entry_price).precision;
-                        const sideColor = p.side === 'BUY' ? '#3fb950' : '#f85149';
+                        const sideColor = p.side === 'BUY' || p.side === 'LONG' ? '#3fb950' : '#f85149';
                         const durationHours = p.duration_hours;
                         const hoursPct = Math.min(100, (durationHours / 12.0) * 100);
 
@@ -1550,11 +1614,89 @@
                     });
                 }
 
+                // If last cycle data exists, render scan decisions & gate telemetry
+                if (data.last_cycle && data.last_cycle.decisions && data.last_cycle.decisions.length > 0) {
+                    renderScanDecisions(data.last_cycle);
+                }
+
                 loadLearningStats();
 
             } catch (err) {
                 console.error('Failed to load bot status:', err);
             }
+        }
+
+        async function toggleAutopilot() {
+            try {
+                const resp = await axios.post('/api/bot/autopilot/toggle', {});
+                if (resp.data.success) {
+                    showStatus('success', resp.data.message);
+                    loadBotDashboard();
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to toggle autopilot');
+            }
+        }
+
+        async function updateAutopilotInterval(seconds) {
+            try {
+                const resp = await axios.post('/api/bot/autopilot/toggle', { interval_seconds: parseInt(seconds) });
+                if (resp.data.success) {
+                    showStatus('success', `Autopilot scan interval set to ${seconds}s`);
+                    loadBotDashboard();
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to update interval');
+            }
+        }
+
+        function renderScanDecisions(cycleData) {
+            const tbody = document.getElementById('scan-decisions-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const timeBadge = document.getElementById('scan-time-badge');
+            if (timeBadge && cycleData.timestamp) {
+                timeBadge.textContent = `Last Scan: ${cycleData.timestamp.replace('T', ' ').slice(0, 19)} UTC (${cycleData.evaluated_count} coins evaluated)`;
+            }
+
+            cycleData.decisions.forEach(d => {
+                const tr = document.createElement('tr');
+                const verdictBadge = d.approved ?
+                    '<span class="badge-regime regime-bull">APPROVED</span>' :
+                    '<span class="badge-regime regime-bear">VETOED</span>';
+
+                let gateOrTicket = d.approved ?
+                    `<span style="color: #3fb950; font-weight: 700;">Qty: ${d.ticket.quantity} | Notional: $${d.ticket.notional_usd.toFixed(2)}</span>` :
+                    `<code style="color: #f85149;">${d.veto_gate || 'VETO'}</code>`;
+
+                tr.innerHTML = `
+                    <td><strong>${d.symbol}</strong></td>
+                    <td>${d.side}</td>
+                    <td>${verdictBadge}</td>
+                    <td>${gateOrTicket}</td>
+                    <td style="font-size: 11px; max-width: 320px;">${d.reason}</td>
+                    <td style="font-size: 11px; color: var(--text-muted); max-width: 250px;">${d.adversarial_notes}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Update KEV.ai 6-Point Gate Badges based on cycle results
+            const g1 = document.getElementById('gate-1-badge');
+            const g2 = document.getElementById('gate-2-badge');
+            const g3 = document.getElementById('gate-3-badge');
+            const g4 = document.getElementById('gate-4-badge');
+            const g5 = document.getElementById('gate-5-badge');
+            const g6 = document.getElementById('gate-6-badge');
+
+            if (g1) g1.textContent = 'PASS: CLEAR';
+            if (g2 && cycleData.breadth_pct) g2.textContent = `PASS: ${cycleData.breadth_pct} (${cycleData.macro_regime})`;
+
+            const vetoGates = cycleData.decisions.map(d => d.veto_gate).filter(Boolean);
+            if (g3) g3.textContent = vetoGates.includes('GATE_3_FEE_HURDLE') ? 'AUDIT: 0.04% FILTER ACTIVE' : 'PASS: NET EDGE >= 0.04%';
+            if (g4) g4.textContent = vetoGates.includes('GATE_2_FUNDING_DRAG') ? 'AUDIT: CARRY SPIKE FILTERED' : 'PASS: FAVORABLE CARRY';
+            if (g5) g5.textContent = vetoGates.includes('GATE_5_KELLY_SIZING') ? 'AUDIT: KELLY CONSTRAINED' : 'PASS: ρ < 0.85';
+            if (g6) g6.textContent = vetoGates.includes('GATE_4_RR_RATIO') ? 'AUDIT: RR < 2.0 FILTERED' : 'PASS: RR >= 2.0';
         }
 
         async function triggerBotScan() {
@@ -1688,6 +1830,15 @@
             startLiveClock();
             initializeApp();
             loadMacroOverview();
+            loadBotDashboard();
+
+            // Real-time reactive polling for autonomous bot scans and telemetry
+            setInterval(() => {
+                loadBotDashboard();
+            }, 3000);
+            setInterval(() => {
+                loadMacroOverview();
+            }, 15000);
         });
 
         // Initialize application

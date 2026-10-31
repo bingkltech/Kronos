@@ -138,27 +138,27 @@ class LearningGovernor:
 
         brier_score = (total_squared_error / Decimal(str(n))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
-        # Capital Throttle Logic
-        if brier_score <= Decimal("0.1500"):
+        # Capital Throttle Logic (Requires minimum 5 trades for statistical significance)
+        if n < 5:
+            multiplier = Decimal("1.00")
+            status = "INITIALIZING"
+            reason = f"Warm-up calibration phase ({n}/5 trades recorded, Brier: {brier_score:.4f}). Operating at nominal 1.0x capital."
+        elif brier_score <= Decimal("0.1500"):
             multiplier = Decimal("1.00")
             status = "PRISTINE"
             reason = f"High forecast calibration (Brier: {brier_score:.4f} across {n} trades). Full 1.0x capital."
         elif brier_score <= Decimal("0.2500"):
-            # Linear scaling from 1.0x down to 0.75x
-            # (0.25 - BS) / 0.10 * 0.25 + 0.75
             multiplier = Decimal("0.85")
             status = "NOMINAL"
             reason = f"Acceptable calibration (Brier: {brier_score:.4f} across {n} trades). Operating at 0.85x capital."
         elif brier_score <= Decimal("0.3500"):
-            # Throttled capital
             multiplier = Decimal("0.40")
             status = "THROTTLED"
-            reason = f"Poor calibration / regime shift detected (Brier: {brier_score:.4f}). Capital throttled to 0.40x."
+            reason = f"Poor calibration / regime shift detected (Brier: {brier_score:.4f} across {n} trades). Capital throttled to 0.40x."
         else:
-            # Circuit breaker
             multiplier = Decimal("0.00")
             status = "HALTED"
-            reason = f"Severe calibration divergence (Brier: {brier_score:.4f} > 0.35). Trading halted (0.0x multiplier)."
+            reason = f"Severe calibration divergence (Brier: {brier_score:.4f} > 0.35 across {n} trades). Trading halted (0.0x multiplier)."
 
         return CalibrationReport(
             total_evaluations=n,

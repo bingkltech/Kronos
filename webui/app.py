@@ -7,6 +7,8 @@ import plotly.utils
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import sys
+import time
+import threading
 import warnings
 import datetime
 warnings.filterwarnings('ignore')
@@ -1036,6 +1038,127 @@ def get_macro_overview():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# ==============================================================================
+# Autonomous Quant Bot & KEV.ai Auto-Pilot Daemon
+# ==============================================================================
+
+bot_autopilot_enabled = True   # Automatically active on start
+bot_autopilot_interval = 60    # Default: 60s autonomous scan interval
+bot_autopilot_last_scan = None
+bot_autopilot_next_scan_time = None
+bot_last_cycle_summary = None
+bot_autopilot_lock = threading.Lock()
+
+def _execute_quant_bot_cycle(account_equity: Decimal = Decimal("10000.00")):
+    """Executes a single end-to-end multi-agent scan cycle across the full universe."""
+    global bot_autopilot_last_scan, bot_autopilot_next_scan_time, bot_last_cycle_summary
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+    lookbacks = {}
+    for sym in ALL_SUPPORTED_SYMBOLS.keys():
+        cand_csv = os.path.join(data_dir, f"binance_{sym}_1h.csv")
+        if os.path.exists(cand_csv):
+            try:
+                df = pd.read_csv(cand_csv)
+                if len(df) >= 20:
+                    lookbacks[sym] = df
+            except Exception:
+                pass
+
+    report = quant_bot.run_scan_cycle(
+        account_equity=account_equity,
+        lookback_data_map=lookbacks if lookbacks else None
+    )
+    bot_autopilot_last_scan = report.timestamp_utc
+    bot_autopilot_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=bot_autopilot_interval)
+
+    decisions_summary = []
+    for sym, dec in report.decisions.items():
+        decisions_summary.append({
+            "symbol": sym,
+            "side": dec.side,
+            "approved": dec.approved,
+            "veto_gate": dec.veto_gate_failed,
+            "reason": dec.veto_reason,
+            "adversarial_notes": dec.adversarial_notes,
+            "ticket": {
+                "entry_price": float(dec.ticket.entry_price),
+                "stop_loss": float(dec.ticket.stop_loss),
+                "take_profit": float(dec.ticket.take_profit),
+                "quantity": float(dec.ticket.quantity),
+                "notional_usd": float(dec.ticket.notional_usd),
+                "effective_leverage": dec.ticket.effective_leverage,
+                "rr_ratio": float(dec.ticket.reward_risk_ratio),
+                "net_gain_pct": float(dec.ticket.net_expected_gain_pct)
+            } if dec.ticket else None
+        })
+
+    dispatched = [
+        {
+            "position_id": p.position_id,
+            "symbol": p.symbol,
+            "side": p.side,
+            "entry_price": float(p.entry_price),
+            "stop_loss": float(p.stop_loss),
+            "take_profit": float(p.take_profit),
+            "quantity": float(p.quantity)
+        }
+        for p in report.dispatched_trades
+    ]
+
+    summary = {
+        "success": True,
+        "timestamp": report.timestamp_utc.isoformat(),
+        "macro_regime": report.macro_verdict.macro_regime,
+        "breadth_pct": f"{float(report.macro_verdict.breadth_ratio)*100:.1f}%",
+        "evaluated_count": len(decisions_summary),
+        "dispatched_count": len(dispatched),
+        "decisions": decisions_summary,
+        "dispatched_trades": dispatched
+    }
+    bot_last_cycle_summary = summary
+    return summary
+
+def _autopilot_daemon_loop():
+    """Background thread running autonomous scans and temporal exit monitoring."""
+    print(">> [Quant Bot & KEV.ai] Autonomous Background Daemon Worker Initialized (Interval: 60s).")
+    # Brief pause to let web server bind to socket
+    time.sleep(2)
+    # Immediate initial scan
+    try:
+        _execute_quant_bot_cycle()
+        print(">> [Quant Bot & KEV.ai] Initial universe market scan completed successfully.")
+    except Exception as e:
+        print(f">> [Quant Bot & KEV.ai] Initial scan deferred: {e}")
+
+    while True:
+        with bot_autopilot_lock:
+            enabled = bot_autopilot_enabled
+            interval = bot_autopilot_interval
+
+        if enabled:
+            for _ in range(int(interval)):
+                if not bot_autopilot_enabled:
+                    break
+                time.sleep(1)
+
+            if bot_autopilot_enabled:
+                try:
+                    _execute_quant_bot_cycle()
+                except Exception as e:
+                    print(f">> [Quant Bot Autopilot Error] {e}")
+        else:
+            time.sleep(2)
+
+_autopilot_thread = None
+
+def start_autopilot():
+    global _autopilot_thread
+    with bot_autopilot_lock:
+        if _autopilot_thread is None or not _autopilot_thread.is_alive():
+            _autopilot_thread = threading.Thread(target=_autopilot_daemon_loop, daemon=True)
+            _autopilot_thread.start()
+
+
 @app.route('/api/bot/status', methods=['GET'])
 def get_bot_status():
     """Return quant bot operational status, active positions, and risk metrics."""
@@ -1060,10 +1183,15 @@ def get_bot_status():
                     "state": pos.state.value,
                     "entry_time": pos.entry_fill_time_utc.isoformat() if pos.entry_fill_time_utc else None
                 })
-                
+
+        next_sec = 0
+        if bot_autopilot_enabled and bot_autopilot_next_scan_time:
+            now_u = datetime.datetime.now(datetime.timezone.utc)
+            next_sec = max(0, int((bot_autopilot_next_scan_time - now_u).total_seconds()))
+
         return jsonify({
             "success": True,
-            "bot_state": "ACTIVE" if positions else "IDLE_MONITORING",
+            "bot_state": "ACTIVE" if bot_autopilot_enabled else "STANDBY_PAUSED",
             "execution_mode": "DRY_RUN (SIMULATED)",
             "account_equity": 10000.00,
             "base_risk_budget_pct": "1.5%",
@@ -1071,7 +1199,38 @@ def get_bot_status():
             "confidence_multiplier": float(calib.confidence_multiplier),
             "calibration_status": calib.status,
             "active_positions_count": len(positions),
-            "active_positions": positions
+            "active_positions": positions,
+            "autopilot": {
+                "enabled": bot_autopilot_enabled,
+                "interval_seconds": bot_autopilot_interval,
+                "last_scan_utc": bot_autopilot_last_scan.isoformat() if bot_autopilot_last_scan else None,
+                "next_scan_seconds": next_sec
+            },
+            "last_cycle": bot_last_cycle_summary
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/autopilot/toggle', methods=['POST'])
+def toggle_bot_autopilot():
+    """Toggle or update autonomous auto-pilot settings."""
+    global bot_autopilot_enabled, bot_autopilot_interval
+    try:
+        data = request.get_json() or {}
+        with bot_autopilot_lock:
+            if "enabled" in data:
+                bot_autopilot_enabled = bool(data["enabled"])
+            else:
+                bot_autopilot_enabled = not bot_autopilot_enabled
+
+            if "interval_seconds" in data:
+                bot_autopilot_interval = max(10, int(data["interval_seconds"]))
+
+        return jsonify({
+            "success": True,
+            "autopilot_enabled": bot_autopilot_enabled,
+            "interval_seconds": bot_autopilot_interval,
+            "message": f"Quant Bot Auto-Pilot {'ENABLED' if bot_autopilot_enabled else 'PAUSED'}."
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1082,69 +1241,8 @@ def run_bot_scan():
     try:
         req_data = request.get_json() or {}
         equity = Decimal(str(req_data.get("account_equity", 10000.00)))
-        
-        # Load any active cached lookback files in data/
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
-        lookbacks = {}
-        for sym in ALL_SUPPORTED_SYMBOLS.keys():
-            cand_csv = os.path.join(data_dir, f"binance_{sym}_1h.csv")
-            if os.path.exists(cand_csv):
-                try:
-                    df = pd.read_csv(cand_csv)
-                    if len(df) >= 50:
-                        lookbacks[sym] = df
-                except Exception:
-                    pass
-                    
-        report = quant_bot.run_scan_cycle(
-            account_equity=equity,
-            lookback_data_map=lookbacks if lookbacks else None
-        )
-        
-        decisions_summary = []
-        for sym, dec in report.decisions.items():
-            decisions_summary.append({
-                "symbol": sym,
-                "side": dec.side,
-                "approved": dec.approved,
-                "veto_gate": dec.veto_gate_failed,
-                "reason": dec.veto_reason,
-                "adversarial_notes": dec.adversarial_notes,
-                "ticket": {
-                    "entry_price": float(dec.ticket.entry_price),
-                    "stop_loss": float(dec.ticket.stop_loss),
-                    "take_profit": float(dec.ticket.take_profit),
-                    "quantity": float(dec.ticket.quantity),
-                    "notional_usd": float(dec.ticket.notional_usd),
-                    "effective_leverage": dec.ticket.effective_leverage,
-                    "rr_ratio": float(dec.ticket.reward_risk_ratio),
-                    "net_gain_pct": float(dec.ticket.net_expected_gain_pct)
-                } if dec.ticket else None
-            })
-            
-        dispatched = [
-            {
-                "position_id": p.position_id,
-                "symbol": p.symbol,
-                "side": p.side,
-                "entry_price": float(p.entry_price),
-                "stop_loss": float(p.stop_loss),
-                "take_profit": float(p.take_profit),
-                "quantity": float(p.quantity)
-            }
-            for p in report.dispatched_trades
-        ]
-        
-        return jsonify({
-            "success": True,
-            "timestamp": report.timestamp_utc.isoformat(),
-            "macro_regime": report.macro_verdict.macro_regime,
-            "breadth_pct": f"{float(report.macro_verdict.breadth_ratio)*100:.1f}%",
-            "evaluated_count": len(decisions_summary),
-            "dispatched_count": len(dispatched),
-            "decisions": decisions_summary,
-            "dispatched_trades": dispatched
-        })
+        summary = _execute_quant_bot_cycle(account_equity=equity)
+        return jsonify(summary)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1215,5 +1313,7 @@ if __name__ == '__main__':
         print("Tip: You can load Kronos model through /api/load-model endpoint")
     else:
         print("Tip: Will use simulated data for demonstration")
+    # Auto-start Quant Bot & KEV.ai Autonomous Engine
+    start_autopilot()
     # Use use_reloader=False to avoid Windows watchdog socket race conditions
     app.run(debug=False, use_reloader=False, host='0.0.0.0', port=7070)

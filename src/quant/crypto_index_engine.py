@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
 import requests
 
 from src.quant.config import DEFAULT_RISK_CONFIG, TOP_10_SYMBOLS, FuturesSymbolConfig
@@ -85,6 +86,36 @@ class CryptoIndexEngine:
                 "quote_volume": Decimal(str(k[7])),
             })
         return parsed
+
+    def fetch_lookback_dataframe(self, symbol: str, limit: int = 100) -> Optional[pd.DataFrame]:
+        """
+        Fetch historical 1h klines and return a clean DataFrame for Kronos lookback.
+        """
+        endpoint = f"{self.BASE_URL}/fapi/v1/klines"
+        params = {
+            "symbol": symbol,
+            "interval": "1h",
+            "limit": min(limit, 500)
+        }
+        try:
+            resp = self.session.get(endpoint, params=params, timeout=5)
+            if resp.status_code != 200:
+                return None
+            raw = resp.json()
+            rows = []
+            for k in raw:
+                rows.append({
+                    "timestamps": pd.to_datetime(k[0], unit="ms"),
+                    "open": float(k[1]),
+                    "high": float(k[2]),
+                    "low": float(k[3]),
+                    "close": float(k[4]),
+                    "volume": float(k[5]),
+                })
+            df = pd.DataFrame(rows)
+            return df if len(df) >= 15 else None
+        except Exception:
+            return None
 
     def compute_symbol_stats(self, symbol: str, klines: List[Dict[str, Decimal]]) -> SymbolMacroStats:
         """

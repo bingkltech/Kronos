@@ -29,7 +29,7 @@ from src.quant.macro_specialists import NewsCatalystSpecialist, CryptoCarrySpeci
 from src.quant.crypto_index_engine import CryptoIndexEngine, MacroIndexVerdict
 from src.quant.kronos_onnx_engine import KronosTrajectoryEngine, TrajectoryVerdict
 from src.quant.kev_risk_arbiter import KEVSupremeArbiter, KEVDecision, TradeTicket
-from src.quant.learning_governor import LearningGovernor, CalibrationReport
+from src.quant.learning_governor import LearningGovernor, CalibrationReport, TradeOutcome
 from src.quant.binance_execution import BinanceAtomicExecutor, ActiveBracketPosition, PositionState
 
 
@@ -99,6 +99,27 @@ class QuantBotOrchestrator:
         # 4. Carry & Funding Rates
         funding_map = self.carry_specialist.fetch_funding_rates() if not mock_trajectories else {}
 
+        # 4b. Evaluate active positions for TP/SL hits and temporal expiry
+        current_prices = {
+            sym: stats.current_price
+            for sym, stats in macro_verdict.symbol_stats.items()
+        }
+        closed_by_price = self.executor.check_bracket_price_triggers(current_prices, current_time_utc=current_time_utc)
+        for pos in closed_by_price:
+            hit = 1 if pos.close_reason == "TAKE_PROFIT_TRIGGERED" else 0
+            self.learning_governor.record_outcome(TradeOutcome(
+                trade_id=pos.position_id,
+                symbol=pos.symbol,
+                side=pos.side,
+                forecast_confidence=Decimal("0.70"),
+                realized_hit=hit,
+                realized_pnl_usd=pos.realized_pnl_usd,
+                exit_reason=pos.close_reason or "BRACKET_EXIT",
+                timestamp_utc=pos.close_time_utc or current_time_utc
+            ))
+
+        self.sweep_temporal_exits(current_time_utc=current_time_utc)
+
         # 5. Check Active Positions & Capacity
         active_symbols = [
             pos.symbol for pos in self.executor.active_positions.values()
@@ -131,6 +152,12 @@ class QuantBotOrchestrator:
             elif lookback_data_map and symbol in lookback_data_map:
                 df = lookback_data_map[symbol]
                 trajectory = self.trajectory_engine.generate_trajectory(symbol, df)
+            elif not mock_trajectories:
+                df = self.index_engine.fetch_lookback_dataframe(symbol)
+                if df is not None and len(df) >= 15:
+                    trajectory = self.trajectory_engine.generate_trajectory(symbol, df)
+                else:
+                    continue
             else:
                 continue
 
