@@ -26,16 +26,21 @@ from src.quant.binance_execution import (
 from src.quant.kev_risk_arbiter import TradeTicket
 
 
-def _make_sample_ticket(symbol="ETHUSDT", side="BUY") -> TradeTicket:
+def _make_sample_ticket(
+    symbol="ETHUSDT",
+    side="BUY",
+    entry_price=Decimal("2500.00"),
+    quantity=Decimal("4.000")
+) -> TradeTicket:
     """Helper creating a sample pre-cleared TradeTicket."""
     return TradeTicket(
         symbol=symbol,
         side=side,
-        entry_price=Decimal("2500.00"),
+        entry_price=entry_price,
         stop_loss=Decimal("2465.00"),
         take_profit=Decimal("2560.00"),
-        quantity=Decimal("4.000"),
-        notional_usd=Decimal("10000.00"),
+        quantity=quantity,
+        notional_usd=entry_price * quantity,
         effective_leverage=1,
         risk_budget_usd=Decimal("140.00"),
         reward_risk_ratio=Decimal("1.71"),
@@ -108,3 +113,42 @@ def test_realized_pnl_calculation():
     closed_pos = executor.close_position_manual(pos.position_id, reason="TP_HIT", exit_price=Decimal("2560.00"))
     assert closed_pos.realized_pnl_usd == Decimal("240.00")
     assert isinstance(closed_pos.realized_pnl_usd, Decimal)
+
+
+def test_paper_trading_state_and_win_loss_audit(tmp_path):
+    """Verify paper trading $200 initial equity, win/loss tracking, and summary metrics."""
+    state_file = str(tmp_path / "test_paper_state.json")
+    executor = BinanceAtomicExecutor(dry_run=True, initial_equity=Decimal("200.00"), state_file=state_file)
+
+    assert executor.paper_initial_equity == Decimal("200.00")
+    assert executor.get_current_equity() == Decimal("200.00")
+
+    # Trade 1: WIN (+ $10.00)
+    t1 = _make_sample_ticket(side="BUY", entry_price=Decimal("100.00"), quantity=Decimal("1.000"))
+    pos1 = executor.submit_bracket_order(t1)
+    executor.close_position_manual(pos1.position_id, reason="TAKE_PROFIT_TRIGGERED", exit_price=Decimal("110.00"))
+
+    # Trade 2: LOSS (- $4.00)
+    t2 = _make_sample_ticket(side="BUY", entry_price=Decimal("100.00"), quantity=Decimal("1.000"))
+    pos2 = executor.submit_bracket_order(t2)
+    executor.close_position_manual(pos2.position_id, reason="STOP_LOSS_TRIGGERED", exit_price=Decimal("96.00"))
+
+    # Check live equity: 200 + 10 - 4 = $206.00
+    assert executor.get_current_equity() == Decimal("206.00")
+
+    summary = executor.get_paper_summary()
+    assert summary["initial_equity"] == 200.0
+    assert summary["current_equity"] == 206.0
+    assert summary["realized_pnl_usd"] == 6.0
+    assert summary["total_trades"] == 2
+    assert summary["winning_trades"] == 1
+    assert summary["losing_trades"] == 1
+    assert summary["win_loss_display"] == "1 Wins vs 1 Losses"
+    assert summary["win_rate_pct"] == 50.0
+    assert len(summary["closed_trades"]) == 2
+
+    # Reset test
+    reset_summary = executor.reset_paper_trading(initial_equity=Decimal("200.00"))
+    assert reset_summary["current_equity"] == 200.0
+    assert reset_summary["total_trades"] == 0
+    assert executor.get_current_equity() == Decimal("200.00")

@@ -175,5 +175,11 @@ class GlobalRiskConfig:
     # Funding Rate Safety Guard
     max_prohibitive_funding_rate: Decimal = Decimal("0.0003") # 0.03% 8h funding rate veto ceiling
 
+    # Micro-Trading & Small Account Safe-Guards
+    micro_trading_mode: bool = True                        # Enable micro-lot sizing for small accounts
+    small_account_threshold_usd: Decimal = Decimal("1000.00") # Accounts <= $1000 use micro sizing
+    max_micro_margin_ratio: Decimal = Decimal("0.35")      # Max 35% margin allocated per micro-position
+    default_paper_equity: Decimal = Decimal("200.00")      # Default paper testing account equity (USDT)
+
 
 DEFAULT_RISK_CONFIG = GlobalRiskConfig()

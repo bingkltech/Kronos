@@ -74,7 +74,7 @@ class QuantBotOrchestrator:
 
     def run_scan_cycle(
         self,
-        account_equity: Decimal,
+        account_equity: Optional[Decimal] = None,
         lookback_data_map: Optional[Dict[str, pd.DataFrame]] = None,
         current_time_utc: Optional[datetime.datetime] = None,
         mock_preloaded_klines: Optional[Dict[str, List[Dict[str, Decimal]]]] = None,
@@ -83,6 +83,9 @@ class QuantBotOrchestrator:
         """
         Execute an end-to-end market scan across the Top 10 universe.
         """
+        if account_equity is None:
+            account_equity = self.executor.get_current_equity()
+
         if current_time_utc is None:
             current_time_utc = datetime.datetime.now(datetime.timezone.utc)
 

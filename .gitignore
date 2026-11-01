@@ -80,3 +80,5 @@ webui/prediction_results/
 graphify-out/
 data/_temp*
 
+data/paper_trading_state.json
+data/binance_*

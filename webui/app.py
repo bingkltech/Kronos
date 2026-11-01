@@ -1033,7 +1033,8 @@ def get_macro_overview():
                 "minutes_to_event": news_verdict.minutes_to_event,
                 "reason": news_verdict.reason
             },
-            "symbols": symbols_data
+            "symbols": symbols_data,
+            "paper_report": quant_bot.executor.get_paper_summary()
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1049,9 +1050,12 @@ bot_autopilot_next_scan_time = None
 bot_last_cycle_summary = None
 bot_autopilot_lock = threading.Lock()
 
-def _execute_quant_bot_cycle(account_equity: Decimal = Decimal("10000.00")):
+def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
     """Executes a single end-to-end multi-agent scan cycle across the full universe."""
     global bot_autopilot_last_scan, bot_autopilot_next_scan_time, bot_last_cycle_summary
+    if account_equity is None:
+        account_equity = quant_bot.executor.get_current_equity()
+
     data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
     lookbacks = {}
     for sym in ALL_SUPPORTED_SYMBOLS.keys():
@@ -1113,7 +1117,8 @@ def _execute_quant_bot_cycle(account_equity: Decimal = Decimal("10000.00")):
         "evaluated_count": len(decisions_summary),
         "dispatched_count": len(dispatched),
         "decisions": decisions_summary,
-        "dispatched_trades": dispatched
+        "dispatched_trades": dispatched,
+        "paper_report": quant_bot.executor.get_paper_summary()
     }
     bot_last_cycle_summary = summary
     return summary
@@ -1189,11 +1194,16 @@ def get_bot_status():
             now_u = datetime.datetime.now(datetime.timezone.utc)
             next_sec = max(0, int((bot_autopilot_next_scan_time - now_u).total_seconds()))
 
+        paper_summary = quant_bot.executor.get_paper_summary()
+        current_eq = float(quant_bot.executor.get_current_equity())
+
         return jsonify({
             "success": True,
             "bot_state": "ACTIVE" if bot_autopilot_enabled else "STANDBY_PAUSED",
             "execution_mode": "DRY_RUN (SIMULATED)",
-            "account_equity": 10000.00,
+            "account_equity": current_eq,
+            "paper_report": paper_summary,
+            "micro_trading_active": True,
             "base_risk_budget_pct": "1.5%",
             "max_leverage": 5,
             "confidence_multiplier": float(calib.confidence_multiplier),
@@ -1207,6 +1217,30 @@ def get_bot_status():
                 "next_scan_seconds": next_sec
             },
             "last_cycle": bot_last_cycle_summary
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/paper-report', methods=['GET'])
+def get_paper_report():
+    """Return comprehensive paper trading performance audit and win/loss records."""
+    try:
+        report = quant_bot.executor.get_paper_summary()
+        return jsonify({"success": True, "paper_report": report})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/paper-reset', methods=['POST'])
+def reset_paper_report():
+    """Reset paper trading balance and trade ledger back to initial USDT equity."""
+    try:
+        req_data = request.get_json() or {}
+        equity = Decimal(str(req_data.get("equity", 200.00)))
+        summary = quant_bot.executor.reset_paper_trading(initial_equity=equity)
+        return jsonify({
+            "success": True,
+            "message": f"Paper trading account successfully reset to ${float(equity):.2f} USDT.",
+            "paper_report": summary
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1240,7 +1274,8 @@ def run_bot_scan():
     """Trigger an immediate scan cycle across the universe."""
     try:
         req_data = request.get_json() or {}
-        equity = Decimal(str(req_data.get("account_equity", 10000.00)))
+        equity_val = req_data.get("account_equity")
+        equity = Decimal(str(equity_val)) if equity_val is not None else quant_bot.executor.get_current_equity()
         summary = _execute_quant_bot_cycle(account_equity=equity)
         return jsonify(summary)
     except Exception as e:

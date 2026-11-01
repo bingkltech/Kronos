@@ -269,28 +269,62 @@ class KEVSupremeArbiter:
         raw_qty = risk_budget_usd / risk_distance
         quantized_qty = cfg.quantize_quantity(raw_qty)
 
-        if quantized_qty < cfg.min_quantity:
-            return KEVDecision(
-                approved=False,
-                symbol=symbol,
-                side=side,
-                veto_gate_failed="GATE_SIZING_MIN_QTY",
-                veto_reason=f"VETO: Sized quantity {quantized_qty} below contract minimum {cfg.min_quantity}.",
-                ticket=None,
-                adversarial_notes="Account equity or risk budget too small for contract minimum step size."
-            )
+        is_small_account = (account_equity <= getattr(self.risk_config, "small_account_threshold_usd", Decimal("1000.00")))
+        is_micro_mode = getattr(self.risk_config, "micro_trading_mode", True) and is_small_account
 
-        notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if notional_usd < cfg.min_notional:
-            return KEVDecision(
-                approved=False,
-                symbol=symbol,
-                side=side,
-                veto_gate_failed="GATE_SIZING_MIN_NOTIONAL",
-                veto_reason=f"VETO: Notional value ${notional_usd} below Binance minimum ${cfg.min_notional}.",
-                ticket=None,
-                adversarial_notes="Trade value does not meet exchange notional threshold."
-            )
+        if is_micro_mode:
+            # Micro-trading mode for small accounts (e.g., $200 USDT):
+            # 1. Clamp to contract minimum tradeable lot
+            if quantized_qty < cfg.min_quantity:
+                quantized_qty = cfg.min_quantity
+
+            # 2. Ensure minimum exchange notional (Binance Futures min $5.00 USDT)
+            notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if notional_usd < cfg.min_notional:
+                step = Decimal("10") ** -cfg.quantity_precision
+                needed_units = (cfg.min_notional / entry).quantize(step, rounding=ROUND_HALF_UP)
+                if (needed_units * entry) < cfg.min_notional:
+                    needed_units += step
+                quantized_qty = max(cfg.min_quantity, needed_units)
+                notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            # 3. Capital preservation guard: ensure required margin does not exhaust account equity
+            margin_required = notional_usd / Decimal(str(self.risk_config.max_account_leverage))
+            if margin_required > account_equity:
+                return KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side=side,
+                    veto_gate_failed="GATE_SIZING_MICRO_LEVERAGE",
+                    veto_reason=f"VETO: Micro notional ${notional_usd} requires margin ${margin_required:.2f} exceeding account equity ${account_equity:.2f}.",
+                    ticket=None,
+                    adversarial_notes="Minimum contract size exceeds account margin purchasing power."
+                )
+
+            adversarial_notes.append(f"Micro-trading active: Sized to {quantized_qty} {symbol} (${notional_usd} notional) for small-account capital preservation.")
+        else:
+            if quantized_qty < cfg.min_quantity:
+                return KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side=side,
+                    veto_gate_failed="GATE_SIZING_MIN_QTY",
+                    veto_reason=f"VETO: Sized quantity {quantized_qty} below contract minimum {cfg.min_quantity}.",
+                    ticket=None,
+                    adversarial_notes="Account equity or risk budget too small for contract minimum step size."
+                )
+
+            notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if notional_usd < cfg.min_notional:
+                return KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side=side,
+                    veto_gate_failed="GATE_SIZING_MIN_NOTIONAL",
+                    veto_reason=f"VETO: Notional value ${notional_usd} below Binance minimum ${cfg.min_notional}.",
+                    ticket=None,
+                    adversarial_notes="Trade value does not meet exchange notional threshold."
+                )
 
         raw_leverage = int((notional_usd / account_equity).quantize(Decimal("1"), rounding=ROUND_DOWN)) + 1
         effective_leverage = min(self.risk_config.max_account_leverage, max(1, raw_leverage))

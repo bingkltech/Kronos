@@ -236,3 +236,27 @@ def test_full_approval_and_kelly_sizing():
     assert ticket.effective_leverage == 2
     assert ticket.reward_risk_ratio == Decimal("1.71")
     assert isinstance(ticket.net_expected_gain_pct, Decimal)
+
+
+def test_micro_trading_sizing_for_small_account_200_usdt():
+    """Verify micro-lot sizing and minimum notional enforcement for small $200 account."""
+    arbiter = KEVSupremeArbiter()
+    traj, news, macro, carry = _make_valid_verdicts()
+
+    # Small account: $200.00 USDT
+    decision = arbiter.evaluate_candidate(
+        traj, news, macro, carry,
+        account_equity=Decimal("200.00"),
+        active_positions=[],
+        confidence_multiplier=Decimal("1.0")
+    )
+
+    assert decision.approved, f"Expected micro-trading trade approval, got: {decision.veto_reason}"
+    assert decision.veto_gate_failed is None
+    ticket = decision.ticket
+    assert ticket is not None
+    assert ticket.symbol == "ETHUSDT"
+    assert ticket.quantity >= Decimal("0.001")
+    assert ticket.notional_usd >= Decimal("5.00")
+    assert ticket.effective_leverage <= 5
+    assert "Micro-trading active" in decision.adversarial_notes
