@@ -3,8 +3,9 @@
 > **URL:** `http://localhost:7070`  
 > **Architecture:** Single-Page Application (SPA) with Bloomberg/Terminal-Grade Dark Architecture  
 > **Engines:** HTML5 High-DPI Retina Canvas + TradingView Pro Lightweight Charts + Plotly.js + REST API  
+> **Strategic Copilot:** Google Gemini Free Tier (`gemini-3.8-flash`) Meta-Strategy Arbiter  
 > **Baseline Account:** Small-Account Micro-Trading ($200.00 USDT Paper Equity)  
-> **Version:** 2.2.0 (Institutional Multi-Panel Workstation Release)
+> **Version:** 2.3.0 (Institutional Multi-Panel Workstation & Strategy Optimizer Release)
 
 ---
 
@@ -60,6 +61,21 @@ Designed for institutional portfolio managers, macro risk officers, and macro-tr
   * Historical record of all closed paper trades with Ticket ID, Symbol, Side, Entry Price, Exit Price, Realized PnL ($ / %), and Exit Reason (`BRACKET_TAKE_PROFIT`, `BRACKET_STOP_LOSS`, `TEMPORAL_EXIT_12H`, `MANUAL_CLOSE`).
 * **One-Click Account Reset:**
   * A reset button triggers a modal dialog allowing operators to re-initialize equity back to $200.00 USDT and archive historical trade records.
+
+### 2.3 Gemini Free Tier Meta-Strategy Advisory Engine (CIO Copilot)
+Located directly on the Macro Dashboard, this card acts as the Senior Supervisory Portfolio Strategist / Chief Investment Officer:
+* **The Sweetspot Matrix:** Displays real-time quantitative target parameters:
+  * **Reward/Risk Hurdle:** Dynamic minimum take-profit to stop-loss ratio ($1.40\text{x}-2.20\text{x}$).
+  * **Net Fee Hurdle:** Dynamic minimum edge required above exchange maker/taker fees ($0.35\%-0.75\%$).
+  * **Risk Budget %:** Dynamic capital allocation percentage per trade ($0.8\%-1.5\% \le \$3.00$ on small accounts).
+  * **Fast & Slow EMA:** Dynamic momentum lookback windows ($10-25$ and $45-80$).
+* **Regime Diagnosis & Conviction:** Automatically tags the market into institutional regimes (`TRENDING_EXPANSION`, `MEAN_REVERTING_RANGE`, `HIGH_VOLATILITY_TURBULENCE`, `REGIME_UNCERTAIN`) alongside a strategic confidence score ($0\%-100\%$).
+* **Synthesized Intelligence:** Combines inputs from The Learning Governor (Brier score & trade history), ONNX Trajectory Engine, KEV.ai Risk Arbiter, and Bot Settings.
+* **Autonomous Auto-Apply vs Manual Control:**
+  * Toggle **Auto-Apply Sweetspot** to dynamically adopt new parameter hurdles directly into KEV.ai veto gates upon assessment completion.
+  * Click **⚡ Run Assessment Now** to trigger an on-demand strategic reasoning pass via `gemini-3.8-flash`.
+  * Click **Apply Sweetspot** to manually commit the latest recommendations.
+* **Persistent Settings:** Sweetspot parameters and Auto-Apply preferences are automatically saved in `data/bot_settings.json` and restored on startup.
 
 ---
 
@@ -233,6 +249,10 @@ Displays every evaluated candidate coin with:
 | `/api/learning/stats` | `GET` | Retrieves rolling Brier score and past trade post-mortems from SQLite. | `brier_score`, `confidence_multiplier`, `recent_outcomes`, `status` |
 | `/api/predict` | `POST` | Generates autoregressive predictions from lookback buffer. | `success`, `prediction_results`, `metrics` |
 | `/api/load-model` | `POST` | Loads the Kronos model weights into memory on demand. | `success`, `model_name`, `device` |
+| `/api/gemini/assessment` | `GET` | Returns latest Gemini strategic meta-assessment, active sweetspot, and auto-apply status. | `available`, `model`, `auto_apply`, `assessment`, `active_sweetspot` |
+| `/api/gemini/assess` | `POST` | Triggers an immediate strategic reasoning pass via Gemini Free Tier. | `success`, `assessment` |
+| `/api/gemini/apply-sweetspot` | `POST` | Manually applies the recommended sweetspot parameters to live KEV.ai gates. | `success`, `message` |
+| `/api/gemini/toggle-auto-apply` | `POST` | Toggles automatic sweetspot adoption upon background assessment completion. | `success`, `auto_apply` |
 
 ---
 

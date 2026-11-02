@@ -1,9 +1,10 @@
 # Kronos Institutional Quant Architecture & Multi-Agent Engine
 
-> **Document Version:** 2.2.0  
+> **Document Version:** 2.3.0  
 > **Target Framework:** Binance USDⓈ-M Perpetual Futures & Spot Universe  
 > **Core Alpha Engine:** `NeoQuasar/Kronos-base` (102.3M parameters, 512 context length)  
 > **Risk Arbiter:** KEV.ai 6-Point Supreme Veto Gate & Bayesian Brier Learning Engine  
+> **Strategy Copilot:** Gemini Free Tier Meta-Strategy Arbiter (`gemini-3.8-flash`)  
 > **Execution Baseline:** Small-Account Micro-Trading Engine ($200.00 USDT Paper Equity)  
 > **Terminal:** Unified 3-in-1 Bloomberg/Terminal-Grade Front-End (`http://localhost:7070`)
 
@@ -154,6 +155,22 @@ Acts as the Chief Risk Officer and evaluates trades against 6 deterministic gate
 * Runs an autonomous background scanning thread every 60 seconds (configurable).
 * Automatically monitors open positions, checks bracket triggers, evaluates 12h temporal exits, and logs trade outcomes into `data/lessons.db`.
 * Remembers autopilot state and interval across restarts via `data/bot_settings.json`.
+
+### 3.9 Gemini Meta-Strategy Assessment Engine (`src/quant/gemini_strategy_arbiter.py`)
+Acts as the **Supervisory Chief Investment Officer (CIO)** operating on an asynchronous slow cadence:
+* **Asynchronous Slow Cadence:** Triggers every 5 closed paper trades or every 2 hours in the background (or on-demand via the Web UI), preserving the sub-50ms high-speed execution loop.
+* **Unified Synthesis:** Synthesizes the 4 foundational pillars:
+  1. *The Learning Governor:* Rolling 48-hour Brier score calibration, confidence throttle, and SQLite trade post-mortems.
+  2. *Kronos ONNX Engine:* Macro regime diagnostics, momentum breadth, and multi-asset price trajectories.
+  3. *KEV.ai Risk Arbiter:* 6-point veto rules, funding carry friction, and fractional Kelly capital sizing.
+  4. *Settings & Parameter Sweep:* Active R:R ratio, fee hurdle, risk budget %, and EMA lookback windows.
+* **The Sweetspot Matrix:** Diagnoses the macro regime (`TRENDING_EXPANSION`, `MEAN_REVERTING_RANGE`, `HIGH_VOLATILITY_TURBULENCE`, `REGIME_UNCERTAIN`), assesses statistical edge, and prescribes the optimal "sweetspot" parameters:
+  * `sweetspot_rr_ratio`: Recommended minimum Reward/Risk hurdle (clamped to $[1.40, 2.20]$).
+  * `sweetspot_fee_hurdle_pct`: Minimum required drift above fees (clamped to $[0.35\%, 0.75\%]$).
+  * `sweetspot_risk_budget_pct`: Micro-account risk budget % (clamped to $[0.8\%, 1.5\%] \le \$3.00$).
+  * `sweetspot_fast_ema` & `sweetspot_slow_ema`: Optimal momentum lookback windows ($[10, 25]$ and $[45, 80]$).
+* **Deterministic Guardrail Clamping:** Raw LLM outputs are strictly clamped to institutional quant bounds before passing to `quant_bot.risk_arbiter.update_sweetspot()`, guaranteeing zero hallucination risk.
+* **Zero Credit Burning:** Utilizes Google Gemini Free Tier (`gemini-3.8-flash` via the official `google-genai` SDK) with pre-digested bounded summaries (<1,200 tokens) ensuring continuous 100% free operation well within the 1,500 daily request quota.
 
 ---
 

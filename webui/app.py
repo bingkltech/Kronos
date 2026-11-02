@@ -907,7 +907,7 @@ def load_model():
         if not MODEL_AVAILABLE:
             return jsonify({'error': 'Kronos model library not available'}), 400
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         model_key = data.get('model_key', 'kronos-base')
         device = data.get('device', 'cpu')
         
@@ -1325,7 +1325,7 @@ def toggle_bot_autopilot():
     """Toggle or update autonomous auto-pilot settings."""
     global bot_autopilot_enabled, bot_autopilot_interval
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         with bot_autopilot_lock:
             if "enabled" in data:
                 bot_autopilot_enabled = bool(data["enabled"])
@@ -1539,7 +1539,7 @@ def apply_gemini_sweetspot_endpoint():
 def toggle_gemini_auto_apply_endpoint():
     """Toggle automatic sweetspot parameter adoption."""
     global gemini_auto_apply
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     if "auto_apply" in data:
         gemini_auto_apply = bool(data["auto_apply"])
     else:

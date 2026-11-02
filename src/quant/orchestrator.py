@@ -72,6 +72,11 @@ class QuantBotOrchestrator:
         self.learning_governor = learning_governor or LearningGovernor()
         self.executor = executor or BinanceAtomicExecutor(dry_run=True)
 
+    @property
+    def kev_arbiter(self) -> KEVSupremeArbiter:
+        """Alias for risk_arbiter (KEVSupremeArbiter instance)."""
+        return self.risk_arbiter
+
     def run_scan_cycle(
         self,
         account_equity: Optional[Decimal] = None,
