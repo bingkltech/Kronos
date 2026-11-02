@@ -70,7 +70,7 @@ class QuantBotOrchestrator:
         self.trajectory_engine = trajectory_engine or KronosTrajectoryEngine(symbols_config=self.symbols_config)
         self.risk_arbiter = risk_arbiter or KEVSupremeArbiter(risk_config=self.risk_config, symbols_config=self.symbols_config)
         self.learning_governor = learning_governor or LearningGovernor()
-        self.executor = executor or BinanceAtomicExecutor(dry_run=True)
+        self.executor = executor or BinanceAtomicExecutor(dry_run=True, realistic_friction=True, symbols_config=self.symbols_config)
 
     @property
     def kev_arbiter(self) -> KEVSupremeArbiter:
@@ -126,7 +126,7 @@ class QuantBotOrchestrator:
                 timestamp_utc=pos.close_time_utc or current_time_utc
             ))
 
-        self.sweep_temporal_exits(current_time_utc=current_time_utc)
+        self.sweep_temporal_exits(current_time_utc=current_time_utc, current_prices=current_prices)
 
         # 5. Check Active Positions & Capacity
         active_symbols = [
@@ -213,12 +213,18 @@ class QuantBotOrchestrator:
             dispatched_trades=dispatched_trades
         )
 
-    def sweep_temporal_exits(self, current_time_utc: Optional[datetime.datetime] = None) -> List[str]:
-        """Check all active positions for 12h stale expiry, close them, and record learning outcome."""
+    def sweep_temporal_exits(
+        self,
+        current_time_utc: Optional[datetime.datetime] = None,
+        current_prices: Optional[Dict[str, Decimal]] = None
+    ) -> List[str]:
+        """Check all active positions for 12h stale expiry, close them at market, and record learning outcome."""
         expired_ids = []
         now_u = current_time_utc or datetime.datetime.now(datetime.timezone.utc)
+        prices = current_prices or {}
         for pos_id, pos in list(self.executor.active_positions.items()):
-            if self.executor.evaluate_temporal_exit(pos, current_time_utc=now_u, max_duration_hours=self.risk_config.stale_trade_hours):
+            px = prices.get(pos.symbol)
+            if self.executor.evaluate_temporal_exit(pos, current_time_utc=now_u, max_duration_hours=self.risk_config.stale_trade_hours, current_price=px):
                 expired_ids.append(pos_id)
                 self.learning_governor.record_outcome(TradeOutcome(
                     trade_id=pos.position_id,

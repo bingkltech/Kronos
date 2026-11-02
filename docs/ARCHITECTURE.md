@@ -146,7 +146,13 @@ Acts as the Chief Risk Officer and evaluates trades against 6 deterministic gate
 ### 3.7 Binance Execution Machine (`src/quant/binance_execution.py`)
 * **Atomic Bracket State Machine:** Sends entry limit order; once filled, dispatches native exchange Take-Profit and Stop-Loss orders.
 * **Anti-Naked-Position Guard:** If the stop-loss order is not confirmed active within **1,000 milliseconds**, an immediate market flatten is triggered.
-* **12-Hour Temporal Stale-Trade Expiry:** If a trade remains open past 12 hours without reaching TP or SL, it is automatically liquidated at market price.
+* **Realistic Institutional Friction & Fee Drag Model:**
+  * Deducts real Binance USDⓈ-M VIP0 maker fees ($0.02\%$) and taker fees ($0.05\%$) on every round trip.
+  * Simulates bid-ask spread crossing and adverse Stop-Loss market slippage ($1.5\text{x}$ baseline).
+  * Accumulates accrued 8-hour perpetual funding carry costs.
+  * Eliminates false positive simulations: small moves ($<0.07\%$) eaten by transaction friction are classified as **`LOSS`**.
+* **Live Market Temporal Stale-Trade Expiry:** If a trade remains open past 12 hours without reaching TP or SL, it is liquidated at the **live current market price** rather than artificially exiting at entry price.
+* **Test Isolation Protection:** Pytest execution runs in isolated memory spaces, preventing test fixtures from polluting `data/paper_trading_state.json`.
 * **State Persistence Engine:**
   * Active open positions, closed trade history, and account equity are continuously serialized and saved to `data/paper_trading_state.json`.
   * Position restoration upon startup preserves tickets, original entry prices, stop losses, and take profits across server restarts.

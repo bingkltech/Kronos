@@ -54,6 +54,11 @@ class ActiveBracketPosition:
     entry_fill_time_utc: Optional[datetime.datetime] = None
     close_time_utc: Optional[datetime.datetime] = None
     realized_pnl_usd: Decimal = Decimal("0.0")
+    gross_pnl_usd: Decimal = Decimal("0.0")
+    entry_fee_usd: Decimal = Decimal("0.0")
+    exit_fee_usd: Decimal = Decimal("0.0")
+    slippage_usd: Decimal = Decimal("0.0")
+    funding_fee_usd: Decimal = Decimal("0.0")
     close_reason: Optional[str] = None
 
 
@@ -73,7 +78,9 @@ class BinanceAtomicExecutor:
         dry_run: bool = True,
         session: Optional[requests.Session] = None,
         initial_equity: Decimal = Decimal("200.00"),
-        state_file: Optional[str] = None
+        state_file: Optional[str] = None,
+        symbols_config: Optional[Dict[str, FuturesSymbolConfig]] = None,
+        realistic_friction: bool = False
     ):
         self.api_key = api_key or os.getenv("BINANCE_FUTURES_API_KEY", "")
         self.secret_key = secret_key or os.getenv("BINANCE_FUTURES_SECRET_KEY", "")
@@ -84,8 +91,21 @@ class BinanceAtomicExecutor:
         self.active_positions: Dict[str, ActiveBracketPosition] = {}
         self.paper_initial_equity: Decimal = initial_equity
         self.closed_trades: List[Dict[str, Any]] = []
-        workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.state_file: str = state_file or os.path.join(workspace_root, "data", "paper_trading_state.json")
+        self.symbols_config = symbols_config or TOP_10_SYMBOLS
+        self.realistic_friction = realistic_friction
+
+        # Test isolation: When running under pytest without explicit state_file,
+        # avoid touching disk so unit tests never pollute live paper trading ledger!
+        is_test_env = "PYTEST_CURRENT_TEST" in os.environ or "pytest" in sys.modules
+        if state_file is None:
+            if is_test_env:
+                self.state_file = None
+            else:
+                workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                self.state_file = os.path.join(workspace_root, "data", "paper_trading_state.json")
+        else:
+            self.state_file = state_file
+
         self._load_paper_state()
 
     def _pos_to_dict(self, pos: ActiveBracketPosition) -> Dict[str, Any]:
@@ -105,6 +125,11 @@ class BinanceAtomicExecutor:
             "entry_fill_time_utc": pos.entry_fill_time_utc.isoformat() if pos.entry_fill_time_utc else None,
             "close_time_utc": pos.close_time_utc.isoformat() if pos.close_time_utc else None,
             "realized_pnl_usd": str(pos.realized_pnl_usd),
+            "gross_pnl_usd": str(pos.gross_pnl_usd),
+            "entry_fee_usd": str(pos.entry_fee_usd),
+            "exit_fee_usd": str(pos.exit_fee_usd),
+            "slippage_usd": str(pos.slippage_usd),
+            "funding_fee_usd": str(pos.funding_fee_usd),
             "close_reason": pos.close_reason
         }
 
@@ -139,12 +164,17 @@ class BinanceAtomicExecutor:
             entry_fill_time_utc=entry_time,
             close_time_utc=close_time,
             realized_pnl_usd=Decimal(str(d.get("realized_pnl_usd", "0.0"))),
+            gross_pnl_usd=Decimal(str(d.get("gross_pnl_usd", d.get("realized_pnl_usd", "0.0")))),
+            entry_fee_usd=Decimal(str(d.get("entry_fee_usd", "0.0"))),
+            exit_fee_usd=Decimal(str(d.get("exit_fee_usd", "0.0"))),
+            slippage_usd=Decimal(str(d.get("slippage_usd", "0.0"))),
+            funding_fee_usd=Decimal(str(d.get("funding_fee_usd", "0.0"))),
             close_reason=d.get("close_reason")
         )
 
     def _load_paper_state(self) -> None:
         """Load persistent paper trading equity, open positions, and trade ledger."""
-        if not os.path.exists(self.state_file):
+        if not self.state_file or not os.path.exists(self.state_file):
             return
         try:
             with open(self.state_file, "r", encoding="utf-8") as f:
@@ -163,6 +193,8 @@ class BinanceAtomicExecutor:
 
     def _save_paper_state(self) -> None:
         """Persist paper trading state, open positions, and last trade atomically to JSON."""
+        if not self.state_file:
+            return
         try:
             os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
             active_list = [
@@ -203,22 +235,83 @@ class BinanceAtomicExecutor:
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=datetime.timezone.utc)
 
-        entry_val = pos.entry_price * pos.quantity
-        pnl = pos.realized_pnl_usd
-        return_pct = ((pnl / entry_val) * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if entry_val > 0 else Decimal("0.00")
-
         duration_min = 0
         if pos.entry_fill_time_utc:
             duration_min = max(0, int((ts - pos.entry_fill_time_utc).total_seconds() / 60))
+
+        if self.realistic_friction:
+            sym_cfg = self.symbols_config.get(pos.symbol)
+            taker_fee_rate = sym_cfg.taker_fee_rate if sym_cfg else Decimal("0.0005")
+            maker_fee_rate = sym_cfg.maker_fee_rate if sym_cfg else Decimal("0.0002")
+            est_slippage_rate = sym_cfg.est_slippage_rate if sym_cfg else Decimal("0.0003")
+
+            # 1. Adverse slippage on market stop-loss executions
+            if reason in ("STOP_LOSS_TRIGGERED", "SL_HIT", "EMERGENCY_FLATTEN_SL_TIMEOUT"):
+                adverse_slippage = est_slippage_rate * Decimal("1.5")
+                if pos.side in ("BUY", "LONG"):
+                    effective_exit = exit_price * (Decimal("1") - adverse_slippage)
+                else:
+                    effective_exit = exit_price * (Decimal("1") + adverse_slippage)
+                prec = sym_cfg.price_precision if sym_cfg else 4
+                fmt = Decimal("10") ** -prec
+                effective_exit = effective_exit.quantize(fmt, rounding=ROUND_HALF_UP)
+                pos.slippage_usd += (abs(effective_exit - exit_price) * pos.quantity).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+            else:
+                effective_exit = exit_price
+
+            # 2. Maker fee on TP limit fill, taker fee on SL/market liquidations
+            if reason in ("TAKE_PROFIT_TRIGGERED", "TP_HIT"):
+                exit_fee_rate = maker_fee_rate
+            else:
+                exit_fee_rate = taker_fee_rate
+
+            exit_notional = effective_exit * pos.quantity
+            pos.exit_fee_usd = (exit_notional * exit_fee_rate).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+            total_fees = pos.entry_fee_usd + pos.exit_fee_usd
+
+            # 3. Accrued 8-hour funding carry drag
+            if duration_min >= 480:
+                intervals = duration_min // 480
+                funding_drag = (pos.entry_price * pos.quantity * Decimal("0.0001") * Decimal(str(intervals))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+                pos.funding_fee_usd = funding_drag
+
+            # 4. Gross PnL
+            if pos.side in ("BUY", "LONG"):
+                gross_pnl = (effective_exit - pos.entry_price) * pos.quantity
+            else:
+                gross_pnl = (pos.entry_price - effective_exit) * pos.quantity
+            pos.gross_pnl_usd = gross_pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            # 5. Net Realized PnL (Gross - Fees - Funding)
+            net_pnl = gross_pnl - total_fees - pos.funding_fee_usd
+            pos.realized_pnl_usd = net_pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        else:
+            effective_exit = exit_price
+            if pos.realized_pnl_usd == Decimal("0.0"):
+                if pos.side in ("BUY", "LONG"):
+                    gross_pnl = (exit_price - pos.entry_price) * pos.quantity
+                else:
+                    gross_pnl = (pos.entry_price - exit_price) * pos.quantity
+                pos.realized_pnl_usd = gross_pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            pos.gross_pnl_usd = pos.realized_pnl_usd
+            total_fees = Decimal("0.00")
+
+        entry_val = pos.entry_price * pos.quantity
+        pnl = pos.realized_pnl_usd
+        return_pct = ((pnl / entry_val) * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if entry_val > 0 else Decimal("0.00")
 
         record = {
             "trade_id": pos.position_id,
             "symbol": pos.symbol,
             "side": pos.side,
             "entry_price": float(pos.entry_price),
-            "exit_price": float(exit_price),
+            "exit_price": float(effective_exit),
             "quantity": float(pos.quantity),
             "notional_usd": float((pos.quantity * pos.entry_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "gross_pnl_usd": float(pos.gross_pnl_usd),
+            "fee_usd": float((pos.entry_fee_usd + pos.exit_fee_usd).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "slippage_usd": float(pos.slippage_usd.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            "funding_usd": float(pos.funding_fee_usd.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
             "realized_pnl_usd": float(pnl),
             "return_pct": float(return_pct),
             "result": "WIN" if pnl > Decimal("0.0") else ("LOSS" if pnl < Decimal("0.0") else "EVEN"),
@@ -253,6 +346,26 @@ class BinanceAtomicExecutor:
             for t in self.closed_trades
         ) if self.closed_trades else Decimal("0.00")
 
+        gross_pnl_dec = sum(
+            Decimal(str(t.get("gross_pnl_usd", t.get("realized_pnl_usd", 0))))
+            for t in self.closed_trades
+        ) if self.closed_trades else Decimal("0.00")
+
+        total_fees_dec = sum(
+            Decimal(str(t.get("fee_usd", 0)))
+            for t in self.closed_trades
+        ) if self.closed_trades else Decimal("0.00")
+
+        total_slippage_dec = sum(
+            Decimal(str(t.get("slippage_usd", 0)))
+            for t in self.closed_trades
+        ) if self.closed_trades else Decimal("0.00")
+
+        total_funding_dec = sum(
+            Decimal(str(t.get("funding_usd", 0)))
+            for t in self.closed_trades
+        ) if self.closed_trades else Decimal("0.00")
+
         gross_profit = sum(
             Decimal(str(t["realized_pnl_usd"]))
             for t in self.closed_trades if t.get("realized_pnl_usd", 0) > 0
@@ -275,6 +388,9 @@ class BinanceAtomicExecutor:
                         pos_unrealized = (mark - pos.entry_price) * pos.quantity
                     else:
                         pos_unrealized = (pos.entry_price - mark) * pos.quantity
+                    if self.realistic_friction:
+                        exit_fee = (mark * pos.quantity * Decimal("0.0005"))
+                        pos_unrealized -= exit_fee
                     unrealized_pnl_dec += pos_unrealized
 
         current_equity_dec = self.paper_initial_equity + realized_pnl_dec + unrealized_pnl_dec
@@ -284,6 +400,10 @@ class BinanceAtomicExecutor:
             "initial_equity": float(self.paper_initial_equity),
             "current_equity": float(current_equity_dec),
             "realized_pnl_usd": float(realized_pnl_dec),
+            "gross_pnl_usd": float(gross_pnl_dec),
+            "total_fees_usd": float(total_fees_dec),
+            "total_slippage_usd": float(total_slippage_dec),
+            "total_funding_usd": float(total_funding_dec),
             "unrealized_pnl_usd": float(unrealized_pnl_dec),
             "net_return_pct": float(net_return_pct),
             "total_trades": total,
@@ -298,7 +418,8 @@ class BinanceAtomicExecutor:
                 "active": True,
                 "mode": "MICRO_LOTS",
                 "max_account_leverage": 5,
-                "account_profile": "SMALL_ACCOUNT ($200 USDT)"
+                "account_profile": "SMALL_ACCOUNT ($200 USDT)",
+                "realistic_friction": self.realistic_friction
             },
             "last_paper_trade": self.closed_trades[-1] if self.closed_trades else None,
             "open_positions": [self._pos_to_dict(p) for p in self.active_positions.values() if p.state == PositionState.BRACKETS_ACTIVE],
@@ -334,16 +455,37 @@ class BinanceAtomicExecutor:
         State progression: IDLE -> ENTRY_SUBMITTED -> ENTRY_FILLED -> BRACKETS_ACTIVE.
         If Stop-Loss confirmation fails within 1,000ms, triggers EMERGENCY_FLATTEN.
         """
+        # Determine effective entry price and entry taker fee
+        if self.realistic_friction:
+            sym_cfg = self.symbols_config.get(ticket.symbol)
+            taker_fee_rate = sym_cfg.taker_fee_rate if sym_cfg else Decimal("0.0005")
+            est_slippage_rate = sym_cfg.est_slippage_rate if sym_cfg else Decimal("0.0003")
+            if ticket.side in ("BUY", "LONG"):
+                effective_entry = ticket.entry_price * (Decimal("1") + est_slippage_rate)
+            else:
+                effective_entry = ticket.entry_price * (Decimal("1") - est_slippage_rate)
+            prec = sym_cfg.price_precision if sym_cfg else 4
+            fmt = Decimal("10") ** -prec
+            effective_entry = effective_entry.quantize(fmt, rounding=ROUND_HALF_UP)
+            entry_fee = (effective_entry * ticket.quantity * taker_fee_rate).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+            slippage = (abs(effective_entry - ticket.entry_price) * ticket.quantity).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+        else:
+            effective_entry = ticket.entry_price
+            entry_fee = Decimal("0.0")
+            slippage = Decimal("0.0")
+
         pos_id = f"{ticket.symbol}-{int(time.time()*1000)}"
         position = ActiveBracketPosition(
             position_id=pos_id,
             symbol=ticket.symbol,
             side=ticket.side,
-            entry_price=ticket.entry_price,
+            entry_price=effective_entry,
             stop_loss=ticket.stop_loss,
             take_profit=ticket.take_profit,
             quantity=ticket.quantity,
-            state=PositionState.ENTRY_SUBMITTED
+            state=PositionState.ENTRY_SUBMITTED,
+            entry_fee_usd=entry_fee,
+            slippage_usd=slippage
         )
 
         fill_time = fill_time_utc or datetime.datetime.now(datetime.timezone.utc)
@@ -382,7 +524,8 @@ class BinanceAtomicExecutor:
         self,
         position: ActiveBracketPosition,
         current_time_utc: Optional[datetime.datetime] = None,
-        max_duration_hours: int = 12
+        max_duration_hours: int = 12,
+        current_price: Optional[Decimal] = None
     ) -> bool:
         """
         Check if an active position has exceeded the 12-hour temporal expiry limit.
@@ -404,7 +547,8 @@ class BinanceAtomicExecutor:
             position.close_reason = "TEMPORAL_EXIT_12H_STALE"
             position.close_time_utc = current_time_utc
             self.active_positions.pop(position.position_id, None)
-            self._record_closed_trade(position, exit_price=position.entry_price, reason="TEMPORAL_EXIT_12H_STALE", timestamp_utc=current_time_utc)
+            exit_px = current_price if current_price is not None else position.entry_price
+            self._record_closed_trade(position, exit_price=exit_px, reason="TEMPORAL_EXIT_12H_STALE", timestamp_utc=current_time_utc)
             return True
 
         return False
@@ -425,12 +569,14 @@ class BinanceAtomicExecutor:
         position.close_time_utc = datetime.datetime.now(datetime.timezone.utc)
 
         # Compute realized PnL
-        if position.side in ("BUY", "LONG"):
-            pnl = (exit_price - position.entry_price) * position.quantity
-        else:
-            pnl = (position.entry_price - exit_price) * position.quantity
+        if not self.realistic_friction:
+            if position.side in ("BUY", "LONG"):
+                pnl = (exit_price - position.entry_price) * position.quantity
+            else:
+                pnl = (position.entry_price - exit_price) * position.quantity
+            position.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            position.gross_pnl_usd = position.realized_pnl_usd
 
-        position.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         self.active_positions.pop(position_id, None)
         self._record_closed_trade(position, exit_price=exit_price, reason=reason, timestamp_utc=position.close_time_utc)
         return position

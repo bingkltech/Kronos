@@ -986,7 +986,7 @@ from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
 quant_bot = QuantBotOrchestrator(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
     risk_config=DEFAULT_RISK_CONFIG,
-    executor=BinanceAtomicExecutor(dry_run=True)
+    executor=BinanceAtomicExecutor(dry_run=True, realistic_friction=True, symbols_config=ALL_SUPPORTED_SYMBOLS)
 )
 
 @app.route('/api/macro/overview', methods=['GET'])

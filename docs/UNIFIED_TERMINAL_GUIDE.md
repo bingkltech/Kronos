@@ -52,13 +52,25 @@ Designed for institutional portfolio managers, macro risk officers, and macro-tr
 4. **Bayesian Learning Health:**
    * Displays the rolling 48-hour Brier calibration score and the live capital throttle multiplier ($0.0\text{x}$ to $1.0\text{x}$) derived from `data/lessons.db`.
 
-### 2.2 Paper Trading Performance Audit Report
-* **Live Metrics Panel:**
-  * **Win vs Loss Count:** Total completed trades, winning trades count, losing trades count, and win rate percentage.
-  * **Total Realized PnL:** Net profit/loss displayed in USDT and percentage relative to starting equity ($200.00 USDT).
-  * **Profit Factor:** Ratio of gross profits to gross losses.
-* **Audit Log Table:**
-  * Historical record of all closed paper trades with Ticket ID, Symbol, Side, Entry Price, Exit Price, Realized PnL ($ / %), and Exit Reason (`BRACKET_TAKE_PROFIT`, `BRACKET_STOP_LOSS`, `TEMPORAL_EXIT_12H`, `MANUAL_CLOSE`).
+### 2.2 Realistic Paper Trading & Performance Audit Report
+Engineered to eradicate false/vanity simulation reports and match real Binance USDⓈ-M Futures execution:
+* **Dual-Layer PnL Accounting (Gross vs. Net Realized):**
+  * Tracks pure market price motion (`Gross PnL`) and true cash-balance delta (`Net Realized PnL`).
+  * Deducts real exchange taker fees (0.05% / $5\text{ bps}$) on aggressive market entries/exits, and maker fees (0.02% / $2\text{ bps}$) on limit Take-Profit executions.
+  * **Elimination of False Wins:** Trades with small price appreciation ($< 0.07\%$) that are overwhelmed by round-trip transaction friction are strictly audited and classified as **`LOSS`**, matching real live wallet dynamics.
+* **Microstructure Slippage & Adverse Liquidation Modeling:**
+  * Market entry orders cross the bid/ask spread with estimated slippage ($0.03\%-0.08\%$).
+  * Stop-Loss market liquidations model adverse execution slippage during selloffs ($1.5\text{x}$ baseline).
+* **Live Market Temporal Exits:**
+  * When a trade lingers past the 12-hour temporal expiry limit without triggering TP or SL, it liquidates at the **live current market price** (with taker fee + slippage), rather than artificially assuming a break-even $0 exit.
+* **Perpetual Funding Rate Drag:**
+  * Positions crossing 8-hour funding intervals (00:00, 08:00, 16:00 UTC) accumulate realistic funding drag deducted directly from net realized PnL.
+* **Test Isolation Protection:**
+  * Automated testing suites run in isolated memory containers, guaranteeing unit test fixtures ($10,000 notional mock trades) can never pollute the live paper trading ledger.
+* **Live Metrics Panel & Transparent Audit Table:**
+  * **Win vs Loss Count:** Win rate percentage computed strictly on Net Realized PnL.
+  * **Total Realized PnL & Fee Drag:** Net balance displayed alongside cumulative fees paid ($) and gross PnL.
+  * **Audit Log Table:** Displays exact timestamps, symbols, quantities, entry/exit prices, fee drag, gross PnL, net realized PnL, and outcome badges (`WIN` / `LOSS` / `EVEN`).
 * **One-Click Account Reset:**
   * A reset button triggers a modal dialog allowing operators to re-initialize equity back to $200.00 USDT and archive historical trade records.
 

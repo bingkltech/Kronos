@@ -30,19 +30,35 @@ def _make_sample_ticket(
     symbol="ETHUSDT",
     side="BUY",
     entry_price=Decimal("2500.00"),
-    quantity=Decimal("4.000")
+    quantity=Decimal("4.000"),
+    stop_loss=None,
+    take_profit=None
 ) -> TradeTicket:
     """Helper creating a sample pre-cleared TradeTicket."""
+    if stop_loss is not None:
+        sl = stop_loss
+    elif entry_price == Decimal("2500.00"):
+        sl = Decimal("2465.00")
+    else:
+        sl = entry_price * Decimal("0.98") if side == "BUY" else entry_price * Decimal("1.02")
+
+    if take_profit is not None:
+        tp = take_profit
+    elif entry_price == Decimal("2500.00"):
+        tp = Decimal("2560.00")
+    else:
+        tp = entry_price * Decimal("1.03") if side == "BUY" else entry_price * Decimal("0.97")
+
     return TradeTicket(
         symbol=symbol,
         side=side,
         entry_price=entry_price,
-        stop_loss=Decimal("2465.00"),
-        take_profit=Decimal("2560.00"),
+        stop_loss=sl,
+        take_profit=tp,
         quantity=quantity,
         notional_usd=entry_price * quantity,
         effective_leverage=1,
-        risk_budget_usd=Decimal("140.00"),
+        risk_budget_usd=abs(entry_price - sl) * quantity,
         reward_risk_ratio=Decimal("1.71"),
         net_expected_gain_pct=Decimal("2.24")
     )
@@ -191,3 +207,97 @@ def test_active_positions_and_last_trade_persist_across_restarts(tmp_path):
     assert summary["last_paper_trade"]["result"] == "WIN"
     assert summary["winning_trades"] == 1
     assert summary["current_equity"] > 200.0
+
+
+def test_realistic_friction_and_fee_drag_elimination_of_false_wins(tmp_path):
+    """
+    Verify institutional near-realistic paper trading:
+    1. Entry slippage & taker fee applied.
+    2. TP limit exit pays maker fee (0.02%).
+    3. Small price gain (+0.04%) that is less than fee drag becomes a net LOSS.
+    4. Gross vs Net PnL transparency.
+    """
+    state_file = str(tmp_path / "realistic_paper_state.json")
+    executor = BinanceAtomicExecutor(
+        dry_run=True,
+        initial_equity=Decimal("200.00"),
+        state_file=state_file,
+        realistic_friction=True
+    )
+
+    # Case 1: Profitable trade overcoming fees
+    # BTC entry $70,000, TP $71,000, Qty 0.002
+    ticket = _make_sample_ticket(
+        symbol="BTCUSDT",
+        side="BUY",
+        entry_price=Decimal("70000.00"),
+        quantity=Decimal("0.002"),
+        stop_loss=Decimal("69000.00"),
+        take_profit=Decimal("71000.00")
+    )
+    pos = executor.submit_bracket_order(ticket)
+    # Entry price had slippage applied
+    assert pos.entry_price > Decimal("70000.00")
+    assert pos.entry_fee_usd > Decimal("0.0")
+
+    # Hit Take-Profit limit
+    closed_pos = executor.check_bracket_price_triggers({"BTCUSDT": Decimal("71500.00")})
+    assert len(closed_pos) == 1
+    p = closed_pos[0]
+    assert p.close_reason == "TAKE_PROFIT_TRIGGERED"
+    assert p.exit_fee_usd > Decimal("0.0")
+    assert p.gross_pnl_usd > p.realized_pnl_usd  # Gross is higher than Net after fees
+    assert p.realized_pnl_usd > Decimal("0.0")   # Net profit is positive -> WIN
+    assert executor.closed_trades[-1]["result"] == "WIN"
+
+    # Case 2: The "False Win" trap: A tiny move eaten up by round-trip fees
+    # BTC entry $70,000, closes at $70,030 (gross gain: +$0.018, but round-trip fees: ~$0.14)
+    ticket_false = _make_sample_ticket(
+        symbol="BTCUSDT",
+        side="BUY",
+        entry_price=Decimal("70000.00"),
+        quantity=Decimal("0.002"),
+        stop_loss=Decimal("69000.00"),
+        take_profit=Decimal("71000.00")
+    )
+    pos_false = executor.submit_bracket_order(ticket_false)
+    p_false = executor.close_position_manual(pos_false.position_id, reason="MANUAL_CLOSE", exit_price=Decimal("70030.00"))
+    assert p_false.gross_pnl_usd < p_false.entry_fee_usd + p_false.exit_fee_usd
+    assert p_false.realized_pnl_usd < Decimal("0.0")
+    # Must be recorded as LOSS because in live trading the balance decreased!
+    assert executor.closed_trades[-1]["result"] == "LOSS"
+
+    summary = executor.get_paper_summary()
+    assert summary["total_fees_usd"] > 0
+    assert summary["gross_pnl_usd"] > summary["realized_pnl_usd"]
+    assert summary["winning_trades"] == 1
+    assert summary["losing_trades"] == 1
+
+
+def test_realistic_temporal_exit_at_market_price(tmp_path):
+    """Verify 12-hour stale trade exits at live market price with fees, not flat $0 entry."""
+    state_file = str(tmp_path / "temporal_market_exit.json")
+    executor = BinanceAtomicExecutor(
+        dry_run=True,
+        initial_equity=Decimal("200.00"),
+        state_file=state_file,
+        realistic_friction=True
+    )
+
+    t = _make_sample_ticket(symbol="SOLUSDT", side="BUY", entry_price=Decimal("100.00"), quantity=Decimal("1.000"))
+    pos = executor.submit_bracket_order(t)
+
+    # 13 hours elapse, SOL market price dropped to $95.00
+    t_13h = pos.entry_fill_time_utc + datetime.timedelta(hours=13)
+    expired = executor.evaluate_temporal_exit(
+        pos,
+        current_time_utc=t_13h,
+        max_duration_hours=12,
+        current_price=Decimal("95.00")
+    )
+    assert expired
+    assert pos.state == PositionState.CLOSED
+    assert pos.close_reason == "TEMPORAL_EXIT_12H_STALE"
+    # Should reflect market loss (roughly -$5.00 minus fees), NOT artificial $0.00!
+    assert pos.realized_pnl_usd < Decimal("-5.00")
+    assert executor.closed_trades[-1]["result"] == "LOSS"
