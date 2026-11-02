@@ -209,9 +209,20 @@ class QuantBotOrchestrator:
         )
 
     def sweep_temporal_exits(self, current_time_utc: Optional[datetime.datetime] = None) -> List[str]:
-        """Check all active positions for 12h stale expiry and close them."""
+        """Check all active positions for 12h stale expiry, close them, and record learning outcome."""
         expired_ids = []
+        now_u = current_time_utc or datetime.datetime.now(datetime.timezone.utc)
         for pos_id, pos in list(self.executor.active_positions.items()):
-            if self.executor.evaluate_temporal_exit(pos, current_time_utc=current_time_utc, max_duration_hours=self.risk_config.stale_trade_hours):
+            if self.executor.evaluate_temporal_exit(pos, current_time_utc=now_u, max_duration_hours=self.risk_config.stale_trade_hours):
                 expired_ids.append(pos_id)
+                self.learning_governor.record_outcome(TradeOutcome(
+                    trade_id=pos.position_id,
+                    symbol=pos.symbol,
+                    side=pos.side,
+                    forecast_confidence=Decimal("0.70"),
+                    realized_hit=1 if pos.realized_pnl_usd > Decimal("0") else 0,
+                    realized_pnl_usd=pos.realized_pnl_usd,
+                    exit_reason="TEMPORAL_EXIT_12H_STALE",
+                    timestamp_utc=pos.close_time_utc or now_u
+                ))
         return expired_ids

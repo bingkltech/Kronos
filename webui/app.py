@@ -1050,6 +1050,48 @@ bot_autopilot_next_scan_time = None
 bot_last_cycle_summary = None
 bot_autopilot_lock = threading.Lock()
 
+BOT_SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot_settings.json")
+
+def _load_bot_settings():
+    """Restore autopilot settings and last cycle state across server restarts."""
+    global bot_autopilot_enabled, bot_autopilot_interval, bot_last_cycle_summary
+    if not os.path.exists(BOT_SETTINGS_FILE):
+        return
+    try:
+        with open(BOT_SETTINGS_FILE, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+            if "enabled" in cfg:
+                bot_autopilot_enabled = bool(cfg["enabled"])
+            if "interval_seconds" in cfg:
+                bot_autopilot_interval = max(10, int(cfg["interval_seconds"]))
+            if "last_cycle_summary" in cfg and cfg["last_cycle_summary"]:
+                bot_last_cycle_summary = cfg["last_cycle_summary"]
+    except Exception as e:
+        print(f">> [Bot Memory] Warning loading settings: {e}")
+
+def _save_bot_settings():
+    """Persist autopilot settings and last cycle summary to disk for memory across reloads."""
+    try:
+        os.makedirs(os.path.dirname(BOT_SETTINGS_FILE), exist_ok=True)
+        payload = {
+            "enabled": bot_autopilot_enabled,
+            "interval_seconds": bot_autopilot_interval,
+            "last_cycle_summary": bot_last_cycle_summary,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }
+        temp_file = f"{BOT_SETTINGS_FILE}.tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        if os.path.exists(BOT_SETTINGS_FILE):
+            os.replace(temp_file, BOT_SETTINGS_FILE)
+        else:
+            os.rename(temp_file, BOT_SETTINGS_FILE)
+    except Exception as e:
+        print(f">> [Bot Memory] Warning saving settings: {e}")
+
+# Initial load of persistent settings on startup
+_load_bot_settings()
+
 def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
     """Executes a single end-to-end multi-agent scan cycle across the full universe."""
     global bot_autopilot_last_scan, bot_autopilot_next_scan_time, bot_last_cycle_summary
@@ -1121,6 +1163,7 @@ def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
         "paper_report": quant_bot.executor.get_paper_summary()
     }
     bot_last_cycle_summary = summary
+    _save_bot_settings()
     return summary
 
 def _autopilot_daemon_loop():
@@ -1203,6 +1246,12 @@ def get_bot_status():
             "execution_mode": "DRY_RUN (SIMULATED)",
             "account_equity": current_eq,
             "paper_report": paper_summary,
+            "last_paper_trade": paper_summary.get("last_paper_trade"),
+            "memory_status": {
+                "active": True,
+                "open_positions_persisted": len(quant_bot.executor.active_positions),
+                "closed_trades_persisted": len(quant_bot.executor.closed_trades)
+            },
             "micro_trading_active": True,
             "base_risk_budget_pct": "1.5%",
             "max_leverage": 5,
@@ -1260,6 +1309,8 @@ def toggle_bot_autopilot():
             if "interval_seconds" in data:
                 bot_autopilot_interval = max(10, int(data["interval_seconds"]))
 
+            _save_bot_settings()
+
         return jsonify({
             "success": True,
             "autopilot_enabled": bot_autopilot_enabled,
@@ -1297,6 +1348,21 @@ def close_bot_position():
         exit_price = Decimal(str(req_data.get("exit_price", pos.entry_price)))
         closed = quant_bot.executor.close_position_manual(pos_id, reason="MANUAL_CLOSE", exit_price=exit_price)
         
+        # Record outcome to LearningGovernor SQLite database for online adaptation
+        try:
+            quant_bot.learning_governor.record_outcome(TradeOutcome(
+                trade_id=closed.position_id,
+                symbol=closed.symbol,
+                side=closed.side,
+                forecast_confidence=Decimal("0.70"),
+                realized_hit=1 if closed.realized_pnl_usd > Decimal("0") else 0,
+                realized_pnl_usd=closed.realized_pnl_usd,
+                exit_reason="MANUAL_CLOSE",
+                timestamp_utc=closed.close_time_utc or datetime.datetime.now(datetime.timezone.utc)
+            ))
+        except Exception:
+            pass
+
         return jsonify({
             "success": True,
             "position_id": closed.position_id,

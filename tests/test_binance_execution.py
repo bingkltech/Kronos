@@ -152,3 +152,42 @@ def test_paper_trading_state_and_win_loss_audit(tmp_path):
     assert reset_summary["current_equity"] == 200.0
     assert reset_summary["total_trades"] == 0
     assert executor.get_current_equity() == Decimal("200.00")
+
+
+def test_active_positions_and_last_trade_persist_across_restarts(tmp_path):
+    """Verify memory engine restores open bracket positions and last paper trade across restarts."""
+    state_file = str(tmp_path / "persistent_paper_state.json")
+
+    # Instance 1: Run and create state
+    exec1 = BinanceAtomicExecutor(dry_run=True, initial_equity=Decimal("200.00"), state_file=state_file)
+
+    # 1. Closed trade
+    t_closed = _make_sample_ticket(symbol="ETHUSDT", side="BUY", entry_price=Decimal("2500.00"), quantity=Decimal("0.100"))
+    pos_closed = exec1.submit_bracket_order(t_closed)
+    exec1.close_position_manual(pos_closed.position_id, reason="TAKE_PROFIT_TRIGGERED", exit_price=Decimal("2560.00"))
+
+    # 2. Open active position
+    t_active = _make_sample_ticket(symbol="BTCUSDT", side="BUY", entry_price=Decimal("70000.00"), quantity=Decimal("0.002"))
+    pos_active = exec1.submit_bracket_order(t_active)
+    assert pos_active.state == PositionState.BRACKETS_ACTIVE
+    assert len(exec1.active_positions) == 1
+
+    # Instance 2: Simulate application restart
+    exec2 = BinanceAtomicExecutor(dry_run=True, initial_equity=Decimal("200.00"), state_file=state_file)
+
+    # Assert active position restored with zero-float precision
+    assert len(exec2.active_positions) == 1
+    restored_pos = list(exec2.active_positions.values())[0]
+    assert restored_pos.symbol == "BTCUSDT"
+    assert restored_pos.side == "BUY"
+    assert restored_pos.entry_price == Decimal("70000.00")
+    assert restored_pos.quantity == Decimal("0.002")
+    assert restored_pos.state == PositionState.BRACKETS_ACTIVE
+
+    # Assert last trade remembered
+    summary = exec2.get_paper_summary()
+    assert summary["last_paper_trade"] is not None
+    assert summary["last_paper_trade"]["symbol"] == "ETHUSDT"
+    assert summary["last_paper_trade"]["result"] == "WIN"
+    assert summary["winning_trades"] == 1
+    assert summary["current_equity"] > 200.0

@@ -120,28 +120,36 @@ class KronosTrajectoryEngine:
         if raw_drift > Decimal("0"):
             # Bullish Candidate (LONG)
             proposed_side = "LONG"
-            take_profit = max(terminal_close, path_high)
-            
-            # Dynamic SL is path low or 1.0% safety buffer
             inferred_sl = min(spot_price - min_stop_distance, path_low)
             stop_loss = cfg.quantize_price(inferred_sl)
-            take_profit = cfg.quantize_price(take_profit)
+            risk_dist = spot_price - stop_loss
+
+            # Institutional Positive Expectancy: Ensure TP envelope provides >= 1.60:1 Reward/Risk
+            min_tp_dist = risk_dist * Decimal("1.60")
+            target_tp = max(terminal_close, path_high, spot_price + min_tp_dist)
+            take_profit = cfg.quantize_price(target_tp)
+            raw_drift = (take_profit - spot_price) / spot_price
+
             rationale = (
-                f"Kronos Bullish Drift: Projected +{raw_drift*Decimal('100'):.2f}% to {terminal_close}. "
+                f"Kronos Bullish Drift: Envelope Target +{raw_drift*Decimal('100'):.2f}% to {take_profit}. "
                 f"Envelope TP: {take_profit}, SL: {stop_loss}."
             )
 
         elif raw_drift < Decimal("0"):
             # Bearish Candidate (SHORT)
             proposed_side = "SHORT"
-            take_profit = min(terminal_close, path_low)
-            
-            # Dynamic SL is path high or 1.0% safety buffer
             inferred_sl = max(spot_price + min_stop_distance, path_high)
             stop_loss = cfg.quantize_price(inferred_sl)
-            take_profit = cfg.quantize_price(take_profit)
+            risk_dist = stop_loss - spot_price
+
+            # Institutional Positive Expectancy: Ensure TP envelope provides >= 1.60:1 Reward/Risk
+            min_tp_dist = risk_dist * Decimal("1.60")
+            target_tp = min(terminal_close, path_low, spot_price - min_tp_dist)
+            take_profit = cfg.quantize_price(target_tp)
+            raw_drift = (take_profit - spot_price) / spot_price
+
             rationale = (
-                f"Kronos Bearish Drift: Projected {raw_drift*Decimal('100'):.2f}% to {terminal_close}. "
+                f"Kronos Bearish Drift: Envelope Target {raw_drift*Decimal('100'):.2f}% to {take_profit}. "
                 f"Envelope TP: {take_profit}, SL: {stop_loss}."
             )
         else:
@@ -196,18 +204,20 @@ class KronosTrajectoryEngine:
                     pass
 
     def _generate_synthetic_path(self, tail_df: pd.DataFrame, pred_len: int) -> pd.DataFrame:
-        """Deterministic drift/volatility projection used as fallback when neural weights are offline."""
+        """Quantitative momentum / volatility trajectory projection when neural weights are offline or initializing."""
         last_close = float(tail_df["close"].iloc[-1])
         closes = tail_df["close"].astype(float).values
         n = min(len(closes), 12)
         momentum = (closes[-1] - closes[-n]) / closes[-n] if n > 1 else 0.0
-        drift_step = (momentum / n) * 0.5
+        if abs(momentum) < 0.003 and len(closes) >= 24:
+            momentum = (closes[-1] - closes[-24]) / closes[-24]
+        drift_step = (momentum / n) if n > 0 else 0.0
         
         preds = []
         curr = last_close
         for _ in range(pred_len):
             curr = curr * (1.0 + drift_step)
-            spread = curr * 0.003
+            spread = curr * 0.005  # 0.5% half-spread
             preds.append({
                 "open": curr,
                 "high": curr + spread,

@@ -88,8 +88,62 @@ class BinanceAtomicExecutor:
         self.state_file: str = state_file or os.path.join(workspace_root, "data", "paper_trading_state.json")
         self._load_paper_state()
 
+    def _pos_to_dict(self, pos: ActiveBracketPosition) -> Dict[str, Any]:
+        """Serialize an ActiveBracketPosition to a JSON-compatible dictionary."""
+        return {
+            "position_id": pos.position_id,
+            "symbol": pos.symbol,
+            "side": pos.side,
+            "entry_price": str(pos.entry_price),
+            "stop_loss": str(pos.stop_loss),
+            "take_profit": str(pos.take_profit),
+            "quantity": str(pos.quantity),
+            "state": pos.state.value,
+            "entry_order_id": pos.entry_order_id,
+            "sl_order_id": pos.sl_order_id,
+            "tp_order_id": pos.tp_order_id,
+            "entry_fill_time_utc": pos.entry_fill_time_utc.isoformat() if pos.entry_fill_time_utc else None,
+            "close_time_utc": pos.close_time_utc.isoformat() if pos.close_time_utc else None,
+            "realized_pnl_usd": str(pos.realized_pnl_usd),
+            "close_reason": pos.close_reason
+        }
+
+    def _dict_to_pos(self, d: Dict[str, Any]) -> ActiveBracketPosition:
+        """Deserialize a dictionary to an ActiveBracketPosition with strict Decimal precision."""
+        entry_time = None
+        if d.get("entry_fill_time_utc"):
+            try:
+                entry_time = datetime.datetime.fromisoformat(d["entry_fill_time_utc"])
+            except Exception:
+                pass
+
+        close_time = None
+        if d.get("close_time_utc"):
+            try:
+                close_time = datetime.datetime.fromisoformat(d["close_time_utc"])
+            except Exception:
+                pass
+
+        return ActiveBracketPosition(
+            position_id=d["position_id"],
+            symbol=d["symbol"],
+            side=d["side"],
+            entry_price=Decimal(str(d["entry_price"])),
+            stop_loss=Decimal(str(d["stop_loss"])),
+            take_profit=Decimal(str(d["take_profit"])),
+            quantity=Decimal(str(d["quantity"])),
+            state=PositionState(d.get("state", "IDLE")),
+            entry_order_id=d.get("entry_order_id"),
+            sl_order_id=d.get("sl_order_id"),
+            tp_order_id=d.get("tp_order_id"),
+            entry_fill_time_utc=entry_time,
+            close_time_utc=close_time,
+            realized_pnl_usd=Decimal(str(d.get("realized_pnl_usd", "0.0"))),
+            close_reason=d.get("close_reason")
+        )
+
     def _load_paper_state(self) -> None:
-        """Load persistent paper trading equity and trade ledger."""
+        """Load persistent paper trading equity, open positions, and trade ledger."""
         if not os.path.exists(self.state_file):
             return
         try:
@@ -99,17 +153,32 @@ class BinanceAtomicExecutor:
                     self.paper_initial_equity = Decimal(str(data["initial_equity"]))
                 if "closed_trades" in data and isinstance(data["closed_trades"], list):
                     self.closed_trades = data["closed_trades"]
+                if "active_positions" in data and isinstance(data["active_positions"], list):
+                    for pos_dict in data["active_positions"]:
+                        pos = self._dict_to_pos(pos_dict)
+                        if pos.state == PositionState.BRACKETS_ACTIVE:
+                            self.active_positions[pos.position_id] = pos
         except Exception:
             pass
 
     def _save_paper_state(self) -> None:
-        """Persist paper trading state atomically to JSON."""
+        """Persist paper trading state, open positions, and last trade atomically to JSON."""
         try:
             os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+            active_list = [
+                self._pos_to_dict(p)
+                for p in self.active_positions.values()
+                if p.state == PositionState.BRACKETS_ACTIVE
+            ]
+            last_trade = self.closed_trades[-1] if self.closed_trades else None
             payload = {
                 "initial_equity": str(self.paper_initial_equity),
+                "current_equity": str(self.get_current_equity()),
                 "total_trades": len(self.closed_trades),
+                "active_positions_count": len(active_list),
+                "active_positions": active_list,
                 "closed_trades": self.closed_trades[-200:],  # retain last 200 trades
+                "last_paper_trade": last_trade,
                 "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
             temp_file = f"{self.state_file}.tmp"
@@ -231,6 +300,8 @@ class BinanceAtomicExecutor:
                 "max_account_leverage": 5,
                 "account_profile": "SMALL_ACCOUNT ($200 USDT)"
             },
+            "last_paper_trade": self.closed_trades[-1] if self.closed_trades else None,
+            "open_positions": [self._pos_to_dict(p) for p in self.active_positions.values() if p.state == PositionState.BRACKETS_ACTIVE],
             "closed_trades": list(reversed(self.closed_trades[-50:]))
         }
 
@@ -303,6 +374,7 @@ class BinanceAtomicExecutor:
             position.tp_order_id = f"DRY_TP_{pos_id}"
             position.state = PositionState.BRACKETS_ACTIVE
             self.active_positions[pos_id] = position
+            self._save_paper_state()
 
         return position
 
@@ -331,6 +403,7 @@ class BinanceAtomicExecutor:
             position.state = PositionState.CLOSED
             position.close_reason = "TEMPORAL_EXIT_12H_STALE"
             position.close_time_utc = current_time_utc
+            self.active_positions.pop(position.position_id, None)
             self._record_closed_trade(position, exit_price=position.entry_price, reason="TEMPORAL_EXIT_12H_STALE", timestamp_utc=current_time_utc)
             return True
 
@@ -358,6 +431,7 @@ class BinanceAtomicExecutor:
             pnl = (position.entry_price - exit_price) * position.quantity
 
         position.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        self.active_positions.pop(position_id, None)
         self._record_closed_trade(position, exit_price=exit_price, reason=reason, timestamp_utc=position.close_time_utc)
         return position
 
@@ -392,6 +466,7 @@ class BinanceAtomicExecutor:
                     pos.close_time_utc = now_utc
                     pnl = (pos.take_profit - pos.entry_price) * pos.quantity
                     pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    self.active_positions.pop(pos_id, None)
                     closed_positions.append(pos)
                     self._record_closed_trade(pos, exit_price=pos.take_profit, reason="TAKE_PROFIT_TRIGGERED", timestamp_utc=now_utc)
                 elif curr_price <= pos.stop_loss:
@@ -400,6 +475,7 @@ class BinanceAtomicExecutor:
                     pos.close_time_utc = now_utc
                     pnl = (pos.stop_loss - pos.entry_price) * pos.quantity
                     pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    self.active_positions.pop(pos_id, None)
                     closed_positions.append(pos)
                     self._record_closed_trade(pos, exit_price=pos.stop_loss, reason="STOP_LOSS_TRIGGERED", timestamp_utc=now_utc)
 
@@ -411,6 +487,7 @@ class BinanceAtomicExecutor:
                     pos.close_time_utc = now_utc
                     pnl = (pos.entry_price - pos.take_profit) * pos.quantity
                     pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    self.active_positions.pop(pos_id, None)
                     closed_positions.append(pos)
                     self._record_closed_trade(pos, exit_price=pos.take_profit, reason="TAKE_PROFIT_TRIGGERED", timestamp_utc=now_utc)
                 elif curr_price >= pos.stop_loss:
@@ -419,6 +496,7 @@ class BinanceAtomicExecutor:
                     pos.close_time_utc = now_utc
                     pnl = (pos.entry_price - pos.stop_loss) * pos.quantity
                     pos.realized_pnl_usd = pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    self.active_positions.pop(pos_id, None)
                     closed_positions.append(pos)
                     self._record_closed_trade(pos, exit_price=pos.stop_loss, reason="STOP_LOSS_TRIGGERED", timestamp_utc=now_utc)
 

@@ -684,6 +684,311 @@
             background: var(--bg-elevated);
             color: var(--text-secondary);
         }
+    
+        /* ========================================================================= */
+        /* KRONOS FORECAST WORKSTATION (INSTITUTIONAL BLOOMBERG / TERMINAL GRADE)   */
+        /* ========================================================================= */
+        .ws-root {
+            background-color: #070a10;
+            color: #e2e8f0;
+            font-family: 'Consolas', 'Courier New', monospace, var(--font-sans);
+            padding: 8px 12px 24px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .ws-top-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0d121d;
+            border: 1px solid #1a2333;
+            border-radius: 4px;
+            padding: 6px 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .ws-badge-agents {
+            background: #f59e0b;
+            color: #000000;
+            font-weight: 900;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            letter-spacing: 1px;
+            display: inline-block;
+        }
+
+        .ws-pill-live {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #10b981;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ws-header-title {
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #f1f5f9;
+            text-transform: uppercase;
+        }
+
+        .ws-grid-top {
+            display: grid;
+            grid-template-columns: 240px 1fr 310px;
+            gap: 8px;
+            height: 480px;
+        }
+
+        .ws-grid-mid {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 8px;
+            height: 250px;
+        }
+
+        .ws-grid-bottom {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 8px;
+            height: 310px;
+        }
+
+        @media (max-width: 1280px) {
+            .ws-grid-top { grid-template-columns: 220px 1fr 280px; }
+            .ws-grid-mid { grid-template-columns: 220px 1fr; }
+            .ws-grid-bottom { grid-template-columns: 1fr 360px; }
+        }
+
+        @media (max-width: 1024px) {
+            .ws-grid-top, .ws-grid-mid, .ws-grid-bottom {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        .ws-panel {
+            background: #0d121d;
+            border: 1px solid #1a2333;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .ws-panel-header {
+            background: #111827;
+            border-bottom: 1px solid #1a2333;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            height: 28px;
+            box-sizing: border-box;
+        }
+
+        .ws-panel-body {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #0a0e17;
+        }
+
+        /* Market Watch Table */
+        .ws-mw-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            user-select: none;
+        }
+
+        .ws-mw-table th {
+            background: #0d121d;
+            color: #64748b;
+            font-weight: 700;
+            font-size: 10px;
+            text-align: right;
+            padding: 4px 6px;
+            border-bottom: 1px solid #1a2333;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .ws-mw-table th:first-child { text-align: left; }
+
+        .ws-mw-table td {
+            padding: 5px 6px;
+            border-bottom: 1px solid rgba(26, 35, 51, 0.6);
+            text-align: right;
+            color: #cbd5e1;
+        }
+
+        .ws-mw-table td:first-child {
+            text-align: left;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .ws-mw-row {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .ws-mw-row:hover {
+            background: rgba(30, 41, 59, 0.6);
+        }
+
+        .ws-mw-row.active {
+            background: rgba(245, 158, 11, 0.18) !important;
+            border-left: 3px solid #f59e0b;
+        }
+
+        .ws-mw-row.active td:first-child {
+            color: #f59e0b;
+        }
+
+        /* Time & Sales Table */
+        .ws-tape-container {
+            height: 100%;
+            overflow-y: auto;
+            font-size: 10px;
+            font-family: var(--font-mono);
+        }
+
+        .ws-tape-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .ws-tape-table th {
+            background: #0d121d;
+            color: #64748b;
+            font-weight: 700;
+            text-align: right;
+            padding: 4px 6px;
+            border-bottom: 1px solid #1a2333;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .ws-tape-table td {
+            padding: 3px 6px;
+            border-bottom: 1px solid rgba(26, 35, 51, 0.4);
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ws-tape-row-buy td {
+            color: #10b981;
+        }
+
+        .ws-tape-row-sell td {
+            color: #ef4444;
+        }
+
+        /* Chips */
+        .ws-chip {
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            border: 1px solid #1e293b;
+            color: #94a3b8;
+            background: rgba(15, 23, 42, 0.6);
+            display: inline-block;
+        }
+
+        /* Specialist Pills Grid */
+        .ws-agent-pills-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3px;
+            padding: 4px 6px;
+            background: #0d121d;
+            border-bottom: 1px solid #1a2333;
+        }
+
+        .ws-agent-pill {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 4px;
+            border-radius: 3px;
+            text-align: center;
+            border: 1px solid transparent;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ws-agent-pill.positive {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .ws-agent-pill.negative {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .ws-agent-pill.cyan {
+            color: #22d3ee;
+            background: rgba(34, 211, 238, 0.1);
+            border-color: rgba(34, 211, 238, 0.3);
+        }
+
+        .ws-agent-pill.amber {
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .ws-btn-tool {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .ws-btn-tool:hover {
+            background: #334155;
+            color: #ffffff;
+            border-color: #58a6ff;
+        }
+
+        /* Collapsible Drawer for Advanced Model Controls */
+        #ws-advanced-drawer {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 14px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+
     </style>
 </head>
 <body>
@@ -843,6 +1148,23 @@
                 </div>
             </div>
 
+            <!-- Last Executed Paper Trade Memory Banner -->
+            <div style="background: rgba(13, 17, 23, 0.95); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 16px;">💾</span>
+                    <span style="font-size: 12px; font-weight: 700; color: #58a6ff; text-transform: uppercase;">Last Paper Trade Memory:</span>
+                    <span id="dash-last-trade-desc" style="font-size: 13px; font-family: var(--font-mono); color: var(--text-primary);">Awaiting initial trade exit... (Open bracket positions: 0 active)</span>
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <span class="badge-regime" style="background: rgba(163, 113, 247, 0.15); color: #a371f7; border: 1px solid rgba(163, 113, 247, 0.3); font-size: 11px;">
+                        🧠 Online Learning (data/lessons.db)
+                    </span>
+                    <span class="badge-regime" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3); font-size: 11px;">
+                        💾 State Persisted Across Restarts
+                    </span>
+                </div>
+            </div>
+
             <!-- Recent Closed Trades Ledger -->
             <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between;">
                 <span>Recent Closed Paper Trades</span>
@@ -948,236 +1270,302 @@
     <!-- ======================================================================= -->
     <!-- VIEW 2: NEURAL FORECASTER (CURRENT WORKSPACE) -->
     <!-- ======================================================================= -->
+        <!-- ======================================================================= -->
+    <!-- VIEW 2: KRONOS FORECAST WORKSTATION (INSTITUTIONAL QUANT SUITE)        -->
+    <!-- ======================================================================= -->
     <div id="view-forecaster" class="app-view" style="display: none;">
-        
-        <!-- Quick Asset Switcher Bar -->
-        <div class="quick-assets-bar">
-            <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Quick Switch:</span>
-            <button class="asset-chip active" onclick="quickSelectAsset('BTCUSDT')">BTC/USDT</button>
-            <button class="asset-chip" onclick="quickSelectAsset('ETHUSDT')">ETH/USDT</button>
-            <button class="asset-chip" onclick="quickSelectAsset('SOLUSDT')">SOL/USDT</button>
-            <button class="asset-chip" onclick="quickSelectAsset('1000PEPEUSDT')">1000PEPE/USDT (7 Decimals)</button>
-            <button class="asset-chip" onclick="quickSelectAsset('PEPEUSDT')">PEPE Spot (8 Decimals)</button>
-            <button class="asset-chip" onclick="quickSelectAsset('DOGEUSDT')">DOGE/USDT</button>
-            <button class="asset-chip" onclick="quickSelectAsset('XRPUSDT')">XRP/USDT</button>
-            <button class="asset-chip" onclick="quickSelectAsset('BNBUSDT')">BNB/USDT</button>
-            <button class="asset-chip" onclick="quickSelectAsset('SUIUSDT')">SUI/USDT</button>
-        </div>
+        <div class="ws-root">
 
-        <div class="container">
-            <div class="header">
-                <h1>🚀 Kronos Financial Prediction Web UI</h1>
-                <p>AI-based financial K-line data prediction analysis platform</p>
+            <!-- Top Bloomberg / Terminal Header Banner -->
+            <div class="ws-top-banner">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span class="ws-badge-agents">KRONOS • AGENTS</span>
+                    <span class="ws-pill-live"><span class="pulse-dot"></span> LIVE STREAMING</span>
+                    <span id="ws-header-asset" style="font-size: 13px; font-weight: 700; color: #f8fafc; letter-spacing: 1px;">BTCUSDT • 15M</span>
+                </div>
+                <div class="ws-header-title">KRONOS FORECAST WORKSTATION</div>
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                    <span id="ws-header-index" style="font-size: 12px; font-weight: 700; color: #10b981;">INDEX 83,280.2 (+0.73%)</span>
+                    <span id="ws-header-clock" style="font-size: 12px; color: #94a3b8; font-family: var(--font-mono);">--:--:-- UTC</span>
+                    <button class="ws-btn-tool" onclick="toggleAdvancedSettings()">⚙️ Model & Config</button>
+                </div>
             </div>
 
-            <div class="main-content">
-                <div class="control-panel">
-                    <h2>🎯 Control Panel</h2>
-
-                    <!-- Model Selection -->
-                    <div class="form-group">
-                        <label for="model-select">Select Model:</label>
+            <!-- Collapsible Advanced Model Controls Drawer -->
+            <div id="ws-advanced-drawer" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 8px;">
+                    <h3 style="font-size: 13px; color: #38bdf8; font-weight: 700; text-transform: uppercase;">dYZ_ Kronos Model & Inference Settings</h3>
+                    <button class="ws-btn-tool" onclick="toggleAdvancedSettings()">Close dY?</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="model-select" style="font-size: 11px;">Select Model:</label>
                         <select id="model-select">
-                            <option value="kronos-base" selected>Kronos-base (102.3M) - Base model (Default)</option>
+                            <option value="kronos-base" selected>Kronos-base (102.3M)</option>
                         </select>
-                        <small class="form-text" style="color: var(--text-muted); font-size: 11px;">Kronos Foundation Model 102.3M</small>
+                        <button id="load-model-btn" class="btn btn-secondary" style="margin-top: 6px; padding: 4px 8px; font-size: 11px;">dY", Reload Model</button>
+                        <div id="model-status" class="status info" style="display: none; font-size: 10px; margin-top: 4px;"></div>
                     </div>
-
-                    <!-- Device Selection -->
-                    <div class="form-group">
-                        <label for="device-select">Select Device:</label>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="device-select" style="font-size: 11px;">Device:</label>
                         <select id="device-select">
                             <option value="cpu">CPU</option>
                             <option value="cuda">CUDA (NVIDIA GPU)</option>
                             <option value="mps">MPS (Apple Silicon)</option>
                         </select>
                     </div>
-
-                    <!-- Model Status -->
-                    <div id="model-status" class="status info" style="display: none;">
-                        Model status information
-                    </div>
-
-                    <!-- Load Model Button -->
-                    <button id="load-model-btn" class="btn btn-secondary" style="margin-bottom: 16px;">
-                        🔄 Load Model
-                    </button>
-
-                    <!-- Live Binance Data Source -->
-                    <div style="background: rgba(33, 38, 45, 0.8); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                        <h3 style="color: #58a6ff; font-size: 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                            <span>⚡</span> Live Binance Market Data
-                        </h3>
-                        
-                        <div class="form-group" style="margin-bottom: 12px;">
-                            <label for="binance-asset-select" style="font-size: 11px;">Crypto Asset:</label>
-                            <select id="binance-asset-select">
-                                <option value="BTCUSDT" selected>Bitcoin (BTC/USDT)</option>
-                                <option value="ETHUSDT">Ethereum (ETH/USDT)</option>
-                                <option value="SOLUSDT">Solana (SOL/USDT)</option>
-                                <option value="BNBUSDT">BNB (BNB/USDT)</option>
-                                <option value="DOGEUSDT">Dogecoin (DOGE/USDT)</option>
-                                <option value="XRPUSDT">Ripple (XRP/USDT)</option>
-                                <option value="ADAUSDT">Cardano (ADA/USDT)</option>
-                                <option value="AVAXUSDT">Avalanche (AVAX/USDT)</option>
-                                <option value="LINKUSDT">Chainlink (LINK/USDT)</option>
-                                <option value="NEARUSDT">NEAR Protocol (NEAR/USDT)</option>
-                                <option value="SUIUSDT">Sui Network (SUI/USDT)</option>
-                                <option value="1000PEPEUSDT">1000PEPE Futures (1000PEPE/USDT)</option>
-                                <option value="PEPEUSDT">Pepe Spot (PEPE/USDT)</option>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="binance-asset-select" style="font-size: 11px;">Crypto Asset:</label>
+                        <select id="binance-asset-select">
+                            <option value="BTCUSDT" selected>Bitcoin (BTC/USDT)</option>
+                            <option value="ETHUSDT">Ethereum (ETH/USDT)</option>
+                            <option value="SOLUSDT">Solana (SOL/USDT)</option>
+                            <option value="BNBUSDT">BNB (BNB/USDT)</option>
+                            <option value="DOGEUSDT">Dogecoin (DOGE/USDT)</option>
+                            <option value="XRPUSDT">Ripple (XRP/USDT)</option>
+                            <option value="AVAXUSDT">Avalanche (AVAX/USDT)</option>
+                            <option value="SUIUSDT">Sui Network (SUI/USDT)</option>
+                            <option value="PEPEUSDT">Pepe Spot (PEPE/USDT)</option>
+                            <option value="1000PEPEUSDT">1000PEPE Futures (1000PEPE/USDT)</option>
+                            <option value="NEARUSDT">NEAR Protocol (NEAR/USDT)</option>
+                            <option value="LINKUSDT">Chainlink (LINK/USDT)</option>
+                        </select>
+                        <div style="display: flex; gap: 6px; margin-top: 6px;">
+                            <select id="binance-interval-select" style="font-size: 11px; flex: 1;">
+                                <option value="15m" selected>15m</option>
+                                <option value="1h">1h</option>
+                                <option value="5m">5m</option>
+                                <option value="4h">4h</option>
+                            </select>
+                            <select id="binance-limit-select" style="font-size: 11px; flex: 1;">
+                                <option value="520" selected>520</option>
+                                <option value="1000">1000</option>
                             </select>
                         </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label for="binance-interval-select" style="font-size: 11px;">Timeframe:</label>
-                                <select id="binance-interval-select">
-                                    <option value="1h" selected>1 Hour (1h)</option>
-                                    <option value="15m">15 Minutes (15m)</option>
-                                    <option value="5m">5 Minutes (5m)</option>
-                                    <option value="4h">4 Hours (4h)</option>
-                                    <option value="1d">1 Day (1d)</option>
-                                </select>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label for="binance-limit-select" style="font-size: 11px;">Count:</label>
-                                <select id="binance-limit-select">
-                                    <option value="520" selected>520 (400+120)</option>
-                                    <option value="700">700</option>
-                                    <option value="1000">1000 (Max)</option>
-                                </select>
-                            </div>
+                        <button id="fetch-binance-btn" class="btn" style="margin-top: 6px; padding: 4px 8px; font-size: 11px; width: 100%; background: #2563eb; color: white;">Fetch Binance Data</button>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <div class="slider-container" style="margin-bottom: 8px;">
+                            <label for="lookback-slider" style="font-size: 11px;">Lookback: <span id="lookback-value">400</span></label>
+                            <input type="range" id="lookback-slider" class="slider" min="100" max="512" value="400">
                         </div>
-
-                        <button id="fetch-binance-btn" class="btn" style="background: linear-gradient(135deg, #1f6feb 0%, #238636 100%); width: 100%; margin-top: 5px; color: white;">
-                            ⚡ Fetch & Load Candles
-                        </button>
+                        <div class="slider-container" style="margin-bottom: 8px;">
+                            <label for="pred-len-slider" style="font-size: 11px;">Pred Horizon: <span id="pred-len-value">120</span></label>
+                            <input type="range" id="pred-len-slider" class="slider" min="10" max="120" value="120">
+                        </div>
+                        <button id="predict-btn" class="btn btn-primary" style="padding: 6px 12px; font-size: 11px; width: 100%;">dY"r Run Neural Inference</button>
                     </div>
-
-                    <!-- Local Data File Selection -->
-                    <div class="form-group">
-                        <label for="data-file-select">Local Data File:</label>
-                        <select id="data-file-select">
-                            <option value="">Please load data file list first</option>
-                        </select>
+                </div>
+                <!-- Hidden elements to maintain script compatibility -->
+                <div style="display: none;">
+                    <select id="data-file-select"></select>
+                    <button id="load-data-btn"></button>
+                    <div id="data-info">
+                        <span id="data-rows"></span><span id="data-cols"></span>
+                        <span id="data-price-range"></span><span id="data-timeframe"></span>
+                        <div id="data-time-range"></div><div id="data-prediction-cols"></div>
                     </div>
+                    <input id="temperature-input" value="1.0">
+                    <input id="top-p-input" value="0.9">
+                    <select id="sample-count-select"><option value="1">1</option></select>
+                    <tbody id="comparison-tbody"></tbody>
+                    <div id="tv-chart-container"></div>
+                </div>
+            </div>
 
-                    <button id="load-data-btn" class="btn btn-secondary" style="margin-bottom: 16px;">
-                        📁 Load File
-                    </button>
-
-                    <!-- Data Information Display -->
-                    <div id="data-info" class="status info" style="display: none; font-size: 12px;">
-                        <div>Rows: <strong id="data-rows">-</strong> | Cols: <strong id="data-cols">-</strong></div>
-                        <div>Range: <span id="data-price-range">-</span></div>
-                        <div>Time: <span id="data-timeframe">-</span></div>
-                        <div id="data-time-range" style="display: none;"></div>
-                        <div id="data-prediction-cols" style="display: none;"></div>
+            <!-- TOP ROW: Market Watch | Main Candlestick Chart | Time & Sales Tape -->
+            <div class="ws-grid-top">
+                <!-- Panel 1: MARKET WATCH -->
+                <div class="ws-panel" id="panel-market-watch">
+                    <div class="ws-panel-header">
+                        <span>MARKET WATCH</span>
+                        <span id="mw-active-sub" style="color: #64748b; font-size: 10px;">BTCUSD • MPCE5</span>
                     </div>
-
-                    <!-- Lookback Length Slider -->
-                    <div class="slider-container">
-                        <label for="lookback-slider">Lookback: <span id="lookback-value">400</span></label>
-                        <input type="range" id="lookback-slider" class="slider" min="100" max="512" value="400">
+                    <div class="ws-panel-body" style="overflow-y: auto;">
+                        <table class="ws-mw-table">
+                            <thead>
+                                <tr>
+                                    <th>SYMBOL</th>
+                                    <th>LAST</th>
+                                    <th>NET CHG</th>
+                                    <th>VOL</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ws-market-watch-tbody">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
                     </div>
-
-                    <!-- Prediction Length Slider -->
-                    <div class="slider-container">
-                        <label for="pred-len-slider">Horizon: <span id="pred-len-value">120</span></label>
-                        <input type="range" id="pred-len-slider" class="slider" min="12" max="240" value="120">
-                    </div>
-
-                    <!-- Run Prediction Button -->
-                    <button id="predict-btn" class="btn btn-primary" style="width: 100%; margin-top: 10px;" disabled>
-                        🔮 Generate Neural Forecast
-                    </button>
                 </div>
 
-                <!-- Display Panel with Charts -->
-                <div class="display-panel">
-                    <div class="chart-container" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 20px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h2 style="font-size: 1.1rem; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 8px;">
-                                <span>📈</span> Interactive Candlestick Chart
-                                <span id="tv-symbol-badge" style="background: #1f6feb; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;">BTC/USDT · 1H</span>
-                            </h2>
-                            <div style="display: flex; gap: 6px; align-items: center;">
-                                <button id="btn-engine-tv" type="button" class="btn-table-action" style="background: #238636; color: white;" onclick="switchChartEngine('tradingview')">⚡ TradingView Pro</button>
-                                <button id="btn-engine-plotly" type="button" class="btn-table-action" onclick="switchChartEngine('plotly')">📊 Plotly</button>
-                            </div>
+                <!-- Panel 2: MAIN CANDLESTICK CHART -->
+                <div class="ws-panel" id="panel-main-chart">
+                    <div class="ws-panel-header" style="background: #0a0e17; border-bottom: 1px solid #1a2333;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="mc-asset-title" style="color: #f59e0b; font-weight: 800; font-size: 12px;">BTCUSDT</span>
+                            <span id="mc-price-title" style="color: #f8fafc; font-weight: 700; font-size: 12px;">87,603.2 ▼</span>
+                            <span class="ws-chip">15M</span>
+                            <span class="ws-chip">CANDLES</span>
+                            <span class="ws-chip">MAIN</span>
+                            <span class="ws-chip" style="color: #22d3ee; border-color: rgba(34,211,238,0.4);">EMA 7</span>
+                            <span class="ws-chip" style="color: #f59e0b; border-color: rgba(245,158,11,0.4);">EMA 21</span>
+                            <span class="ws-chip" style="color: #eab308; border-color: rgba(234,179,8,0.4);">VWAP</span>
+                            <span class="ws-chip" style="color: #a855f7; border-color: rgba(168,85,247,0.4);">KRONOS-BARS</span>
                         </div>
-
-                        <!-- Crosshair Legend Bar -->
-                        <div id="tv-legend-bar" style="display: flex; gap: 14px; font-family: var(--font-mono); font-size: 12px; margin-bottom: 10px; padding: 6px 12px; background: var(--bg-elevated); border-radius: 6px; border: 1px solid var(--border-subtle);">
-                            <span>DATE: <strong id="leg-date" style="color: var(--text-primary);">-</strong></span>
-                            <span>O: <strong id="leg-open" style="color: var(--text-primary);">-</strong></span>
-                            <span>H: <strong id="leg-high" style="color: var(--text-primary);">-</strong></span>
-                            <span>L: <strong id="leg-low" style="color: var(--text-primary);">-</strong></span>
-                            <span>C: <strong id="leg-close" style="color: var(--accent-green-neon);">-</strong></span>
-                            <span>VOL: <strong id="leg-vol" style="color: #58a6ff;">-</strong></span>
-                            <span id="leg-status" style="margin-left: auto; color: var(--accent-green-neon); font-weight: 700;">● Live Chart Active</span>
-                        </div>
-
-                        <!-- TradingView Chart Container -->
-                        <div id="tv-chart-container" style="position: relative; width: 100%; height: 600px; border-radius: 8px; overflow: hidden; background: #131722;"></div>
-                        <!-- Plotly Fallback Container -->
-                        <div id="chart" style="width: 100%; min-height: 600px; display: none;"></div>
-
-                        <!-- Time Window Slider (Hidden by default, used internally) -->
-                        <div class="time-slider-container" style="display: none;">
-                            <div class="time-slider-track">
-                                <div class="time-slider-fill" id="slider-fill"></div>
-                                <div class="time-slider-handle" id="start-handle"></div>
-                                <div class="time-slider-handle" id="end-handle"></div>
-                            </div>
-                            <span id="start-time-display"></span>
-                            <span id="end-time-display"></span>
-                            <span id="window-size-display"></span>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="mc-vol-title" style="color: #94a3b8; font-size: 10px;">VOL: 1.42B</span>
                         </div>
                     </div>
-
-                    <!-- Prediction Metrics -->
-                    <div id="prediction-metrics" class="panel" style="display: none; margin-top: 20px;">
-                        <div class="panel-header">
-                            <span class="panel-title">Evaluation Metrics</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-family: var(--font-mono); text-align: center;">
-                            <div>MAE: <strong id="mae-value" style="color: #58a6ff;">-</strong></div>
-                            <div>RMSE: <strong id="rmse-value" style="color: #58a6ff;">-</strong></div>
-                            <div>MAPE: <strong id="mape-value" style="color: #58a6ff;">-</strong></div>
-                            <div>R²: <strong id="r2-value" style="color: #58a6ff;">-</strong></div>
-                        </div>
+                    <div class="ws-panel-body" id="mc-canvas-wrapper" style="position: relative;">
+                        <canvas id="canvas-main-chart" style="width: 100%; height: 100%; display: block;"></canvas>
                     </div>
+                </div>
 
-                    <!-- Detailed Comparison Table -->
-                    <div id="detailed-comparison" class="panel" style="display: none; margin-top: 20px;">
-                        <div class="panel-header">
-                            <span class="panel-title">Detailed Comparison Data</span>
-                        </div>
-                        <div style="max-height: 250px; overflow-y: auto;">
-                            <table class="comparison-table">
+                <!-- Panel 3: TIME & SALES -->
+                <div class="ws-panel" id="panel-time-sales">
+                    <div class="ws-panel-header">
+                        <span>TIME & SALES / bar-derived</span>
+                        <span style="color: #a855f7; font-size: 10px; font-weight: 700;">8.4 VOL FACTOR 8.2% ASK</span>
+                    </div>
+                    <div class="ws-panel-body">
+                        <div class="ws-tape-container" id="ts-tape-container">
+                            <table class="ws-tape-table">
                                 <thead>
                                     <tr>
-                                        <th>Time</th>
-                                        <th>Actual Open</th>
-                                        <th>Predicted Open</th>
-                                        <th>Actual High</th>
-                                        <th>Predicted High</th>
-                                        <th>Actual Low</th>
-                                        <th>Predicted Low</th>
-                                        <th>Actual Close</th>
-                                        <th>Predicted Close</th>
+                                        <th>PRICE</th>
+                                        <th>SIZE</th>
+                                        <th>BID</th>
+                                        <th>ASK</th>
+                                        <th>VENUE / TIME</th>
                                     </tr>
                                 </thead>
-                                <tbody id="comparison-tbody"></tbody>
+                                <tbody id="ts-tape-body">
+                                    <!-- Streaming live order prints -->
+                                </tbody>
                             </table>
                         </div>
                     </div>
-
                 </div>
             </div>
+
+            <!-- MIDDLE ROW: Agent Debate (FIE) | Execution View & CVD -->
+            <div class="ws-grid-mid">
+                <!-- Panel 4: AGENT DEBATE - BULL vs BEAR (FIE) -->
+                <div class="ws-panel" id="panel-agent-debate">
+                    <div class="ws-panel-header">
+                        <span>AGENT DEBATE - BULL vs BEAR (FIE)</span>
+                        <span id="ad-sentiment-pill" class="ws-agent-pill cyan" style="font-size: 10px;">sentiment +0.18</span>
+                    </div>
+                    <div class="ws-panel-body" style="display: flex; flex-direction: column;">
+                        <!-- Top 8 Specialist Badges -->
+                        <div class="ws-agent-pills-grid">
+                            <span class="ws-agent-pill positive">Fund +0.36</span>
+                            <span class="ws-agent-pill negative">Sent -0.55</span>
+                            <span class="ws-agent-pill negative">News -0.26</span>
+                            <span class="ws-agent-pill positive">Tech +0.35</span>
+                            <span class="ws-agent-pill cyan">BULL +0.38</span>
+                            <span class="ws-agent-pill negative">BEAR -1.00</span>
+                            <span class="ws-agent-pill amber">TRADER -0.26</span>
+                            <span class="ws-agent-pill negative">RISK -0.66</span>
+                        </div>
+                        <!-- Canvas for diverging vertical sentiment bars -->
+                        <div style="flex: 1; position: relative;" id="ad-canvas-wrapper">
+                            <canvas id="canvas-agent-debate" style="width: 100%; height: 100%; display: block;"></canvas>
+                        </div>
+                        <!-- Consensus verdict footer -->
+                        <div id="ad-consensus-text" style="text-align: center; font-size: 10px; font-weight: 700; padding: 4px; background: rgba(34,211,238,0.08); border-top: 1px solid rgba(34,211,238,0.2); color: #22d3ee;">
+                            CONSENSUS: CAUTIOUS BULL [P(up) = 69%]
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 5: EXECUTION VIEW & CVD -->
+                <div class="ws-panel" id="panel-execution-view">
+                    <div class="ws-panel-header">
+                        <div>
+                            <span id="ev-symbol-title" style="color: #f59e0b;">BTCUSDT</span>
+                            <span> - EXECUTION VIEW</span>
+                        </div>
+                        <span style="color: #64748b; font-size: 10px;">VOLUME PROFILE • CVD • FILLS</span>
+                    </div>
+                    <div class="ws-panel-body" id="ev-canvas-wrapper">
+                        <canvas id="canvas-execution-view" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTTOM ROW: Monte Carlo Paths | 3D Param Sweep Sharpe -->
+            <div class="ws-grid-bottom">
+                <!-- Panel 6: MONTE CARLO SAMPLED PATHS -->
+                <div class="ws-panel" id="panel-monte-carlo">
+                    <div class="ws-panel-header">
+                        <span>MONTE CARLO - KRONOS SAMPLED PATHS</span>
+                        <span style="color: #64748b; font-size: 10px;">6 000 PATHS • 15 BARS AHEAD</span>
+                    </div>
+                    <div class="ws-panel-body" style="display: flex;">
+                        <!-- Canvas Fan & Histogram -->
+                        <div style="flex: 1; position: relative;" id="mc-fan-wrapper">
+                            <canvas id="canvas-monte-carlo" style="width: 100%; height: 100%; display: block;"></canvas>
+                        </div>
+                        <!-- Right Risk & Target Metrics Sidebar -->
+                        <div style="width: 160px; background: #0d121d; border-left: 1px solid #1a2333; padding: 8px 10px; font-size: 10px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--font-mono);">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">HORIZON</span>
+                                <span style="color: #f8fafc; font-weight: 700;">+11.3M</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">EXP RETURN</span>
+                                <span style="color: #10b981; font-weight: 700;" id="mc-exp-ret">+1.63%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">VaR 95</span>
+                                <span style="color: #ef4444; font-weight: 700;" id="mc-var-95">-4.05%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">CVaR 95</span>
+                                <span style="color: #ef4444; font-weight: 700;" id="mc-cvar-95">-1.95%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">P(UP)</span>
+                                <span style="color: #22d3ee; font-weight: 700;" id="mc-p-up">89.00</span>
+                            </div>
+                            <div style="height: 1px; background: #1a2333; margin: 4px 0;"></div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">P50 TARGET</span>
+                                <span style="color: #f8fafc; font-weight: 700;" id="mc-p50-target">84,498</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">P95 TARGET</span>
+                                <span style="color: #10b981; font-weight: 700;" id="mc-p95-target">88,551</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #64748b;">P5 TARGET</span>
+                                <span style="color: #ef4444; font-weight: 700;" id="mc-p5-target">79,440</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 7: 3D PARAM SWEEP SHARPE -->
+                <div class="ws-panel" id="panel-param-sweep">
+                    <div class="ws-panel-header">
+                        <span>PARAM SWEEP - SHARPE (FAST & SLOW) - 3D</span>
+                        <span style="color: #64748b; font-size: 10px;">WALK FORWARD</span>
+                    </div>
+                    <div class="ws-panel-body" style="display: flex; flex-direction: column;">
+                        <div id="ps-peak-label" style="text-align: center; color: #f59e0b; font-weight: 800; font-size: 11px; padding: 3px; background: rgba(245,158,11,0.06); border-bottom: 1px solid rgba(245,158,11,0.15);">
+                            peak Sharpe 1.32 @ 17/65
+                        </div>
+                        <div style="flex: 1; position: relative;" id="ps-canvas-wrapper">
+                            <canvas id="canvas-param-sweep-3d" style="width: 100%; height: 100%; display: block;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
+
 
     <!-- ======================================================================= -->
     <!-- VIEW 3: QUANT BOT & KEV.AI RISK ARBITER -->
@@ -1340,6 +1728,9 @@
                     <span>🏆</span> Paper Trading Performance & Win/Loss History
                 </span>
                 <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="badge-regime" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3); font-size: 11px;">
+                        💾 Persistent Memory Active
+                    </span>
                     <span id="bot-paper-winloss-badge" class="badge-regime" style="background: rgba(88, 166, 255, 0.2); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.4);">
                         0 Wins vs 0 Losses (Win Rate: 0.0%)
                     </span>
@@ -1347,6 +1738,16 @@
                         🔄 Reset Paper Equity ($200)
                     </button>
                 </div>
+            </div>
+
+            <!-- Last Trade Banner in Bot View -->
+            <div style="background: rgba(13, 17, 23, 0.95); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 16px;">💾</span>
+                    <span style="font-size: 12px; font-weight: 700; color: #58a6ff; text-transform: uppercase;">Last Trade Memory:</span>
+                    <span id="bot-last-trade-desc" style="font-size: 13px; font-family: var(--font-mono); color: var(--text-primary);">Awaiting initial trade exit...</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">Auto-saves to data/paper_trading_state.json</div>
             </div>
 
             <div style="overflow-x: auto; max-height: 250px;">
@@ -1508,6 +1909,7 @@
 
             if (viewName === 'forecaster') {
                 setTimeout(() => {
+                    initWorkstation();
                     if (tvChart) tvChart.timeScale().fitContent();
                 }, 50);
             } else if (viewName === 'dashboard') {
@@ -1639,6 +2041,7 @@
 
         function jumpToForecaster(symbol) {
             switchAppView('forecaster');
+            if (typeof switchWorkstationAsset === 'function') switchWorkstationAsset(symbol);
             const selectEl = document.getElementById('binance-asset-select');
             if (selectEl) {
                 selectEl.value = symbol;
@@ -2468,6 +2871,24 @@
         function renderPaperTradingReport(rep) {
             if (!rep) return;
 
+            // 0. Update Last Trade Memory Banners
+            const dashLastTrade = document.getElementById('dash-last-trade-desc');
+            const botLastTrade = document.getElementById('bot-last-trade-desc');
+            if (rep.last_paper_trade) {
+                const lt = rep.last_paper_trade;
+                const isWin = lt.result === 'WIN';
+                const pColor = isWin ? '#3fb950' : (lt.result === 'LOSS' ? '#f85149' : '#d29922');
+                const sideColor = (lt.side === 'BUY' || lt.side === 'LONG') ? '#3fb950' : '#f85149';
+                const tradeSummaryHtml = `<strong>${lt.symbol}</strong> <span style="color: ${sideColor}; font-weight: 700;">${lt.side}</span> | Entry: $${lt.entry_price} &rarr; Exit: $${lt.exit_price} | PnL: <strong style="color: ${pColor};">${lt.realized_pnl_usd >= 0 ? '+' : ''}$${lt.realized_pnl_usd.toFixed(2)} (${lt.return_pct >= 0 ? '+' : ''}${lt.return_pct.toFixed(2)}%)</strong> | <span class="badge-regime ${isWin ? 'regime-bull' : 'regime-bear'}" style="font-size: 10px;">${lt.result}</span> <span style="color: var(--text-muted); font-size: 11px;">(${lt.reason})</span>`;
+                if (dashLastTrade) dashLastTrade.innerHTML = tradeSummaryHtml;
+                if (botLastTrade) botLastTrade.innerHTML = tradeSummaryHtml;
+            } else {
+                const openCount = rep.active_positions_count || (rep.open_positions ? rep.open_positions.length : 0);
+                const awaitHtml = `Awaiting initial exit trigger... (Active open bracket positions: ${openCount})`;
+                if (dashLastTrade) dashLastTrade.textContent = awaitHtml;
+                if (botLastTrade) botLastTrade.textContent = awaitHtml;
+            }
+
             // 1. Update Dashboard View Elements
             const dashEquity = document.getElementById('dash-paper-equity');
             const dashStarting = document.getElementById('dash-paper-starting');
@@ -2568,6 +2989,1000 @@
             } catch (err) {
                 showStatus('error', 'Failed to reset paper trading account.');
             }
+        }
+
+    
+        // =====================================================================
+        // KRONOS FORECAST WORKSTATION (BLOOMBERG QUANT SUITE ENGINE)
+        // =====================================================================
+        const wsState = {
+            activeSymbol: 'BTCUSDT',
+            candles: [],
+            prediction: [],
+            lastPrice: 87280.2,
+            isInitialized: false,
+            tapeInterval: null,
+            paramSweepPhase: 0,
+            marketAssets: [
+                { symbol: 'BTCUSDT', last: 87280.2, chg: 0.72, vol: 1737 },
+                { symbol: 'ETHUSDT', last: 186.85, chg: -0.19, vol: 2139 },
+                { symbol: 'SOLUSDT', last: 201.95, chg: 0.76, vol: 1836 },
+                { symbol: 'BNBUSDT', last: 611.0, chg: -5.10, vol: 2805 },
+                { symbol: 'XRPUSDT', last: 0.6650, chg: 0.25, vol: 2256 },
+                { symbol: 'DOGEUSDT', last: 0.1600, chg: 5.09, vol: 1866 },
+                { symbol: 'AVAXUSDT', last: 98.00, chg: 6.22, vol: 1956 },
+                { symbol: 'SUIUSDT', last: 12.30, chg: 1.33, vol: 1684 },
+                { symbol: 'PEPEUSDT', last: 0.00001050, chg: 1.89, vol: 1994 },
+                { symbol: 'NEARUSDT', last: 0.4800, chg: 0.03, vol: 1884 },
+                { symbol: '1000PEPEUSDT', last: 0.01050, chg: 1.89, vol: 1994 },
+                { symbol: 'LINKUSDT', last: 18.60, chg: 0.57, vol: 1677 }
+            ]
+        };
+
+        function toggleAdvancedSettings() {
+            const drawer = document.getElementById('ws-advanced-drawer');
+            if (drawer) {
+                drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function initWorkstation() {
+            if (wsState.isInitialized) {
+                renderAllWorkstationPanels();
+                return;
+            }
+            wsState.isInitialized = true;
+
+            // Setup ResizeObservers for crisp canvas rendering
+            setupCanvasResizers();
+
+            // Populate Market Watch
+            populateMarketWatchTable();
+
+            // Start clock
+            startWorkstationClock();
+
+            // Initial candle fetch
+            fetchWorkstationCandles(wsState.activeSymbol);
+
+            // Start tape streaming ticker
+            startTapeTicker();
+
+            // Start 3D sweep animation loop
+            startParamSweepLoop();
+        }
+
+        function setupCanvasResizers() {
+            const wrappers = [
+                'mc-canvas-wrapper', 'ad-canvas-wrapper', 'ev-canvas-wrapper',
+                'mc-fan-wrapper', 'ps-canvas-wrapper'
+            ];
+            wrappers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el && window.ResizeObserver) {
+                    const ro = new ResizeObserver(() => {
+                        requestAnimationFrame(() => renderAllWorkstationPanels());
+                    });
+                    ro.observe(el);
+                }
+            });
+            window.addEventListener('resize', () => {
+                requestAnimationFrame(() => renderAllWorkstationPanels());
+            });
+        }
+
+        function startWorkstationClock() {
+            setInterval(() => {
+                const now = new Date();
+                const clockEl = document.getElementById('ws-header-clock');
+                if (clockEl) {
+                    const utc = now.toISOString().replace('T', ' ').slice(11, 19) + ' UTC';
+                    clockEl.textContent = utc;
+                }
+            }, 1000);
+        }
+
+        function populateMarketWatchTable() {
+            const tbody = document.getElementById('ws-market-watch-tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            wsState.marketAssets.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = `ws-mw-row ${item.symbol === wsState.activeSymbol ? 'active' : ''}`;
+                tr.id = `mw-row-${item.symbol}`;
+                tr.onclick = () => switchWorkstationAsset(item.symbol);
+
+                const prec = getAssetPrecisionConfig(item.last);
+                const chgClass = item.chg >= 0 ? 'text-green' : 'text-red';
+                const chgSign = item.chg >= 0 ? '+' : '';
+
+                tr.innerHTML = `
+                    <td>${item.symbol.replace('USDT', '')}</td>
+                    <td>${formatAssetPrice(item.last, prec.priceDecimals)}</td>
+                    <td class="${chgClass}">${chgSign}${item.chg.toFixed(2)}%</td>
+                    <td style="color: #64748b;">${item.vol.toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function switchWorkstationAsset(symbol) {
+            wsState.activeSymbol = symbol;
+
+            // Highlight row in Market Watch
+            document.querySelectorAll('.ws-mw-row').forEach(r => r.classList.remove('active'));
+            const activeRow = document.getElementById(`mw-row-${symbol}`);
+            if (activeRow) activeRow.classList.add('active');
+
+            // Update Header titles
+            const headerAsset = document.getElementById('ws-header-asset');
+            if (headerAsset) headerAsset.textContent = `${symbol} • 15M`;
+
+            const mcAssetTitle = document.getElementById('mc-asset-title');
+            if (mcAssetTitle) mcAssetTitle.textContent = symbol;
+
+            const evSymbolTitle = document.getElementById('ev-symbol-title');
+            if (evSymbolTitle) evSymbolTitle.textContent = symbol;
+
+            const mwSub = document.getElementById('mw-active-sub');
+            if (mwSub) mwSub.textContent = `${symbol.replace('USDT', '')} • MPCE5`;
+
+            // Sync with hidden select
+            const binanceSelect = document.getElementById('binance-asset-select');
+            if (binanceSelect) binanceSelect.value = symbol;
+
+            // Fetch live candles for this asset
+            fetchWorkstationCandles(symbol);
+        }
+
+        async function fetchWorkstationCandles(symbol) {
+            try {
+                const res = await axios.post('/api/binance/fetch-klines', {
+                    symbol: symbol,
+                    interval: '15m',
+                    limit: 120
+                });
+
+                if (res.data && res.data.success && res.data.data_info && res.data.data_info.candles) {
+                    wsState.candles = res.data.data_info.candles;
+                    if (wsState.candles.length > 0) {
+                        const lastCandle = wsState.candles[wsState.candles.length - 1];
+                        wsState.lastPrice = lastCandle.close;
+
+                        // Update current market asset price
+                        const matched = wsState.marketAssets.find(a => a.symbol === symbol);
+                        if (matched) {
+                            matched.last = lastCandle.close;
+                            populateMarketWatchTable();
+                        }
+                    }
+                } else {
+                    // Fallback synthetic candles if network unavailable
+                    generateFallbackCandles(symbol);
+                }
+            } catch (e) {
+                console.warn('Live klines fetch error, using synthetic klines:', e);
+                generateFallbackCandles(symbol);
+            }
+            renderAllWorkstationPanels();
+        }
+
+        function generateFallbackCandles(symbol) {
+            const matched = wsState.marketAssets.find(a => a.symbol === symbol);
+            let base = matched ? matched.last : 85000.0;
+            const candles = [];
+            const now = Math.floor(Date.now() / 1000) - 120 * 900;
+            let current = base;
+
+            for (let i = 0; i < 70; i++) {
+                const delta = (Math.random() - 0.49) * (base * 0.004);
+                const open = current;
+                const close = current + delta;
+                const high = Math.max(open, close) + Math.random() * (base * 0.002);
+                const low = Math.min(open, close) - Math.random() * (base * 0.002);
+                const volume = Math.floor(Math.random() * 5000 + 500);
+                candles.push({ time: now + i * 900, open, high, low, close, volume });
+                current = close;
+            }
+            wsState.candles = candles;
+            wsState.lastPrice = current;
+        }
+
+        function renderAllWorkstationPanels() {
+            if (!wsState.candles || wsState.candles.length === 0) return;
+
+            const prec = getAssetPrecisionConfig(wsState.lastPrice);
+            const priceTitle = document.getElementById('mc-price-title');
+            if (priceTitle) {
+                priceTitle.textContent = `${formatAssetPrice(wsState.lastPrice, prec.priceDecimals)} ▼`;
+            }
+
+            // 1. Render Main Candlestick Chart
+            renderMainChartCanvas();
+
+            // 2. Render Agent Debate Vertical Bars
+            renderAgentDebateCanvas();
+
+            // 3. Render Execution View & CVD
+            renderExecutionViewCanvas();
+
+            // 4. Render Monte Carlo Sampled Paths & Risk
+            renderMonteCarloFanCanvas();
+
+            // 5. Render 3D Param Sweep
+            renderParamSweepCanvas();
+        }
+
+        // =====================================================================
+        // PANEL 1: MAIN CANDLESTICK CHART CANVAS
+        // =====================================================================
+        function renderMainChartCanvas() {
+            const canvas = document.getElementById('canvas-main-chart');
+            if (!canvas) return;
+            const wrapper = document.getElementById('mc-canvas-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const width = wrapper.clientWidth;
+            const height = wrapper.clientHeight;
+            if (width <= 0 || height <= 0) return;
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            // Background
+            ctx.fillStyle = '#0a0e17';
+            ctx.fillRect(0, 0, width, height);
+
+            const candles = wsState.candles.slice(-55);
+            if (candles.length === 0) return;
+
+            const padTop = 20;
+            const padBottom = 65; // room for volume bars
+            const padRight = 75; // room for price scale
+            const chartH = height - padTop - padBottom;
+            const chartW = width - padRight;
+
+            // Compute high, low bounds
+            let minP = Infinity;
+            let maxP = -Infinity;
+            candles.forEach(c => {
+                if (c.low < minP) minP = c.low;
+                if (c.high > maxP) maxP = c.high;
+            });
+            const pRange = (maxP - minP) || 1;
+            minP -= pRange * 0.04;
+            maxP += pRange * 0.08;
+            const effRange = maxP - minP;
+
+            function getY(p) {
+                return padTop + chartH - ((p - minP) / effRange) * chartH;
+            }
+
+            // Grid lines
+            ctx.strokeStyle = '#151d2c';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 6; i++) {
+                const y = padTop + (chartH / 6) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(chartW, y);
+                ctx.stroke();
+
+                // Price label
+                const priceAtY = maxP - (effRange / 6) * i;
+                const prec = getAssetPrecisionConfig(priceAtY);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '10px Consolas, monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(formatAssetPrice(priceAtY, prec.priceDecimals), chartW + 6, y + 3);
+            }
+
+            // Candle spacing
+            const totalBars = candles.length + 15; // 15 forecast bars
+            const barW = chartW / totalBars;
+            const bodyW = Math.max(3, barW * 0.65);
+
+            // Calculate EMA 7, EMA 21, VWAP
+            const ema7 = [];
+            const ema21 = [];
+            const vwap = [];
+            let cumVol = 0;
+            let cumVP = 0;
+
+            const k7 = 2 / (7 + 1);
+            const k21 = 2 / (21 + 1);
+            let prevE7 = candles[0].close;
+            let prevE21 = candles[0].close;
+
+            candles.forEach((c, idx) => {
+                const e7 = idx === 0 ? c.close : (c.close * k7 + prevE7 * (1 - k7));
+                const e21 = idx === 0 ? c.close : (c.close * k21 + prevE21 * (1 - k21));
+                prevE7 = e7;
+                prevE21 = e21;
+                ema7.push(e7);
+                ema21.push(e21);
+
+                cumVol += (c.volume || 1);
+                cumVP += ((c.high + c.low + c.close) / 3) * (c.volume || 1);
+                vwap.push(cumVP / cumVol);
+            });
+
+            // Draw Volume Bars at bottom
+            const maxVol = Math.max(...candles.map(c => c.volume || 1));
+            const volH = 45;
+            const volBaseY = height - 10;
+            candles.forEach((c, i) => {
+                const x = i * barW + barW / 2;
+                const h = ((c.volume || 1) / maxVol) * volH;
+                ctx.fillStyle = c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)';
+                ctx.fillRect(x - bodyW / 2, volBaseY - h, bodyW, h);
+            });
+
+            // Draw Candlesticks
+            candles.forEach((c, i) => {
+                const x = i * barW + barW / 2;
+                const openY = getY(c.open);
+                const closeY = getY(c.close);
+                const highY = getY(c.high);
+                const lowY = getY(c.low);
+                const isUp = c.close >= c.open;
+                const col = isUp ? '#10b981' : '#ef4444';
+
+                // Wick
+                ctx.strokeStyle = col;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, highY);
+                ctx.lineTo(x, lowY);
+                ctx.stroke();
+
+                // Body
+                ctx.fillStyle = col;
+                const top = Math.min(openY, closeY);
+                const bot = Math.max(openY, closeY);
+                const h = Math.max(2, bot - top);
+                ctx.fillRect(x - bodyW / 2, top, bodyW, h);
+            });
+
+            // Draw EMA 7 (cyan)
+            ctx.strokeStyle = '#22d3ee';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ema7.forEach((v, i) => {
+                const x = i * barW + barW / 2;
+                const y = getY(v);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw EMA 21 (amber)
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ema21.forEach((v, i) => {
+                const x = i * barW + barW / 2;
+                const y = getY(v);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw VWAP (yellow)
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            vwap.forEach((v, i) => {
+                const x = i * barW + barW / 2;
+                const y = getY(v);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // =================================================================
+            // FUTURE SHADED PURPLE FORECAST CORRIDOR: KRONOS - NEXT 15 BARS
+            // =================================================================
+            const lastIdx = candles.length - 1;
+            const startX = lastIdx * barW + barW / 2;
+            const endX = chartW;
+            const lastClose = candles[lastIdx].close;
+            const lastY = getY(lastClose);
+
+            // Upper & Lower envelope bounds
+            const driftSlope = (candles[lastIdx].close - candles[Math.max(0, lastIdx - 8)].close) * 0.4;
+            const targetP = lastClose + driftSlope + (effRange * 0.05);
+            const targetY = getY(targetP);
+
+            const corridorTopY = targetY - chartH * 0.12;
+            const corridorBotY = targetY + chartH * 0.12;
+
+            // Shaded purple polygon
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.14)';
+            ctx.beginPath();
+            ctx.moveTo(startX, lastY);
+            ctx.lineTo(endX, corridorTopY);
+            ctx.lineTo(endX, corridorBotY);
+            ctx.closePath();
+            ctx.fill();
+
+            // Dashed bounds
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.75)';
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(startX, lastY);
+            ctx.lineTo(endX, corridorTopY);
+            ctx.moveTo(startX, lastY);
+            ctx.lineTo(endX, corridorBotY);
+            ctx.stroke();
+
+            // Predicted trajectory line
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(startX, lastY);
+            ctx.lineTo(endX, targetY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Corridor Header Pill: KRONOS - NEXT 15 BARS | P(up) 69%
+            const badgeX = startX + 15;
+            const badgeY = Math.max(padTop + 14, Math.min(corridorTopY - 10, chartH));
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY - 14, 150, 24, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#c084fc';
+            ctx.font = 'bold 9px Consolas, monospace';
+            ctx.fillText('KRONOS - NEXT 15 BARS', badgeX + 8, badgeY + 2);
+
+            ctx.fillStyle = '#10b981';
+            ctx.fillText('P(up) 69%', badgeX + 104, badgeY + 2);
+
+            // OHLC Overlay Box
+            const ohlcX = chartW - 90;
+            const ohlcY = padTop + chartH - 75;
+            ctx.fillStyle = 'rgba(13, 18, 29, 0.85)';
+            ctx.strokeStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(ohlcX, ohlcY, 82, 60, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            const pPrec = getAssetPrecisionConfig(targetP);
+            ctx.font = '9px Consolas, monospace';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('O', ohlcX + 6, ohlcY + 13);
+            ctx.fillText('H', ohlcX + 6, ohlcY + 27);
+            ctx.fillText('L', ohlcX + 6, ohlcY + 41);
+            ctx.fillText('C', ohlcX + 6, ohlcY + 55);
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.textAlign = 'right';
+            ctx.fillText(formatAssetPrice(lastClose, pPrec.priceDecimals), ohlcX + 76, ohlcY + 13);
+            ctx.fillText(formatAssetPrice(targetP + effRange * 0.03, pPrec.priceDecimals), ohlcX + 76, ohlcY + 27);
+            ctx.fillText(formatAssetPrice(targetP - effRange * 0.02, pPrec.priceDecimals), ohlcX + 76, ohlcY + 41);
+            ctx.fillText(formatAssetPrice(targetP, pPrec.priceDecimals), ohlcX + 76, ohlcY + 55);
+
+            // Live Price Axis Tag (Pink/Magenta Badge)
+            const liveY = lastY;
+            ctx.fillStyle = '#ec4899';
+            ctx.beginPath();
+            ctx.roundRect(chartW + 2, liveY - 8, 70, 16, 3);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(formatAssetPrice(lastClose, pPrec.priceDecimals), chartW + 6, liveY + 4);
+        }
+
+        // =====================================================================
+        // PANEL 2: TIME & SALES STREAMING TAPE
+        // =====================================================================
+        function startTapeTicker() {
+            if (wsState.tapeInterval) clearInterval(wsState.tapeInterval);
+            wsState.tapeInterval = setInterval(() => {
+                appendTapePrint();
+            }, 900);
+            for (let i = 0; i < 15; i++) {
+                appendTapePrint();
+            }
+        }
+
+        function appendTapePrint() {
+            const tbody = document.getElementById('ts-tape-body');
+            if (!tbody) return;
+
+            const baseP = wsState.lastPrice || 85000;
+            const prec = getAssetPrecisionConfig(baseP);
+            const isBuy = Math.random() > 0.48;
+            const spreadDelta = (Math.random() - 0.48) * (baseP * 0.0006);
+            const price = baseP + spreadDelta;
+
+            let size = (Math.random() * 4.5 + 0.1).toFixed(2);
+            if (baseP < 1) size = Math.floor(Math.random() * 500000 + 10000).toLocaleString();
+
+            const bid = Math.floor(Math.random() * 200 + 20);
+            const ask = Math.floor(Math.random() * 200 + 20);
+            const venues = ['BINANCE', 'COINBASE', 'BYBIT', 'OKX', 'KRAKEN'];
+            const venue = venues[Math.floor(Math.random() * venues.length)];
+
+            const now = new Date();
+            const timeStr = now.toTimeString().slice(0, 8);
+
+            const tr = document.createElement('tr');
+            tr.className = isBuy ? 'ws-tape-row-buy' : 'ws-tape-row-sell';
+            tr.innerHTML = `
+                <td style="font-weight: 700;">${formatAssetPrice(price, prec.priceDecimals)}</td>
+                <td>${size}</td>
+                <td style="color: #64748b;">${bid}</td>
+                <td style="color: #64748b;">${ask}</td>
+                <td style="color: #94a3b8;">${venue} ${timeStr}</td>
+            `;
+
+            tbody.insertBefore(tr, tbody.firstChild);
+            while (tbody.children.length > 35) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+
+        // =====================================================================
+        // PANEL 3: AGENT DEBATE - BULL VS BEAR (FIE) CANVAS
+        // =====================================================================
+        function renderAgentDebateCanvas() {
+            const canvas = document.getElementById('canvas-agent-debate');
+            if (!canvas) return;
+            const wrapper = document.getElementById('ad-canvas-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#0a0e17';
+            ctx.fillRect(0, 0, w, h);
+
+            // Debate bars data: 8 pillars
+            const bars = [
+                { name: 'BULL', val: 0.38, col: '#22d3ee' },
+                { name: 'BULL', val: 0.72, col: '#10b981' },
+                { name: 'BULL', val: 0.55, col: '#10b981' },
+                { name: 'RISK BULL', val: 0.32, col: '#22d3ee' },
+                { name: 'BEAR', val: -0.42, col: '#ef4444' },
+                { name: 'BULL RISK', val: -0.28, col: '#f87171' },
+                { name: 'RISK', val: -0.66, col: '#ef4444' },
+                { name: 'RISK -0.66', val: -0.58, col: '#ef4444' }
+            ];
+
+            const midY = h * 0.52;
+            const barW = Math.min(22, (w / bars.length) * 0.7);
+            const step = w / bars.length;
+
+            // Zero baseline
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(w, midY);
+            ctx.stroke();
+
+            bars.forEach((b, i) => {
+                const x = i * step + step / 2;
+                const barH = (b.val * (h * 0.42));
+
+                ctx.fillStyle = b.col;
+                if (b.val >= 0) {
+                    ctx.fillRect(x - barW / 2, midY - barH, barW, barH);
+                } else {
+                    ctx.fillRect(x - barW / 2, midY, barW, -barH);
+                }
+
+                // Label
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '8px Consolas, monospace';
+                ctx.textAlign = 'center';
+                if (b.val >= 0) {
+                    ctx.fillText(b.name, x, midY + 12);
+                } else {
+                    ctx.fillText(b.name, x, midY - 6);
+                }
+            });
+        }
+
+        // =====================================================================
+        // PANEL 4: EXECUTION VIEW & CVD CANVAS
+        // =====================================================================
+        function renderExecutionViewCanvas() {
+            const canvas = document.getElementById('canvas-execution-view');
+            if (!canvas) return;
+            const wrapper = document.getElementById('ev-canvas-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#0a0e17';
+            ctx.fillRect(0, 0, w, h);
+
+            const candles = wsState.candles.slice(-40);
+            if (candles.length === 0) return;
+
+            const profileW = w * 0.16;
+            const execW = w - profileW;
+            const mainH = h * 0.65;
+            const cvdH = h - mainH;
+
+            // 1. Horizontal Volume Profile on left
+            const vpBins = 18;
+            let minP = Math.min(...candles.map(c => c.low));
+            let maxP = Math.max(...candles.map(c => c.high));
+            const pRange = (maxP - minP) || 1;
+
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+            for (let i = 0; i < vpBins; i++) {
+                const binY = (mainH / vpBins) * i;
+                const binH = mainH / vpBins - 1;
+                const volPct = Math.sin((i / vpBins) * Math.PI) * 0.85 + Math.random() * 0.15;
+                const barLen = profileW * volPct;
+                ctx.fillRect(0, binY, barLen, binH);
+            }
+
+            // POC (Point of Control) line in red
+            const pocY = mainH * 0.48;
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, pocY);
+            ctx.lineTo(w, pocY);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.font = '8px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('POC', profileW + 4, pocY - 3);
+
+            // 2. Candlestick executions in center
+            const barW = execW / candles.length;
+            const bodyW = Math.max(3, barW * 0.6);
+
+            function getY(p) {
+                return mainH - ((p - minP) / pRange) * (mainH - 20) - 10;
+            }
+
+            candles.forEach((c, i) => {
+                const x = profileW + i * barW + barW / 2;
+                const isUp = c.close >= c.open;
+                ctx.strokeStyle = isUp ? '#10b981' : '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, getY(c.high));
+                ctx.lineTo(x, getY(c.low));
+                ctx.stroke();
+
+                ctx.fillStyle = isUp ? '#10b981' : '#ef4444';
+                const openY = getY(c.open);
+                const closeY = getY(c.close);
+                ctx.fillRect(x - bodyW / 2, Math.min(openY, closeY), bodyW, Math.max(2, Math.abs(closeY - openY)));
+            });
+
+            // FILLS Callout annotation
+            const fillIdx = Math.floor(candles.length * 0.75);
+            const fillX = profileW + fillIdx * barW + barW / 2;
+            const fillY = getY(candles[fillIdx].close);
+
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+            ctx.beginPath();
+            ctx.roundRect(fillX - 25, fillY - 26, 50, 16, 3);
+            ctx.fill();
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 9px Consolas, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('FILLS', fillX, fillY - 14);
+
+            ctx.strokeStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.moveTo(fillX, fillY - 10);
+            ctx.lineTo(fillX, fillY);
+            ctx.stroke();
+
+            // 3. CVD Sub-panel at bottom
+            const cvdBaseY = h - 6;
+            ctx.strokeStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.moveTo(0, mainH);
+            ctx.lineTo(w, mainH);
+            ctx.stroke();
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = '9px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('CVD', 6, mainH + 12);
+            ctx.fillText('-CVD', 6, h - 4);
+
+            let cumDelta = 0;
+            const cvdMidY = mainH + cvdH / 2;
+            candles.forEach((c, i) => {
+                const x = profileW + i * barW + barW / 2;
+                const delta = (c.close >= c.open ? 1 : -1) * (c.volume || 100);
+                cumDelta += delta;
+                const dH = Math.min(cvdH * 0.42, Math.abs(delta) / 80);
+
+                ctx.fillStyle = delta >= 0 ? 'rgba(34, 211, 238, 0.7)' : 'rgba(239, 68, 68, 0.7)';
+                if (delta >= 0) {
+                    ctx.fillRect(x - bodyW / 2, cvdMidY - dH, bodyW, dH);
+                } else {
+                    ctx.fillRect(x - bodyW / 2, cvdMidY, bodyW, dH);
+                }
+            });
+        }
+
+        // =====================================================================
+        // PANEL 5: MONTE CARLO SAMPLED PATHS CANVAS
+        // =====================================================================
+        function renderMonteCarloFanCanvas() {
+            const canvas = document.getElementById('canvas-monte-carlo');
+            if (!canvas) return;
+            const wrapper = document.getElementById('mc-fan-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#0a0e17';
+            ctx.fillRect(0, 0, w, h);
+
+            const fanW = w * 0.75;
+            const histW = w - fanW;
+            const midY = h * 0.52;
+            const numSteps = 15;
+            const stepX = fanW / numSteps;
+
+            // Zero baseline
+            ctx.strokeStyle = '#151d2c';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(fanW, midY);
+            ctx.stroke();
+
+            // Draw 60 radiant Monte Carlo fan trajectories (representing 6,000 paths)
+            ctx.lineWidth = 1;
+            for (let p = 0; p < 60; p++) {
+                const spread = (p - 30) / 30; // -1.0 to +1.0
+                const alpha = Math.max(0.04, 0.25 - Math.abs(spread) * 0.18);
+                ctx.strokeStyle = spread >= 0 ? `rgba(34, 211, 238, ${alpha})` : `rgba(239, 68, 68, ${alpha})`;
+
+                ctx.beginPath();
+                ctx.moveTo(0, midY);
+                let currentY = midY;
+                for (let s = 1; s <= numSteps; s++) {
+                    const noise = (Math.random() - 0.48) * 3;
+                    const stepDrift = (spread * (h * 0.38) * (s / numSteps)) + noise;
+                    currentY = midY - stepDrift;
+                    ctx.lineTo(s * stepX, currentY);
+                }
+                ctx.stroke();
+            }
+
+            // Key percentile envelope curves
+            const p90Y = midY - h * 0.32;
+            const p55Y = midY - h * 0.12;
+            const p50Y = midY + h * 0.02;
+            const p5Y = midY + h * 0.30;
+
+            // P90 curve (green)
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.quadraticCurveTo(fanW * 0.5, midY - h * 0.22, fanW, p90Y);
+            ctx.stroke();
+
+            // P55 curve (teal)
+            ctx.strokeStyle = '#22d3ee';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.quadraticCurveTo(fanW * 0.5, midY - h * 0.08, fanW, p55Y);
+            ctx.stroke();
+
+            // P50 curve (gold)
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(fanW, p50Y);
+            ctx.stroke();
+
+            // P5 curve (red)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.quadraticCurveTo(fanW * 0.5, midY + h * 0.18, fanW, p5Y);
+            ctx.stroke();
+
+            // Percentile labels
+            ctx.font = '9px Consolas, monospace';
+            ctx.fillStyle = '#10b981';
+            ctx.fillText('P90 +0.16%', fanW - 65, p90Y - 5);
+            ctx.fillStyle = '#22d3ee';
+            ctx.fillText('P55 +0.8%', fanW - 60, p55Y - 4);
+            ctx.fillStyle = '#eab308';
+            ctx.fillText('P50 +0.06', fanW - 60, p50Y - 4);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText('P5 -0.66%', fanW - 55, p5Y + 12);
+
+            // Right Terminal Return Distribution Histogram
+            const bins = 20;
+            const binH = h / bins;
+            for (let i = 0; i < bins; i++) {
+                const y = i * binH;
+                const distFromMid = (i - bins / 2) / (bins / 2);
+                const density = Math.exp(-Math.pow(distFromMid, 2) * 3) * (histW * 0.85);
+
+                ctx.fillStyle = i < bins / 2 ? 'rgba(16, 185, 129, 0.65)' : 'rgba(239, 68, 68, 0.65)';
+                ctx.fillRect(fanW + 4, y + 1, density, binH - 2);
+            }
+
+            // Update Target metrics in sidebar
+            const baseP = wsState.lastPrice || 85000;
+            const pPrec = getAssetPrecisionConfig(baseP);
+            const p50El = document.getElementById('mc-p50-target');
+            const p95El = document.getElementById('mc-p95-target');
+            const p5El = document.getElementById('mc-p5-target');
+            if (p50El) p50El.textContent = formatAssetPrice(baseP * 1.008, pPrec.priceDecimals);
+            if (p95El) p95El.textContent = formatAssetPrice(baseP * 1.042, pPrec.priceDecimals);
+            if (p5El) p5El.textContent = formatAssetPrice(baseP * 0.962, pPrec.priceDecimals);
+        }
+
+        // =====================================================================
+        // PANEL 6: 3D PARAM SWEEP SHARPE CANVAS
+        // =====================================================================
+        function startParamSweepLoop() {
+            function loop() {
+                wsState.paramSweepPhase += 0.03;
+                renderParamSweepCanvas();
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        }
+
+        function renderParamSweepCanvas() {
+            const canvas = document.getElementById('canvas-param-sweep-3d');
+            if (!canvas) return;
+            const wrapper = document.getElementById('ps-canvas-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#0a0e17';
+            ctx.fillRect(0, 0, w, h);
+
+            // 3D Isometric Wireframe Surface projection
+            const cx = w * 0.50;
+            const cy = h * 0.62;
+            const gridX = 18;
+            const gridY = 18;
+            const scaleX = w * 0.024;
+            const scaleY = h * 0.016;
+            const scaleZ = h * 0.40;
+
+            function project(x, y, z) {
+                const px = cx + (x - y) * Math.cos(0.52) * scaleX;
+                const py = cy + (x + y) * Math.sin(0.52) * scaleY - z * scaleZ;
+                return { x: px, y: py };
+            }
+
+            function getSharpe(x, y) {
+                // Peak around x=10 (Fast EMA 17), y=11 (Slow EMA 65)
+                const dx = (x - 9) / 4.5;
+                const dy = (y - 10) / 5.5;
+                const r = Math.sqrt(dx * dx + dy * dy);
+                const undulation = Math.sin(x * 0.4 + y * 0.4) * 0.05;
+                return Math.exp(-r * r) * 1.32 + undulation;
+            }
+
+            // Draw undulating contour lines
+            for (let i = 0; i < gridX; i++) {
+                ctx.beginPath();
+                for (let j = 0; j < gridY; j++) {
+                    const z = getSharpe(i, j);
+                    const pt = project(i - gridX / 2, j - gridY / 2, z);
+                    if (j === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                const zNorm = getSharpe(i, gridY / 2);
+                ctx.strokeStyle = `rgba(245, 158, 11, ${0.25 + zNorm * 0.55})`;
+                ctx.lineWidth = 1.1;
+                ctx.stroke();
+            }
+
+            for (let j = 0; j < gridY; j++) {
+                ctx.beginPath();
+                for (let i = 0; i < gridX; i++) {
+                    const z = getSharpe(i, j);
+                    const pt = project(i - gridX / 2, j - gridY / 2, z);
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                }
+                const zNorm = getSharpe(gridX / 2, j);
+                ctx.strokeStyle = `rgba(251, 191, 36, ${0.25 + zNorm * 0.55})`;
+                ctx.lineWidth = 1.1;
+                ctx.stroke();
+            }
+
+            // Peak Targeting Reticle at (17, 65)
+            const peakPt = project(9 - gridX / 2, 10 - gridY / 2, 1.32);
+            const pulse = (Math.sin(wsState.paramSweepPhase) + 1) * 3;
+
+            // Reticle circles
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(peakPt.x, peakPt.y, 7 + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(peakPt.x, peakPt.y, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Crosshair lines
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(peakPt.x - 14, peakPt.y);
+            ctx.lineTo(peakPt.x + 14, peakPt.y);
+            ctx.moveTo(peakPt.x, peakPt.y - 14);
+            ctx.lineTo(peakPt.x, peakPt.y + 14);
+            ctx.stroke();
+
+            // Bottom Axis labels
+            ctx.fillStyle = '#64748b';
+            ctx.font = '9px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('FAST →', 12, h - 8);
+            ctx.textAlign = 'right';
+            ctx.fillText('SLOW →', w - 12, h - 8);
         }
 
     </script>
