@@ -3,7 +3,7 @@
   "interval_seconds": 60,
   "last_cycle_summary": {
     "success": true,
-    "timestamp": "2026-11-02T11:25:59.105575+00:00",
+    "timestamp": "2026-11-02T12:59:11.905114+00:00",
     "macro_regime": "BEAR_DISTRIBUTION",
     "breadth_pct": "8.3%",
     "evaluated_count": 9,
@@ -38,11 +38,11 @@
       },
       {
         "symbol": "XRPUSDT",
-        "side": "LONG",
+        "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
-        "reason": "VETO: Cannot Long during systemic Bear Distribution (8.3% breadth).",
-        "adversarial_notes": "Attempting counter-trend long against systemic market dump.",
+        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
+        "reason": "VETO: Max concurrent positions (3) reached.",
+        "adversarial_notes": "Portfolio risk capacity full.",
         "ticket": null
       },
       {
@@ -361,5 +361,5 @@
       ]
     }
   },
-  "updated_at": "2026-11-02T11:26:20.040345+00:00"
+  "updated_at": "2026-11-02T12:59:32.870558+00:00"
 }

@@ -88,9 +88,9 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
 ### Key Capabilities
 
 * **Unified 3-in-1 Web Terminal (`http://localhost:7070`):**
-  * **Macro Dashboard:** Real-time composite market breadth ($>60\%$ Bull Expansion, $<40\%$ Bear Distribution), 24h VWAP leaderboard, perpetual funding carry radar, and macroeconomic news blackout shield (FOMC/CPI event protection).
-  * **Neural Forecaster:** Interactive dual-engine charting (TradingView Pro Lightweight Charts + Plotly) with sub-penny precision quantization (e.g. 7–8 decimals on PEPE vs 2 decimals on BTC).
-  * **Quant Bot Control Station:** Live KEV.ai 6-point veto gate audit stream, active bracket positions with 12-hour temporal exit countdowns, and SQLite lessons memory feed.
+  * **Macro Dashboard:** Real-time composite market breadth ($>60\%$ Bull Expansion, $<40\%$ Bear Distribution), 24h VWAP leaderboard, perpetual funding carry radar, macroeconomic news blackout shield (FOMC/CPI event protection), and live Paper Trading Performance Audit Report (Win vs Loss, PnL, Profit Factor, closed trade log).
+  * **Kronos Forecast Workstation:** Institutional Bloomberg-style 6-panel workstation with Market Watch, Main Chart + Shaded Purple Forecast Corridor (`NEXT 15 BARS`, $P(\text{up}) = 69\%$), streaming Time & Sales tape, Agent Debate (Bull vs Bear FIE), Execution View with Volume Profile & CVD, Monte Carlo Fan (6,000 Sampled Paths), and 3D Param Sweep Sharpe terrain.
+  * **Quant Bot Control Cockpit:** Small-account micro-trading engine ($200.00 USDT equity baseline, 1.5% max risk budget), continuous autonomous background scanning daemon, full state persistence across restarts (`data/paper_trading_state.json` and `data/bot_settings.json`), live KEV.ai 6-point veto gate audits, and rolling Brier learning memory.
 * **Role-Specialized Multi-Agent Architecture:**
   * **Macro Specialists:** Asynchronous event catalyst shield + 8-hour crypto carry monitor.
   * **Tactical Core:** 12-hour autoregressive trajectory engine with dynamic ATR-14 volatility envelopes.
