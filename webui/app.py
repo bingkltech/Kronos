@@ -980,6 +980,7 @@ from decimal import Decimal
 from src.quant.orchestrator import QuantBotOrchestrator
 from src.quant.config import ALL_SUPPORTED_SYMBOLS, DEFAULT_RISK_CONFIG
 from src.quant.binance_execution import BinanceAtomicExecutor, PositionState
+from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
 
 # Global singleton quant orchestrator
 quant_bot = QuantBotOrchestrator(
@@ -1050,6 +1051,15 @@ bot_autopilot_next_scan_time = None
 bot_last_cycle_summary = None
 bot_autopilot_lock = threading.Lock()
 
+# Gemini Meta-Strategy Arbiter (Google Gemini Free Tier)
+gemini_arbiter = GeminiStrategyArbiter()
+gemini_auto_apply = True
+latest_gemini_assessment = None
+last_assessed_trade_count = 0
+last_assessed_timestamp = None
+gemini_assessment_lock = threading.Lock()
+
+
 BOT_SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bot_settings.json")
 
 def _load_bot_settings():
@@ -1066,6 +1076,20 @@ def _load_bot_settings():
                 bot_autopilot_interval = max(10, int(cfg["interval_seconds"]))
             if "last_cycle_summary" in cfg and cfg["last_cycle_summary"]:
                 bot_last_cycle_summary = cfg["last_cycle_summary"]
+            if "gemini_auto_apply" in cfg:
+                gemini_auto_apply = bool(cfg["gemini_auto_apply"])
+            if "latest_gemini_assessment" in cfg and cfg["latest_gemini_assessment"]:
+                latest_gemini_assessment = cfg["latest_gemini_assessment"]
+                if gemini_auto_apply and "sweetspot_rr_ratio" in latest_gemini_assessment:
+                    try:
+                        quant_bot.kev_arbiter.update_sweetspot(
+                            min_rr_ratio=Decimal(str(latest_gemini_assessment["sweetspot_rr_ratio"])),
+                            min_net_fee_hurdle=Decimal(str(latest_gemini_assessment["sweetspot_fee_hurdle_pct"])) / Decimal("100"),
+                            base_risk_budget_ratio=Decimal(str(latest_gemini_assessment["sweetspot_risk_budget_pct"])) / Decimal("100")
+                        )
+                        print(f">> [Gemini Memory] Restored sweetspot: R:R={latest_gemini_assessment['sweetspot_rr_ratio']:.2f}, Fee Hurdle={latest_gemini_assessment['sweetspot_fee_hurdle_pct']:.2f}%")
+                    except Exception as err:
+                        print(f">> [Gemini Memory] Could not apply restored sweetspot: {err}")
     except Exception as e:
         print(f">> [Bot Memory] Warning loading settings: {e}")
 
@@ -1077,6 +1101,8 @@ def _save_bot_settings():
             "enabled": bot_autopilot_enabled,
             "interval_seconds": bot_autopilot_interval,
             "last_cycle_summary": bot_last_cycle_summary,
+            "gemini_auto_apply": gemini_auto_apply,
+            "latest_gemini_assessment": latest_gemini_assessment,
             "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
         temp_file = f"{BOT_SETTINGS_FILE}.tmp"
@@ -1406,6 +1432,120 @@ def get_learning_stats():
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _run_gemini_meta_assessment():
+    """Execute background strategic meta-assessment via Gemini Free Tier."""
+    global latest_gemini_assessment, last_assessed_trade_count, last_assessed_timestamp
+    with gemini_assessment_lock:
+        try:
+            macro_verdict = quant_bot.index_engine.evaluate_universe()
+            macro_summary = {
+                "macro_regime": macro_verdict.macro_regime,
+                "breadth_pct": f"{float(macro_verdict.breadth_ratio)*100:.1f}%",
+                "coins_above_vwap": macro_verdict.coins_above_vwap_count,
+                "total_coins": macro_verdict.total_coins_evaluated,
+                "news_blackout": {"is_blackout": quant_bot.news_specialist.is_blackout_active()}
+            }
+            paper_summary = quant_bot.executor.get_paper_summary()
+            lessons_calib = quant_bot.learning_governor.calculate_brier_calibration()
+            lessons_summary = {
+                "brier_score": float(lessons_calib.brier_score),
+                "confidence_multiplier": float(lessons_calib.confidence_multiplier),
+                "total_lessons": lessons_calib.total_evaluations
+            }
+            current_settings = {
+                "rr_hurdle_ratio": float(quant_bot.kev_arbiter.risk_config.min_rr_ratio),
+                "fee_hurdle_pct": float(quant_bot.kev_arbiter.risk_config.min_net_fee_hurdle * Decimal("100")),
+                "risk_budget_pct": float(quant_bot.kev_arbiter.risk_config.base_risk_budget_ratio * Decimal("100")),
+                "param_sweep_fast_ema": 17,
+                "param_sweep_slow_ema": 65
+            }
+            
+            assessment = gemini_arbiter.evaluate_strategy(macro_summary, paper_summary, lessons_summary, current_settings)
+            latest_gemini_assessment = assessment.to_dict()
+            last_assessed_trade_count = len(quant_bot.executor.closed_trades)
+            last_assessed_timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+            if gemini_auto_apply:
+                quant_bot.kev_arbiter.update_sweetspot(
+                    min_rr_ratio=Decimal(str(assessment.sweetspot_rr_ratio)),
+                    min_net_fee_hurdle=Decimal(str(assessment.sweetspot_fee_hurdle_pct)) / Decimal("100"),
+                    base_risk_budget_ratio=Decimal(str(assessment.sweetspot_risk_budget_pct)) / Decimal("100")
+                )
+                print(f">> [Gemini Meta-Strategist] Applied new sweetspot: R:R={assessment.sweetspot_rr_ratio:.2f}, Fee Hurdle={assessment.sweetspot_fee_hurdle_pct:.2f}%, Risk={assessment.sweetspot_risk_budget_pct:.2f}%")
+
+            _save_bot_settings()
+            return latest_gemini_assessment
+        except Exception as e:
+            print(f">> [Gemini Meta-Strategist Error] {e}")
+            return None
+
+
+@app.route('/api/gemini/assessment', methods=['GET'])
+def get_gemini_assessment_endpoint():
+    """Return latest Gemini strategic assessment and active sweetspot configuration."""
+    return jsonify({
+        "success": True,
+        "available": gemini_arbiter.is_available(),
+        "model": gemini_arbiter.model_name,
+        "auto_apply": gemini_auto_apply,
+        "assessment": latest_gemini_assessment,
+        "active_sweetspot": {
+            "rr_hurdle_ratio": float(quant_bot.kev_arbiter.risk_config.min_rr_ratio),
+            "fee_hurdle_pct": float(quant_bot.kev_arbiter.risk_config.min_net_fee_hurdle * Decimal("100")),
+            "risk_budget_pct": float(quant_bot.kev_arbiter.risk_config.base_risk_budget_ratio * Decimal("100")),
+            "max_account_leverage": quant_bot.kev_arbiter.risk_config.max_account_leverage
+        }
+    })
+
+
+@app.route('/api/gemini/assess', methods=['POST'])
+def trigger_gemini_assessment_endpoint():
+    """Trigger an immediate strategic meta-assessment via Gemini Free Tier."""
+    res = _run_gemini_meta_assessment()
+    if res:
+        return jsonify({"success": True, "assessment": res})
+    return jsonify({"success": False, "error": "Strategic assessment failed"}), 500
+
+
+@app.route('/api/gemini/apply-sweetspot', methods=['POST'])
+def apply_gemini_sweetspot_endpoint():
+    """Manually apply the recommended sweetspot parameters to live KEV.ai gates."""
+    global latest_gemini_assessment
+    if not latest_gemini_assessment:
+        return jsonify({"success": False, "error": "No assessment available to apply"}), 400
+
+    try:
+        rr = Decimal(str(latest_gemini_assessment.get("sweetspot_rr_ratio", 1.60)))
+        fee = Decimal(str(latest_gemini_assessment.get("sweetspot_fee_hurdle_pct", 0.50))) / Decimal("100")
+        risk = Decimal(str(latest_gemini_assessment.get("sweetspot_risk_budget_pct", 1.50))) / Decimal("100")
+
+        quant_bot.kev_arbiter.update_sweetspot(
+            min_rr_ratio=rr,
+            min_net_fee_hurdle=fee,
+            base_risk_budget_ratio=risk
+        )
+        _save_bot_settings()
+        return jsonify({
+            "success": True,
+            "message": f"Sweetspot parameters applied: R:R={float(rr):.2f}, Fee Hurdle={float(fee*Decimal('100')):.2f}%, Risk={float(risk*Decimal('100')):.2f}%"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/gemini/toggle-auto-apply', methods=['POST'])
+def toggle_gemini_auto_apply_endpoint():
+    """Toggle automatic sweetspot parameter adoption."""
+    global gemini_auto_apply
+    data = request.get_json() or {}
+    if "auto_apply" in data:
+        gemini_auto_apply = bool(data["auto_apply"])
+    else:
+        gemini_auto_apply = not gemini_auto_apply
+    _save_bot_settings()
+    return jsonify({"success": True, "auto_apply": gemini_auto_apply})
 
 if __name__ == '__main__':
     print("Starting Kronos Web UI...")

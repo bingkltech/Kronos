@@ -71,6 +71,25 @@ class KEVSupremeArbiter:
         self.risk_config = risk_config or DEFAULT_RISK_CONFIG
         self.symbols_config = symbols_config or ALL_SUPPORTED_SYMBOLS
 
+    def update_sweetspot(
+        self,
+        min_rr_ratio: Optional[Decimal] = None,
+        min_net_fee_hurdle: Optional[Decimal] = None,
+        base_risk_budget_ratio: Optional[Decimal] = None
+    ) -> None:
+        """Dynamically re-parameterize KEV.ai with sweetspot bounds from Gemini Strategy Arbiter."""
+        import dataclasses
+        updates = {}
+        if min_rr_ratio is not None:
+            updates["min_rr_ratio"] = Decimal(str(min_rr_ratio))
+        if min_net_fee_hurdle is not None:
+            updates["min_net_fee_hurdle"] = Decimal(str(min_net_fee_hurdle))
+        if base_risk_budget_ratio is not None:
+            updates["base_risk_budget_ratio"] = Decimal(str(base_risk_budget_ratio))
+        
+        if updates:
+            self.risk_config = dataclasses.replace(self.risk_config, **updates)
+
     def evaluate_candidate(
         self,
         trajectory: TrajectoryVerdict,

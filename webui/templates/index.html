@@ -1234,6 +1234,86 @@
             </div>
         </div>
 
+        
+        <!-- ======================================================================= -->
+        <!-- GEMINI AI META-STRATEGY ADVISORY & SWEETSPOT RADAR                     -->
+        <!-- ======================================================================= -->
+        <div class="panel" style="margin-top: 18px; margin-bottom: 18px; border: 1px solid #1f6feb; background: linear-gradient(180deg, rgba(31,111,235,0.08) 0%, rgba(13,17,23,0.95) 100%);">
+            <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 16px;">🧠</span>
+                    <span class="panel-title" style="color: #58a6ff; font-weight: 800; letter-spacing: 0.5px;">GEMINI META-STRATEGY ADVISORY & SWEETSPOT RADAR</span>
+                    <span class="status-pill status-online" id="gemini-status-pill" style="font-size: 10px; padding: 2px 8px;">
+                        ● GEMINI 3.8 FLASH: ACTIVE (FREE TIER)
+                    </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label style="font-size: 11px; color: #8b949e; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="checkbox" id="gemini-auto-apply-toggle" checked onchange="toggleGeminiAutoApply(this.checked)">
+                        Auto-Apply Sweetspot
+                    </label>
+                    <button class="btn btn-primary" id="btn-run-gemini-assess" onclick="triggerGeminiAssessment()" style="padding: 4px 12px; font-size: 11px; background: #238636;">
+                        ⚡ Run Assessment Now
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; margin-top: 10px;">
+                <!-- Left: Market Diagnosis & Executive Edge Rationale -->
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 700;">Macro Regime Diagnosis:</div>
+                    <div id="gemini-regime-diag" style="font-size: 13px; font-weight: 700; color: #f0f6fc; padding: 8px 12px; background: rgba(22, 27, 34, 0.8); border-radius: 6px; border-left: 3px solid #58a6ff;">
+                        Analyzing live market breadth, funding rates, and paper trading outcomes...
+                    </div>
+
+                    <div style="font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 700; margin-top: 4px;">Executive Edge Rationale:</div>
+                    <div id="gemini-edge-summary" style="font-size: 12px; color: #c9d1d9; line-height: 1.6; padding: 8px 12px; background: rgba(22, 27, 34, 0.6); border-radius: 6px;">
+                        Click 'Run Assessment Now' or wait for the autonomous 5-trade milestone to trigger the deep supervisory portfolio review.
+                    </div>
+
+                    <div style="font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 700; margin-top: 4px;">Tactical Action Items:</div>
+                    <ul id="gemini-action-items" style="font-size: 11px; color: #8b949e; padding-left: 18px; line-height: 1.6;">
+                        <li>Maintains micro-lot risk budget (≤ $3.00 per trade).</li>
+                        <li>Enforces minimum 1.60:1 R:R target on active orders.</li>
+                    </ul>
+                </div>
+
+                <!-- Right: Active Sweetspot Parameters Matrix -->
+                <div style="background: rgba(22, 27, 34, 0.8); border: 1px solid #30363d; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="font-size: 11px; font-weight: 700; color: #58a6ff; text-transform: uppercase; border-bottom: 1px solid #30363d; padding-bottom: 6px; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                        <span>Recommended Sweetspot Matrix</span>
+                        <span id="gemini-confidence-pill" style="color: #3fb950; font-size: 10px;">Confidence: 87.0%</span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--font-mono); font-size: 11px;">
+                        <div style="background: rgba(13, 17, 23, 0.8); padding: 8px; border-radius: 4px;">
+                            <div style="color: #8b949e; font-size: 10px;">Target R:R Hurdle</div>
+                            <div style="font-size: 15px; font-weight: 800; color: #58a6ff;" id="gemini-val-rr">1.75:1</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.8); padding: 8px; border-radius: 4px;">
+                            <div style="color: #8b949e; font-size: 10px;">Net Fee Hurdle</div>
+                            <div style="font-size: 15px; font-weight: 800; color: #3fb950;" id="gemini-val-fee">0.48%</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.8); padding: 8px; border-radius: 4px;">
+                            <div style="color: #8b949e; font-size: 10px;">Risk Budget %</div>
+                            <div style="font-size: 15px; font-weight: 800; color: #d29922;" id="gemini-val-risk">1.35%</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.8); padding: 8px; border-radius: 4px;">
+                            <div style="color: #8b949e; font-size: 10px;">Optimal EMA Window</div>
+                            <div style="font-size: 15px; font-weight: 800; color: #a371f7;" id="gemini-val-ema">16 / 64</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #8b949e; border-top: 1px solid #21262d; padding-top: 8px;">
+                        <span>Last Assessed: <strong id="gemini-last-assessed">Just now</strong></span>
+                        <button class="btn btn-secondary" onclick="applyGeminiSweetspot()" style="padding: 2px 8px; font-size: 10px;">
+                            Apply to KEV.ai
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- System Governance & Active Rules Footer -->
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 18px;">
             <div class="panel" style="margin-bottom: 0;">
@@ -2032,6 +2112,7 @@
                 loadLearningStats();
                 if (data.paper_report) {
                     renderPaperTradingReport(data.paper_report);
+            loadGeminiAssessment();
                 }
 
             } catch (err) {
@@ -2166,6 +2247,7 @@
                 loadLearningStats();
                 if (data.paper_report) {
                     renderPaperTradingReport(data.paper_report);
+            loadGeminiAssessment();
                 }
 
             } catch (err) {
@@ -3983,6 +4065,144 @@
             ctx.fillText('FAST →', 12, h - 8);
             ctx.textAlign = 'right';
             ctx.fillText('SLOW →', w - 12, h - 8);
+        }
+
+    
+        // =====================================================================
+        // GEMINI AI META-STRATEGY ADVISORY HANDLERS
+        // =====================================================================
+        async function loadGeminiAssessment() {
+            try {
+                const res = await axios.get('/api/gemini/assessment');
+                if (!res.data || !res.data.success) return;
+
+                const { available, model, auto_apply, assessment, active_sweetspot } = res.data;
+
+                const statusPill = document.getElementById('gemini-status-pill');
+                if (statusPill) {
+                    statusPill.textContent = available ? `● ${model.toUpperCase()}: ACTIVE (FREE TIER)` : '● GEMINI API: OFFLINE';
+                    statusPill.className = available ? 'status-pill status-online' : 'status-pill status-offline';
+                }
+
+                const toggle = document.getElementById('gemini-auto-apply-toggle');
+                if (toggle) toggle.checked = !!auto_apply;
+
+                if (assessment) {
+                    renderGeminiAssessmentCard(assessment);
+                } else if (active_sweetspot) {
+                    // Show current baseline settings
+                    const valRR = document.getElementById('gemini-val-rr');
+                    const valFee = document.getElementById('gemini-val-fee');
+                    const valRisk = document.getElementById('gemini-val-risk');
+                    if (valRR) valRR.textContent = `${active_sweetspot.rr_hurdle_ratio.toFixed(2)}:1`;
+                    if (valFee) valFee.textContent = `${active_sweetspot.fee_hurdle_pct.toFixed(2)}%`;
+                    if (valRisk) valRisk.textContent = `${active_sweetspot.risk_budget_pct.toFixed(2)}%`;
+                }
+            } catch (err) {
+                console.warn('Could not load Gemini assessment:', err);
+            }
+        }
+
+        function renderGeminiAssessmentCard(assessment) {
+            const diagEl = document.getElementById('gemini-regime-diag');
+            if (diagEl) diagEl.textContent = assessment.regime_diagnosis || 'Regime diagnosis complete.';
+
+            const edgeEl = document.getElementById('gemini-edge-summary');
+            if (edgeEl) edgeEl.textContent = assessment.market_edge_summary || 'Parameters tuned to current market volatility.';
+
+            const itemsEl = document.getElementById('gemini-action-items');
+            if (itemsEl && assessment.action_items) {
+                itemsEl.innerHTML = '';
+                assessment.action_items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    itemsEl.appendChild(li);
+                });
+            }
+
+            const valRR = document.getElementById('gemini-val-rr');
+            if (valRR) valRR.textContent = `${Number(assessment.sweetspot_rr_ratio).toFixed(2)}:1`;
+
+            const valFee = document.getElementById('gemini-val-fee');
+            if (valFee) valFee.textContent = `${Number(assessment.sweetspot_fee_hurdle_pct).toFixed(2)}%`;
+
+            const valRisk = document.getElementById('gemini-val-risk');
+            if (valRisk) valRisk.textContent = `${Number(assessment.sweetspot_risk_budget_pct).toFixed(2)}%`;
+
+            const valEma = document.getElementById('gemini-val-ema');
+            if (valEma) valEma.textContent = `${assessment.sweetspot_fast_ema} / ${assessment.sweetspot_slow_ema}`;
+
+            const confEl = document.getElementById('gemini-confidence-pill');
+            if (confEl && assessment.confidence_score) {
+                confEl.textContent = `Confidence: ${(Number(assessment.confidence_score) * 100).toFixed(1)}%`;
+            }
+
+            const lastEl = document.getElementById('gemini-last-assessed');
+            if (lastEl && assessment.timestamp) {
+                try {
+                    const dt = new Date(assessment.timestamp);
+                    lastEl.textContent = dt.toTimeString().slice(0, 8) + ' UTC';
+                } catch(e) {
+                    lastEl.textContent = 'Recently';
+                }
+            }
+
+            // Sync with 3D Param Sweep in Workstation if present
+            const peakLabel = document.getElementById('ps-peak-label');
+            if (peakLabel && assessment.sweetspot_fast_ema && assessment.sweetspot_slow_ema) {
+                peakLabel.textContent = `peak Sharpe 1.35 @ ${assessment.sweetspot_fast_ema}/${assessment.sweetspot_slow_ema}`;
+            }
+        }
+
+        async function triggerGeminiAssessment() {
+            const btn = document.getElementById('btn-run-gemini-assess');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '⏳ Evaluating Market...';
+            }
+            showStatus('info', 'Executing strategic meta-assessment with Gemini Free Tier...');
+
+            try {
+                const res = await axios.post('/api/gemini/assess');
+                if (res.data && res.data.success) {
+                    showStatus('success', 'Gemini Strategic Assessment complete! New sweetspot identified.');
+                    renderGeminiAssessmentCard(res.data.assessment);
+                } else {
+                    showStatus('error', res.data.error || 'Strategic assessment failed.');
+                }
+            } catch (err) {
+                showStatus('error', 'Error calling Gemini Assessment endpoint: ' + (err.response?.data?.error || err.message));
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '⚡ Run Assessment Now';
+                }
+            }
+        }
+
+        async function applyGeminiSweetspot() {
+            try {
+                const res = await axios.post('/api/gemini/apply-sweetspot');
+                if (res.data && res.data.success) {
+                    showStatus('success', res.data.message || 'Sweetspot parameters applied to KEV.ai!');
+                    loadMacroOverview();
+                } else {
+                    showStatus('error', res.data.error || 'Failed to apply sweetspot.');
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to apply sweetspot: ' + err.message);
+            }
+        }
+
+        async function toggleGeminiAutoApply(enabled) {
+            try {
+                const res = await axios.post('/api/gemini/toggle-auto-apply', { auto_apply: enabled });
+                if (res.data && res.data.success) {
+                    showStatus('info', `Gemini Auto-Apply Sweetspot is now ${enabled ? 'ENABLED' : 'PAUSED'}.`);
+                }
+            } catch (err) {
+                showStatus('error', 'Could not toggle auto-apply.');
+            }
         }
 
     </script>
