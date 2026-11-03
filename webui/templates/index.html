@@ -1672,7 +1672,15 @@
                     <div class="ws-hud-topleft">
                         <div class="ws-hud-asset-sub" id="ws-hud-symbol-window">BTC 1H · 12:00-13:00</div>
                         <div class="ws-hud-timer" id="ws-overlay-timer">T-50:04</div>
-                        <div class="ws-hud-walkforward">WALK-FORWARD 2/5</div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px;">
+                            <span class="ws-hud-walkforward" style="margin-top: 0;">WALK-FORWARD 2/5</span>
+                            <div style="display: flex; gap: 4px; pointer-events: auto;">
+                                <span class="ws-chip" style="color: #22d3ee; border-color: rgba(34,211,238,0.6); font-weight: 700; cursor: pointer;" onclick="toggleIndicator('ema7')" id="chip-ema7" title="Click to toggle EMA 7">EMA 7</span>
+                                <span class="ws-chip" style="color: #f59e0b; border-color: rgba(245,158,11,0.6); font-weight: 700; cursor: pointer;" onclick="toggleIndicator('ema21')" id="chip-ema21" title="Click to toggle EMA 21">EMA 21</span>
+                                <span class="ws-chip" style="color: #eab308; border-color: rgba(234,179,8,0.6); font-weight: 700; cursor: pointer;" onclick="toggleIndicator('vwap')" id="chip-vwap" title="Click to toggle VWAP">VWAP</span>
+                                <span class="ws-chip" style="color: #facc15; border-color: rgba(250,204,21,0.6); font-weight: 700; cursor: pointer;" onclick="toggleIndicator('monteCarlo')" id="chip-mc" title="Click to toggle Monte Carlo Fan">MONTE CARLO</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Top-Right HUD Overlay -->
@@ -3282,6 +3290,27 @@
             timerInterval: null
         };
 
+        // Indicator overlay toggles (EMA 7, EMA 21, VWAP, Monte Carlo)
+        const indicatorConfig = {
+            ema7: true,
+            ema21: true,
+            vwap: true,
+            monteCarlo: true
+        };
+
+        function toggleIndicator(name) {
+            if (indicatorConfig.hasOwnProperty(name)) {
+                indicatorConfig[name] = !indicatorConfig[name];
+                const chipId = name === 'monteCarlo' ? 'chip-mc' : `chip-${name}`;
+                const chip = document.getElementById(chipId);
+                if (chip) {
+                    chip.style.opacity = indicatorConfig[name] ? '1.0' : '0.4';
+                    chip.style.textDecoration = indicatorConfig[name] ? 'none' : 'line-through';
+                }
+                renderMainChartCanvas();
+            }
+        }
+
         // Navigation state for Main Chart (pan & zoom)
         const chartNav = {
             panX: 0,
@@ -3902,6 +3931,112 @@
                     ctx.fillRect(x - bodyW / 2, top, bodyW, h);
                     ctx.strokeRect(x - bodyW / 2, top, bodyW, h);
                 }
+            });
+
+            // =================================================================
+            // TECHNICAL INDICATORS: EMA 7 (Cyan), EMA 21 (Amber), VWAP (Yellow)
+            // =================================================================
+            const ema7Values = [];
+            const ema21Values = [];
+            const vwapValues = [];
+            let cumVol = 0;
+            let cumVP = 0;
+
+            const k7 = 2 / (7 + 1);
+            const k21 = 2 / (21 + 1);
+            let prevE7 = candles[0].close;
+            let prevE21 = candles[0].close;
+
+            candles.forEach((c, idx) => {
+                const e7 = idx === 0 ? c.close : (c.close * k7 + prevE7 * (1 - k7));
+                const e21 = idx === 0 ? c.close : (c.close * k21 + prevE21 * (1 - k21));
+                prevE7 = e7;
+                prevE21 = e21;
+                ema7Values.push(e7);
+                ema21Values.push(e21);
+
+                const typicalP = (c.high + c.low + c.close) / 3;
+                const vol = c.volume || 1;
+                cumVol += vol;
+                cumVP += typicalP * vol;
+                vwapValues.push(cumVol > 0 ? (cumVP / cumVol) : c.close);
+            });
+
+            // 1. Draw EMA 7 (Cyan #22d3ee)
+            if (indicatorConfig.ema7) {
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                let started = false;
+                candles.forEach((c, idx) => {
+                    const x = currentCandleX - (candles.length - 1 - idx) * barW;
+                    if (x >= -barW * 4 && x <= chartW + barW * 4) {
+                        const y = getY(ema7Values[idx]);
+                        if (!started) {
+                            ctx.moveTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                });
+                ctx.stroke();
+            }
+
+            // 2. Draw EMA 21 (Amber #f59e0b)
+            if (indicatorConfig.ema21) {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                let started = false;
+                candles.forEach((c, idx) => {
+                    const x = currentCandleX - (candles.length - 1 - idx) * barW;
+                    if (x >= -barW * 4 && x <= chartW + barW * 4) {
+                        const y = getY(ema21Values[idx]);
+                        if (!started) {
+                            ctx.moveTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                });
+                ctx.stroke();
+            }
+
+            // 3. Draw VWAP (Yellow #eab308)
+            if (indicatorConfig.vwap) {
+                ctx.strokeStyle = '#eab308';
+                ctx.lineWidth = 1.4;
+                ctx.setLineDash([4, 2]);
+                ctx.beginPath();
+                let started = false;
+                candles.forEach((c, idx) => {
+                    const x = currentCandleX - (candles.length - 1 - idx) * barW;
+                    if (x >= -barW * 4 && x <= chartW + barW * 4) {
+                        const y = getY(vwapValues[idx]);
+                        if (!started) {
+                            ctx.moveTo(x, y);
+                            started = true;
+                        } else {
+                            ctx.lineTo(x, y);
+                        }
+                    }
+                });
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // 4. Draw Volume Bars at Base of Chart
+            const maxVol = Math.max(...candles.map(c => c.volume || 1));
+            const volBaseY = padTop + chartH;
+            const maxBarH = 28;
+            candles.forEach((c, idx) => {
+                const x = currentCandleX - (candles.length - 1 - idx) * barW;
+                if (x < -barW * 2 || x > chartW + barW * 2) return;
+                const vH = Math.max(1, ((c.volume || 1) / maxVol) * maxBarH);
+                ctx.fillStyle = c.close >= c.open ? 'rgba(255, 255, 255, 0.22)' : 'rgba(148, 163, 184, 0.16)';
+                ctx.fillRect(x - bodyW / 2, volBaseY - vH, bodyW, vH);
             });
 
             // Date Ticks on bottom timeline

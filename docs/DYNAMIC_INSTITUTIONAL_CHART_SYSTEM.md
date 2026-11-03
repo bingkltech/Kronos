@@ -32,12 +32,12 @@ The workstation replaces static chart views with an interactive, multi-dimension
 |                                                                                                   |
 |  BTC 1H · 12:00-13:00                                         DOWN · REPLAY vs KRONOS  60.0       |
 |  T-50:04                                                      EDGE +12.5  kronos 72.5            |
-|  WALK-FORWARD 2/5                                             1,000 futures · Kronos-small 24.7M  |
+|  WALK-FORWARD 2/5  [EMA 7][EMA 21][VWAP][MONTE CARLO]         1,000 futures · Kronos-small 24.7M  |
 |                                                                                                   |
 |  | (10-30 outside)      | (10-31 outside)                                                         |
 |  |                      |                     NOW $77,859                                         |
 |  |                      |                         ●                                   P(up) 0.275 |
-|  [White Up Candles]     [Dark Down Candles]       (◎)========\==== Golden Fan ======              |
+|  [EMA 7: Cyan] [EMA 21: Amber] [VWAP: Yellow]     (◎)========\==== Golden Fan ======              |
 |                                                               \===================   P(down) 0.725|
 |                                                                                                   |
 |  [⟲ Reset] [+] [-] [◄ Pan] [Pan ►]                                             10-31      11-01   |
