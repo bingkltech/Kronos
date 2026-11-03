@@ -1,6 +1,6 @@
 # Kronos Institutional Quant Architecture & Multi-Agent Engine
 
-> **Document Version:** 2.3.0  
+> **Document Version:** 2.4.0  
 > **Target Framework:** Binance USDⓈ-M Perpetual Futures & Spot Universe  
 > **Core Alpha Engine:** `NeoQuasar/Kronos-base` (102.3M parameters, 512 context length)  
 > **Risk Arbiter:** KEV.ai 6-Point Supreme Veto Gate & Bayesian Brier Learning Engine  
@@ -19,7 +19,12 @@ Kronos is an institutional-grade quantitative trading and forecasting platform. 
 4. **The Learning Governor:** An empirical calibration engine that scores rolling 48-hour forecasts using Brier probability loss, throttles risk capital ($0.0\text{x}-1.0\text{x}$), and logs post-mortems into an SQLite institutional database (`data/lessons.db`).
 5. **Small-Account Micro-Trading & State Persistence Engine:** $200.00 USDT starting equity baseline with 1.5% max risk budgeting, full position and trade history persistence in `data/paper_trading_state.json`, and bot settings memory in `data/bot_settings.json`.
 6. **Atomic Execution State Machine:** Failsafe bracket order execution with an Anti-Naked-Position Guard (1,000ms SL timeout emergency flatten) and a 12-Hour Temporal Stale-Trade Expiry.
-7. **Unified Bloomberg/Terminal Workstation:** A seamless Single-Page Application (SPA) combining the Macro Dashboard, the 6-Panel Kronos Forecast Workstation (Market Watch, Main Chart + Shaded Corridor, Time & Sales, Agent Debate, Execution View & CVD, Monte Carlo Fan, 3D Param Sweep Sharpe), and Live Bot Control Cockpit.
+7. **Institutional Dynamic Chart & Multi-Pane Workstation:** A dynamic front-end replicating institutional prop execution suites, featuring:
+   - Dynamic Drag-to-Pan & Zoom across time and price axes.
+   - Radiant Golden Monte Carlo Trajectory Fan (1,000 futures paths) radiating from current candle close with P(up)=0.275 and P(down)=0.725 conviction tags.
+   - Real-time countdown timer (T-50:04) and floating price beacon (NOW $77,859).
+   - Three modular draggable sub-panes: 01 Heat Map (depth ladder), 02 Flow (dual CVD mountain area chart), and 03 Agent Sim Log (Monte Carlo execution stream with one-click `> place the paper order` automated dispatch).
+   - Resizable horizontal and vertical splitters for fluid layout adjustment.
 
 ---
 

@@ -5,7 +5,7 @@
 > **Engines:** HTML5 High-DPI Retina Canvas + TradingView Pro Lightweight Charts + Plotly.js + REST API  
 > **Strategic Copilot:** Google Gemini Free Tier (`gemini-3.8-flash`) Meta-Strategy Arbiter  
 > **Baseline Account:** Small-Account Micro-Trading ($200.00 USDT Paper Equity)  
-> **Version:** 2.3.0 (Institutional Multi-Panel Workstation & Strategy Optimizer Release)
+> **Version:** 2.4.0 (Dynamic Institutional Chart, Multi-Pane Workstation & Drag-to-Pan Release)
 
 ---
 
@@ -91,113 +91,125 @@ Located directly on the Macro Dashboard, this card acts as the Senior Supervisor
 
 ---
 
-## 3. Workspace 2: Kronos Forecast Workstation (`#view-forecaster`)
+## 3. Workspace 2: Kronos Dynamic Forecast Workstation (`#view-forecaster`)
 
-The deep quantitative research and interactive charting environment, rebuilt into the institutional Bloomberg/Terminal-style 6-panel workstation layout.
+The deep quantitative research and interactive charting environment, rebuilt into the high-performance institutional prop trading suite.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ [KRONOS • AGENTS]  ● LIVE STREAMING   BTCUSDT • 15M      KRONOS FORECAST WORKSTATION   INDEX 83,280.2 (+0.73%) │
-├──────────────────────┬─────────────────────────────────────────────────┬───────────────┤
-│ MARKET WATCH         │ KRONOS FORECAST WORKSTATION (MAIN CHART)        │ TIME & SALES  │
-│ • BTCUSDT (Amber)    │ • Candlesticks + EMA 7 / EMA 21 / VWAP          │ • Stream Tape │
-│ • ETH, SOL, BNB,     │ • Purple Forecast Corridor: NEXT 15 BARS        │ • Bid/Ask Col │
-│   DOGE, PEPE, SUI... │ • P(up) = 69% pill + OHLC box + Pink Price Tag  │ • Venues/Time │
-├──────────────────────┼─────────────────────────────────────────────────┴───────────────┤
-│ AGENT DEBATE (FIE)   │ BTCUSDT - EXECUTION VIEW & CVD                                  │
-│ • Specialist Pills   │ • Horizontal Volume Profile + POC (Point of Control) line       │
-│ • Bull/Bear Diverge  │ • Execution fills badge + TP / SL bracket levels                │
-│ • Consensus Verdict  │ • Cumulative Volume Delta (CVD) sub-panel                       │
-├──────────────────────┴───────────────────────────┬─────────────────────────────────────┤
-│ MONTE CARLO - KRONOS SAMPLED PATHS               │ PARAM SWEEP - SHARPE (FAST/SLOW) 3D │
-│ • 6,000 Fan/Ribbon Trajectory Paths (Teal/Cyan)  │ • 3D Isometric Wireframe Landscape  │
-│ • P90, P55, P50, P5 percentile envelopes         │ • Glowing Amber/Gold Contours       │
-│ • Terminal Return Distribution Histogram         │ • Peak Sharpe 1.32 @ 17/65 Reticle  │
-│ • Risk Sidebar: Exp Return, VaR 95, CVaR 95      │ • Fast / Slow Parameter Axes        │
-└──────────────────────────────────────────────────┴─────────────────────────────────────┘
+│ [KRONOS • AGENTS]  ● LIVE STREAMING   [BTC][ETH][SOL][XRP][PEPE]  [15M][1H][4H]  [⚙️ Config]   │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ TOP FRAME: PRIMARY FORECAST CHART (~63% Height, Full Drag-to-Pan & Zoom)               │
+│                                                                                        │
+│  BTC 1H · 12:00-13:00                                 DOWN · REPLAY vs KRONOS  60.0    │
+│  T-50:04                                              EDGE +12.5  kronos 72.5          │
+│  WALK-FORWARD 2/5                                     1,000 futures · Kronos-small 24M │
+│                                                                                        │
+│  | (10-30 outside)      | (10-31 outside)                                              │
+│  |                      |                     NOW $77,859                              │
+│  |                      |                         ●                        P(up) 0.275 │
+│  [White Up Candles]     [Dark Down Candles]       (◎)========\== Golden Fan ============│
+│                                                               \================= P(down) 0.725│
+│                                                                                        │
+│  [⟲ Reset] [+] [-] [◄ Pan] [Pan ►]                                         10-31 11-01 │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ > SIGNAL DOWN 0.725 vs replay 0.600 · edge +12.5 pts · paper · next candle 50:04 [SIGNAL]      │
+├========================================================================================┤
+│ <--- HORIZONTAL SPLITTER: Drag Up/Down to Resize Top Chart vs Bottom Workstation Panes --->   │
+├========================================================================================┤
+│ BOTTOM WORKSTATION (~37% Height, Draggable Sub-Panes with Vertical Splitters)          │
+│                                 |                                 |                    │
+│  01 HEAT MAP                    |  02 FLOW, +buy/-sell 3d         |  * CLAUDE CODE/SIM │
+│  21,177 real trades · Binance   |  every trade                    |  opus 5.5 · SIM log│
+│  XBT/USD · Market: 10/30/2026   |  [CVD Mountain Area Chart]      |  path 0514 target  │
+│  [Liquidity Depth Heat Bands]   |   +205 (Buy Flow, Cyan Area)    |  path 0847 stop    │
+│  "Falls $1,509 in 24m"          |    0   ----------------------   |  path 0262 open    │
+│  "+$769 back in 7m"             |   -419 (Sell Flow, Orange Area) |  --- 176 shown --- │
+│  "121 BTC traded in 1m"         |  ------------------------------ |  path 0571 target  │
+│  [Volume Histogram Bars]        |  5+ BTC : ■ 8.1%  | ■ 6.2%      |  path 0999 stop    │
+│  (Drag to Pan / Scrub Time)     |  1-5    : ■ 19.0% | ■ 22.3%     |  ----------------- │
+│                                 |  <0.05  : ■ 15.7% | ■ 10.6%     |  > place order     │
+│  [VERTICAL SPLITTER 1]          |  [VERTICAL SPLITTER 2]          |                    │
+└─────────────────────────────────┴─────────────────────────────────┴────────────────────┘
 ```
 
-### 3.1 Workstation Top Header Banner
+### 3.1 Workstation Top Header Banner & Fast Selectors
 * **Branding:** Amber `KRONOS • AGENTS` badge paired with a pulsating green `● LIVE STREAMING` status pill.
-* **Context Display:** Active asset and resolution (`BTCUSDT • 15M • LIVE`), central uppercase workstation header, composite index benchmark (`INDEX 83,280.2 (+0.73%)`), and live UTC clock.
-* **⚙️ Model & Config Drawer:** A collapsible drawer containing all advanced neural inference parameters (model selection, execution device, lookback slider, prediction horizon, temperature, top-p, and custom dataset loaders).
+* **Fast Asset Pills:** Direct selector buttons (`[BTC]`, `[ETH]`, `[SOL]`, `[XRP]`, `[PEPE]`) allowing instant switching of instrument context, order book ladders, CVD flows, and Monte Carlo trajectory projections.
+* **Resolution Badges:** Quick timeframe selectors (`15M`, `1H`, `4H`).
+* **⚙️ Model & Config Drawer:** Collapsible panel for model reload, PyTorch inference device, lookback slider (100–512), and horizon configurations.
 
-### 3.2 Panel 1: Market Watch (Top-Left)
-* **High-Density Watchlist Table:**
-  * Pre-loaded with top liquid crypto assets: `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `BNBUSDT`, `DOGEUSDT`, `XRPUSDT`, `AVAXUSDT`, `SUIUSDT`, `PEPEUSDT`, `NEARUSDT`, `1000PEPEUSDT`, `LINKUSDT`.
-  * Columns: `SYMBOL | LAST | NET CHG | VOL`.
-  * **Dynamic Sub-Penny Precision:** Automatically quantizes prices according to asset volatility (e.g. 8 decimals on `PEPEUSDT`, 6 decimals on `1000PEPEUSDT`, 4 decimals on `DOGEUSDT`, 2 decimals on `BTCUSDT`).
-  * **Interactive Multi-Asset Switching:** Clicking any row highlights it with an amber accent bar (`#f59e0b`) and automatically synchronizes all 6 panels to that asset's order flow, price scale, and forecast trajectories.
+### 3.2 Top Frame: Primary Forecast Chart (Dynamic Drag-to-Pan & Zoom)
+* **High-DPI Retina Canvas:** Hardware-accelerated Canvas with `window.devicePixelRatio` scaling.
+* **Fluid Drag-to-Pan Interaction:**
+  * **Timeline Drag:** Click and drag left or right anywhere across the chart canvas to pan through historical candles and into future forecast horizons.
+  * **Price Scale Drag:** Click and drag vertically on the right-margin price axis to scale vertical volatility amplitude.
+  * **Mouse Wheel Zoom:** Smooth exponential zoom centered at mouse cursor coordinates.
+  * **Touch Support:** Single-touch drag and mobile pan.
+  * **Navigation HUD:** Direct buttons for instant control: `⟲ Reset`, `+ Zoom`, `- Zoom`, `◄ Pan`, `Pan ►`.
+* **Dark Monochrome Candlesticks:**
+  * Bullish candles: Crisp solid white bodies (`#ffffff`) and white wicks.
+  * Bearish candles: Deep dark slate bodies (`#090d14`) with light grey borders (`#94a3b8`) and wicks.
+* **Red Outside Marker Lines:**
+  * `10-30 outside`: Vertical marker line indicating boundary time.
+  * `10-31 outside`: Vertical marker line tracking period transitions.
+* **Dynamic Floating Beacon (`NOW $77,859`):**
+  * Anchored directly to active candle close with a concentric gold/white target reticle.
+  * Floating price callout with dynamic sub-penny precision and dark halo shadow.
+* **Luminous Golden Monte Carlo Trajectory Fan (1,000 Futures):**
+  * Originates at current candle close, radiating into the 30-bar forecast horizon.
+  * **Upper Outliers (Cool Grey / Cyan):** 16 paths fanning upward with probability tag `P(up) = 0.275`.
+  * **Downward Cluster (Glowing Gold / Amber):** 52 high-density Bézier trajectories with opacity gradient ($\alpha \in [0.18, 0.65]$) and probability tag `P(down) = 0.725`.
 
-### 3.3 Panel 2: Main Candlestick Chart (Top-Center)
-* **High-Definition Canvas Renderer:** Hardware-accelerated Canvas with `window.devicePixelRatio` scaling.
-* **Technical Overlays:**
-  * `EMA 7` (Cyan `#22d3ee`): Fast trend indicator.
-  * `EMA 21` (Amber `#f59e0b`): Intermediate swing indicator.
-  * `VWAP` (Yellow `#eab308`): Intraday institutional benchmark.
-* **Future Shaded Purple Forecast Corridor (`KRONOS - NEXT 15 BARS`):**
-  * Translucent purple fill (`rgba(168, 85, 247, 0.14)`) extending 15 bars forward into the future horizon.
-  * Top and bottom dashed boundary lines with center predicted trajectory line (`#c084fc`).
-  * Header badge: `KRONOS - NEXT 15 BARS` with green probability badge: `P(up) = 69%`.
-  * **OHLC Box Summary Overlay:** Semi-transparent HUD displaying predicted Open, High, Low, and Close at the horizon.
-* **Live Price Badge:** Bright pink/magenta pill tag (`#ec4899`) tracking live tick price on the right vertical price scale.
-* **Volume Histogram:** Candlestick-colored volume bars with an overlaid moving average line.
+### 3.3 Mid-Divider Signal Ribbon
+* Monospace ticker banner: `> SIGNAL DOWN 0.725 vs replay 0.600 · edge +12.5 pts · paper · next candle 50:04`.
+* Gold accented `[SIGNAL]` trigger button for instant model signal inspection.
 
-### 3.4 Panel 3: Time & Sales Tape (Top-Right)
-* **Real-Time Streaming Tape:**
-  * Columns: `PRICE | SIZE | BID | ASK | VENUE / TIME`.
-  * Streaming order flow generated with sub-second frequency matching the active asset's price and liquidity characteristics.
-  * **Color Differentiation:**
-    * Green text for Ask-hit aggressive market buys.
-    * Red text for Bid-hit aggressive market sells.
-  * Venues tracked: `BINANCE`, `COINBASE`, `BYBIT`, `OKX`, `KRAKEN`.
+### 3.4 Horizontal Resizable Splitter
+* High-visibility resizable divider (`#ws-h-splitter`, cursor `row-resize`) between Top Chart and Bottom Workstation.
+* Drag up or down to adjust relative frame heights smoothly at 60 FPS.
 
-### 3.5 Panel 4: Agent Debate - Bull vs Bear (Middle-Left)
-* **Specialist Pillar Badges:**
-  * Eight multi-agent scores: `Fundamentals (+0.36)`, `Sentiment (-0.55)`, `News (-0.26)`, `Technical (+0.35)`, `BULL (+0.38)`, `BEAR (-1.00)`, `TRADER (-0.26)`, `RISK (-0.66)`.
-* **Diverging Vertical Bar Chart:**
-  * Midline zero axis separating bullish forces from bearish forces.
-  * Positive forces rise above the midline in cyan/green (`BULL`, `BULL`, `BULL`, `RISK BULL`).
-  * Negative forces drop below the midline in red/coral (`BEAR`, `BULL RISK`, `RISK`, `RISK -0.66`).
-* **Consensus Verdict Banner:**
-  * Aggregated consensus pill displaying stance and confidence (e.g. `CONSENSUS: CAUTIOUS BULL [P(up) = 69%]`).
+### 3.5 Bottom Workstation: 3 Modular Draggable Panes
 
-### 3.6 Panel 5: Execution View & CVD (Middle-Center)
-* **Horizontal Volume Profile (Left 16%):**
-  * Displays volume distribution across 18-20 price bins.
-  * Prominent red/orange horizontal line marking the Point of Control (POC).
-  * Value Area High (VAH) and Value Area Low (VAL) brackets.
-* **Candlestick Execution View (Center/Right 84%):**
-  * Candlestick chart showing simulated and live execution fills.
-  * `FILLS` callout tag with arrow pointing to the executed candle.
-  * Green dashed Take-Profit (TP) line and red dashed Stop-Loss (SL) line.
-* **Cumulative Volume Delta (CVD) Sub-Panel (Bottom 30%):**
-  * Zero baseline with `CVD` / `-CVD` markings.
-  * Vertical delta bars: glowing green/cyan when buyer aggression dominates, red/magenta when seller aggression dominates.
-  * Cumulative net delta polyline overlaid on top.
+#### Pane 1: `01 HEAT MAP`
+* **Real-Time Liquidity Depth Ladder:** Step-like amber/orange heat bands around order book resting limit density.
+* **Stepped Transaction Line:** White stepped trace tracking discrete executions.
+* **Empirical Callout Annotations:**
+  * `00:43  76,860  6.0 BTC`
+  * `+$769 back in 7 minutes` (pointing to upward recovery bounce)
+  * `Falls $1,509 in 24 minutes` (pointing to sharp drop)
+  * `121 BTC traded in one minute` (pointing to volume spike)
+* **Interactive Drag-to-Pan:** Click and drag left/right inside Heat Map to scrub historical liquidity.
 
-### 3.7 Panel 6: Monte Carlo - Sampled Paths (Bottom-Left)
-* **6,000 Fan/Ribbon Trajectory Paths:**
-  * Probabilistic future paths simulated via geometric Brownian motion with stochastic drift and empirical volatility.
-  * Rendered as radiant glowing ribbons (cyan `#06b6d4` and teal `#22d3ee`) fanning out 15 bars forward from current price.
-  * **Key Percentile Envelopes:**
-    * `P90 +0.16%` (Green upper boundary).
-    * `P55 +0.8%` (Cyan upper corridor).
-    * `P50 +0.06` (Gold median trajectory).
-    * `P5 -0.66%` (Red lower boundary).
-* **Terminal Return Distribution Histogram (Right Side):**
-  * Horizontal bar distribution curve at the 15-bar horizon.
-  * Green bars indicate positive returns; red bars indicate negative returns.
-* **Quantitative Risk Sidebar:**
-  * Displays horizon duration (`+11.3M`), Expected Return (`+1.63%`), Value at Risk 95 (`VaR 95: -4.05%`), Conditional Value at Risk 95 (`CVaR 95: -1.95%`), Probability of Upward Drift (`P(UP): 89.00`), and Target Price Levels (P50, P95, P5).
+#### Pane 2: `02 FLOW, +buy/-sell 3d`
+* **Dual Cumulative Volume Delta (CVD) Mountain Chart:**
+  * Buy Flow: Layered cyan area chart above zero line (`+205`, `+100`, `+50`, `0`).
+  * Sell Flow: Layered orange area chart below zero line (`0`, `-50`, `-100`, `-419`).
+  * Net Delta Line: Solid white line tracking cumulative delta trajectory.
+  * Day markers: `Fri`, `Sat`, `Sun`.
+* **Multi-Tier Order Flow Breakdown Table:**
+  * `5+ BTC` : `■ 8.1%` buy | `■ 6.2%` sell
+  * `1-5` : `■ 19.0%` buy | `■ 22.3%` sell
+  * `0.25-1` : `■ 31.0%` buy | `■ 34.2%` sell
+  * `0.05-0.25` : `■ 26.2%` buy | `■ 26.7%` sell
+  * `<0.05 BTC` : `■ 15.7%` buy | `■ 10.6%` sell
+  * Footer: `— raw hourly · 7,978 BTC   +126 -138`.
+* **Interactive Drag-to-Pan:** Click and drag left/right inside Flow to pan through time.
 
-### 3.8 Panel 7: 3D Param Sweep Sharpe Landscape (Bottom-Right)
-* **Isometric Wireframe Surface:**
-  * 3D wireframe mesh modeling the Sharpe ratio surface over Fast EMA periods (5..30) vs Slow EMA periods (30..100).
-  * Glowing gold/amber gradient lines (`#f59e0b` to `#fbbf24`) with depth shading.
-* **Peak Sharpe Targeting Reticle:**
-  * Prominent crosshair reticle with pulsing concentric radar rings placed directly over the global maximum coordinate: `peak Sharpe 1.32 @ 17/65`.
-  * Dynamic animation loop ensures smooth visual depth and shimmer without impacting CPU usage.
+#### Pane 3: `* CLAUDE CODE / AGENT SIM LOG`
+* **Monospace Monte Carlo Simulation Path Stream:** Real-time color-coded path execution outcomes:
+  * Green (`target`): `path 0514  target  h+10  +2.0 % pnl`
+  * Red (`stop`): `path 0847  stop    h+17  -1.0 % pnl`
+  * Cyan (`open`): `path 0262  open    h+48  +1.2 % pnl`
+  * Summary line: `176 shown · target 19.3% · stop 29.8%`
+* **Interactive `> place the paper order` Button:**
+  * One-click automated dispatch button.
+  * Calls `/api/bot/place-order`, executes against background realistic friction engine, appends execution path directly into the stream, and triggers visual confirmation toast!
+
+### 3.6 Vertical Resizable Splitters
+* `ws-v-splitter-1` (between Pane 1 and Pane 2, cursor `col-resize`).
+* `ws-v-splitter-2` (between Pane 2 and Pane 3, cursor `col-resize`).
+* Drag left/right to widen or shrink any pane dynamically.
 
 ---
 

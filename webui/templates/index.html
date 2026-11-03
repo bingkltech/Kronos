@@ -686,18 +686,19 @@
         }
     
         /* ========================================================================= */
-        /* KRONOS FORECAST WORKSTATION (INSTITUTIONAL BLOOMBERG / TERMINAL GRADE)   */
+        /* KRONOS INSTITUTIONAL QUANT WORKSTATION & DYNAMIC CHART ENGINE              */
         /* ========================================================================= */
         .ws-root {
             background-color: #070a10;
             color: #e2e8f0;
             font-family: 'Consolas', 'Courier New', monospace, var(--font-sans);
-            padding: 8px 12px 24px 12px;
+            padding: 8px 12px 16px 12px;
             display: flex;
             flex-direction: column;
             gap: 8px;
             width: 100%;
             box-sizing: border-box;
+            user-select: none;
         }
 
         .ws-top-banner {
@@ -736,231 +737,25 @@
             gap: 6px;
         }
 
-        .ws-header-title {
-            font-size: 14px;
-            font-weight: 800;
-            letter-spacing: 2px;
-            color: #f1f5f9;
-            text-transform: uppercase;
-        }
-
-        .ws-grid-top {
-            display: grid;
-            grid-template-columns: 240px 1fr 310px;
-            gap: 8px;
-            height: 480px;
-        }
-
-        .ws-grid-mid {
-            display: grid;
-            grid-template-columns: 240px 1fr;
-            gap: 8px;
-            height: 250px;
-        }
-
-        .ws-grid-bottom {
-            display: grid;
-            grid-template-columns: 1fr 400px;
-            gap: 8px;
-            height: 310px;
-        }
-
-        @media (max-width: 1280px) {
-            .ws-grid-top { grid-template-columns: 220px 1fr 280px; }
-            .ws-grid-mid { grid-template-columns: 220px 1fr; }
-            .ws-grid-bottom { grid-template-columns: 1fr 360px; }
-        }
-
-        @media (max-width: 1024px) {
-            .ws-grid-top, .ws-grid-mid, .ws-grid-bottom {
-                grid-template-columns: 1fr;
-                height: auto;
-            }
-        }
-
-        .ws-panel {
-            background: #0d121d;
-            border: 1px solid #1a2333;
-            border-radius: 4px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .ws-panel-header {
+        .ws-asset-pill {
             background: #111827;
-            border-bottom: 1px solid #1a2333;
-            padding: 5px 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
-            color: #94a3b8;
-            height: 28px;
-            box-sizing: border-box;
-        }
-
-        .ws-panel-body {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-            background: #0a0e17;
-        }
-
-        /* Market Watch Table */
-        .ws-mw-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-            font-family: var(--font-mono);
-            user-select: none;
-        }
-
-        .ws-mw-table th {
-            background: #0d121d;
-            color: #64748b;
-            font-weight: 700;
-            font-size: 10px;
-            text-align: right;
-            padding: 4px 6px;
-            border-bottom: 1px solid #1a2333;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-
-        .ws-mw-table th:first-child { text-align: left; }
-
-        .ws-mw-table td {
-            padding: 5px 6px;
-            border-bottom: 1px solid rgba(26, 35, 51, 0.6);
-            text-align: right;
-            color: #cbd5e1;
-        }
-
-        .ws-mw-table td:first-child {
-            text-align: left;
-            font-weight: 700;
-            color: #f8fafc;
-        }
-
-        .ws-mw-row {
-            cursor: pointer;
-            transition: background 0.15s ease;
-        }
-
-        .ws-mw-row:hover {
-            background: rgba(30, 41, 59, 0.6);
-        }
-
-        .ws-mw-row.active {
-            background: rgba(245, 158, 11, 0.18) !important;
-            border-left: 3px solid #f59e0b;
-        }
-
-        .ws-mw-row.active td:first-child {
-            color: #f59e0b;
-        }
-
-        /* Time & Sales Table */
-        .ws-tape-container {
-            height: 100%;
-            overflow-y: auto;
-            font-size: 10px;
-            font-family: var(--font-mono);
-        }
-
-        .ws-tape-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .ws-tape-table th {
-            background: #0d121d;
-            color: #64748b;
-            font-weight: 700;
-            text-align: right;
-            padding: 4px 6px;
-            border-bottom: 1px solid #1a2333;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-
-        .ws-tape-table td {
-            padding: 3px 6px;
-            border-bottom: 1px solid rgba(26, 35, 51, 0.4);
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .ws-tape-row-buy td {
-            color: #10b981;
-        }
-
-        .ws-tape-row-sell td {
-            color: #ef4444;
-        }
-
-        /* Chips */
-        .ws-chip {
-            font-size: 10px;
-            padding: 1px 5px;
-            border-radius: 3px;
             border: 1px solid #1e293b;
             color: #94a3b8;
-            background: rgba(15, 23, 42, 0.6);
-            display: inline-block;
-        }
-
-        /* Specialist Pills Grid */
-        .ws-agent-pills-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 3px;
-            padding: 4px 6px;
-            background: #0d121d;
-            border-bottom: 1px solid #1a2333;
-        }
-
-        .ws-agent-pill {
-            font-size: 9px;
+            font-size: 11px;
             font-weight: 700;
-            padding: 2px 4px;
-            border-radius: 3px;
-            text-align: center;
-            border: 1px solid transparent;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
         }
-
-        .ws-agent-pill.positive {
-            color: #10b981;
-            background: rgba(16, 185, 129, 0.1);
-            border-color: rgba(16, 185, 129, 0.3);
+        .ws-asset-pill:hover {
+            color: #f8fafc;
+            border-color: #38bdf8;
         }
-
-        .ws-agent-pill.negative {
-            color: #ef4444;
-            background: rgba(239, 68, 68, 0.1);
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-
-        .ws-agent-pill.cyan {
-            color: #22d3ee;
-            background: rgba(34, 211, 238, 0.1);
-            border-color: rgba(34, 211, 238, 0.3);
-        }
-
-        .ws-agent-pill.amber {
+        .ws-asset-pill.active {
+            background: rgba(245, 158, 11, 0.2);
             color: #f59e0b;
-            background: rgba(245, 158, 11, 0.1);
-            border-color: rgba(245, 158, 11, 0.3);
+            border-color: #f59e0b;
         }
 
         .ws-btn-tool {
@@ -977,6 +772,406 @@
             background: #334155;
             color: #ffffff;
             border-color: #58a6ff;
+        }
+
+        /* Interactive Workspace Container */
+        #ws-interactive-workspace {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: calc(100vh - 140px);
+            min-height: 820px;
+            background: #070a10;
+            border: 1px solid #1a2333;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Top Frame: Main Chart */
+        #ws-top-chart-frame {
+            flex: 0 0 63%;
+            min-height: 340px;
+            position: relative;
+            background: #090d14;
+            overflow: hidden;
+        }
+
+        #mc-canvas-wrapper {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            cursor: crosshair;
+        }
+
+        /* HUD Overlay on Main Chart */
+        .ws-hud-topleft {
+            position: absolute;
+            top: 14px;
+            left: 18px;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .ws-hud-asset-sub {
+            font-size: 13px;
+            font-weight: 700;
+            color: #94a3b8;
+            letter-spacing: 0.5px;
+            font-family: var(--font-mono);
+        }
+        .ws-hud-timer {
+            font-size: 38px;
+            font-weight: 900;
+            color: #ffffff;
+            font-family: var(--font-mono);
+            letter-spacing: 2px;
+            line-height: 1.05;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+        }
+        .ws-hud-walkforward {
+            font-size: 13px;
+            font-weight: 800;
+            color: #facc15;
+            letter-spacing: 1px;
+            font-family: var(--font-mono);
+            margin-top: 2px;
+        }
+
+        .ws-hud-topright {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+        }
+        .ws-hud-replay-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            font-family: var(--font-mono);
+        }
+        .ws-hud-progress-track {
+            width: 110px;
+            height: 7px;
+            background: #1e293b;
+            border-radius: 2px;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .ws-hud-progress-fill {
+            width: 60%;
+            height: 100%;
+            background: #f59e0b;
+        }
+        .ws-hud-edge-badge {
+            font-size: 24px;
+            font-weight: 900;
+            color: #facc15;
+            letter-spacing: 1px;
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ws-hud-kronos-score {
+            font-size: 15px;
+            font-weight: 800;
+            color: #f8fafc;
+        }
+        .ws-hud-model-details {
+            font-size: 11px;
+            color: #94a3b8;
+            font-family: var(--font-mono);
+            text-align: right;
+            line-height: 1.4;
+        }
+
+        /* Floating Nav Buttons HUD */
+        .ws-chart-nav-hud {
+            position: absolute;
+            bottom: 12px;
+            left: 18px;
+            z-index: 15;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(13, 18, 29, 0.85);
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 4px 8px;
+            backdrop-filter: blur(4px);
+        }
+        .ws-nav-btn {
+            background: #111827;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 7px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: var(--font-mono);
+        }
+        .ws-nav-btn:hover {
+            background: #2563eb;
+            color: #ffffff;
+            border-color: #38bdf8;
+        }
+
+        /* Mid-Divider Signal Ribbon */
+        .ws-signal-ribbon {
+            height: 32px;
+            min-height: 32px;
+            background: #0b0f19;
+            border-top: 1px solid #1a2333;
+            border-bottom: 1px solid #1a2333;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            color: #e2e8f0;
+            user-select: none;
+            z-index: 5;
+        }
+        .ws-signal-text {
+            color: #facc15;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ws-signal-badge-btn {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #facc15;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 3px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .ws-signal-badge-btn:hover {
+            background: #facc15;
+            color: #000000;
+        }
+
+        /* Horizontal Splitter */
+        .ws-h-splitter {
+            height: 6px;
+            min-height: 6px;
+            background: #151d2c;
+            cursor: row-resize;
+            position: relative;
+            z-index: 25;
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .ws-h-splitter:hover, .ws-h-splitter.dragging {
+            background: #38bdf8;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+        }
+
+        /* Bottom Panes Frame */
+        #ws-bottom-panes-frame {
+            flex: 1 1 auto;
+            min-height: 240px;
+            display: flex;
+            flex-direction: row;
+            background: #070a10;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Vertical Splitter */
+        .ws-v-splitter {
+            width: 6px;
+            min-width: 6px;
+            background: #151d2c;
+            cursor: col-resize;
+            position: relative;
+            z-index: 25;
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+        .ws-v-splitter:hover, .ws-v-splitter.dragging {
+            background: #38bdf8;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+        }
+
+        /* Pane Generic Layout */
+        .ws-subpane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #090d14;
+            position: relative;
+        }
+        .ws-subpane-header {
+            background: #0d121d;
+            border-bottom: 1px solid #1a2333;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            height: 26px;
+            min-height: 26px;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        .ws-subpane-body {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Specific Panes */
+        #pane-heatmap {
+            flex: 0 0 35%;
+            min-width: 200px;
+            border-right: 1px solid #1a2333;
+        }
+        #pane-flow {
+            flex: 0 0 35%;
+            min-width: 200px;
+            border-right: 1px solid #1a2333;
+        }
+        #pane-agent-log {
+            flex: 1 1 auto;
+            min-width: 240px;
+            background: #06090f;
+        }
+
+        /* Flow Table */
+        .ws-flow-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            background: #0a0d14;
+            border-top: 1px solid #1a2333;
+        }
+        .ws-flow-table th, .ws-flow-table td {
+            padding: 2px 6px;
+            text-align: right;
+        }
+        .ws-flow-table th:first-child, .ws-flow-table td:first-child {
+            text-align: left;
+            color: #94a3b8;
+        }
+        .ws-flow-table th {
+            color: #64748b;
+            font-weight: 700;
+            border-bottom: 1px solid #151d2c;
+        }
+
+        /* Agent Sim Log Stream */
+        #agent-sim-log-stream {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 10px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: #06090f;
+        }
+        .ws-sim-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            white-space: nowrap;
+        }
+        .ws-sim-line.target {
+            color: #10b981;
+            font-weight: 700;
+        }
+        .ws-sim-line.stop {
+            color: #ef4444;
+        }
+        .ws-sim-line.open {
+            color: #38bdf8;
+        }
+        .ws-sim-divider {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 9.5px;
+            padding: 2px 0;
+            border-top: 1px dashed #1e293b;
+            border-bottom: 1px dashed #1e293b;
+            margin: 3px 0;
+            background: rgba(30, 41, 59, 0.4);
+        }
+
+        /* Dispatch Button */
+        .ws-btn-paper-order {
+            width: 100%;
+            padding: 8px 12px;
+            background: #111827;
+            border: 1px solid #334155;
+            border-top: 1px solid #1a2333;
+            color: #facc15;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 800;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .ws-btn-paper-order:hover {
+            background: #facc15;
+            color: #000000;
+            border-color: #facc15;
+            box-shadow: 0 0 12px rgba(250, 204, 21, 0.4);
+        }
+
+        /* Bottom Status Footer */
+        .ws-status-footer {
+            height: 24px;
+            min-height: 24px;
+            background: #05080f;
+            border-top: 1px solid #151d2c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 14px;
+            font-size: 10px;
+            color: #64748b;
+            font-family: var(--font-mono);
+            user-select: none;
+        }
+        .ws-badge-paper {
+            background: #1e293b;
+            color: #f8fafc;
+            font-size: 9px;
+            font-weight: 800;
+            padding: 1px 6px;
+            border-radius: 2px;
+            border: 1px solid #475569;
         }
 
         /* Collapsible Drawer for Advanced Model Controls */
@@ -1356,20 +1551,31 @@
         <!-- ======================================================================= -->
     <!-- VIEW 2: KRONOS FORECAST WORKSTATION (INSTITUTIONAL QUANT SUITE)        -->
     <!-- ======================================================================= -->
-    <div id="view-forecaster" class="app-view" style="display: none;">
+        <div id="view-forecaster" class="app-view" style="display: none;">
         <div class="ws-root">
 
-            <!-- Top Bloomberg / Terminal Header Banner -->
+            <!-- Top Header Banner & Fast Selectors -->
             <div class="ws-top-banner">
-                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                     <span class="ws-badge-agents">KRONOS • AGENTS</span>
                     <span class="ws-pill-live"><span class="pulse-dot"></span> LIVE STREAMING</span>
-                    <span id="ws-header-asset" style="font-size: 13px; font-weight: 700; color: #f8fafc; letter-spacing: 1px;">BTCUSDT • 15M</span>
+                    <div style="display: flex; gap: 4px; margin-left: 6px;">
+                        <button class="ws-asset-pill active" id="ws-pill-BTC" onclick="switchWorkstationAsset('BTCUSDT')">BTC</button>
+                        <button class="ws-asset-pill" id="ws-pill-ETH" onclick="switchWorkstationAsset('ETHUSDT')">ETH</button>
+                        <button class="ws-asset-pill" id="ws-pill-SOL" onclick="switchWorkstationAsset('SOLUSDT')">SOL</button>
+                        <button class="ws-asset-pill" id="ws-pill-XRP" onclick="switchWorkstationAsset('XRPUSDT')">XRP</button>
+                        <button class="ws-asset-pill" id="ws-pill-PEPE" onclick="switchWorkstationAsset('PEPEUSDT')">PEPE</button>
+                    </div>
+                    <div style="display: flex; gap: 4px; margin-left: 4px;">
+                        <span class="ws-chip" style="color: #38bdf8; border-color: rgba(56,189,248,0.4);">15M</span>
+                        <span class="ws-chip" style="color: #facc15; border-color: rgba(250,204,21,0.4);">1H</span>
+                        <span class="ws-chip">4H</span>
+                    </div>
                 </div>
-                <div class="ws-header-title">KRONOS FORECAST WORKSTATION</div>
-                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-                    <span id="ws-header-index" style="font-size: 12px; font-weight: 700; color: #10b981;">INDEX 83,280.2 (+0.73%)</span>
-                    <span id="ws-header-clock" style="font-size: 12px; color: #94a3b8; font-family: var(--font-mono);">--:--:-- UTC</span>
+                <div class="ws-header-title">KRONOS QUANT FORECAST TERMINAL</div>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <span id="ws-header-index" style="font-size: 11px; font-weight: 700; color: #10b981;">INDEX 83,280.2 (+0.73%)</span>
+                    <span id="ws-header-clock" style="font-size: 11px; color: #94a3b8; font-family: var(--font-mono);">--:--:-- UTC</span>
                     <button class="ws-btn-tool" onclick="toggleAdvancedSettings()">⚙️ Model & Config</button>
                 </div>
             </div>
@@ -1377,8 +1583,8 @@
             <!-- Collapsible Advanced Model Controls Drawer -->
             <div id="ws-advanced-drawer" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #1e293b; padding-bottom: 8px;">
-                    <h3 style="font-size: 13px; color: #38bdf8; font-weight: 700; text-transform: uppercase;">dYZ_ Kronos Model & Inference Settings</h3>
-                    <button class="ws-btn-tool" onclick="toggleAdvancedSettings()">Close dY?</button>
+                    <h3 style="font-size: 13px; color: #38bdf8; font-weight: 700; text-transform: uppercase;">Kronos Model & Inference Settings</h3>
+                    <button class="ws-btn-tool" onclick="toggleAdvancedSettings()">Close ✕</button>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
                     <div class="form-group" style="margin-bottom: 0;">
@@ -1386,7 +1592,7 @@
                         <select id="model-select">
                             <option value="kronos-base" selected>Kronos-base (102.3M)</option>
                         </select>
-                        <button id="load-model-btn" class="btn btn-secondary" style="margin-top: 6px; padding: 4px 8px; font-size: 11px;">dY", Reload Model</button>
+                        <button id="load-model-btn" class="btn btn-secondary" style="margin-top: 6px; padding: 4px 8px; font-size: 11px;">Reload Model</button>
                         <div id="model-status" class="status info" style="display: none; font-size: 10px; margin-top: 4px;"></div>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
@@ -1415,8 +1621,8 @@
                         </select>
                         <div style="display: flex; gap: 6px; margin-top: 6px;">
                             <select id="binance-interval-select" style="font-size: 11px; flex: 1;">
-                                <option value="15m" selected>15m</option>
-                                <option value="1h">1h</option>
+                                <option value="15m">15m</option>
+                                <option value="1h" selected>1h</option>
                                 <option value="5m">5m</option>
                                 <option value="4h">4h</option>
                             </select>
@@ -1436,7 +1642,7 @@
                             <label for="pred-len-slider" style="font-size: 11px;">Pred Horizon: <span id="pred-len-value">120</span></label>
                             <input type="range" id="pred-len-slider" class="slider" min="10" max="120" value="120">
                         </div>
-                        <button id="predict-btn" class="btn btn-primary" style="padding: 6px 12px; font-size: 11px; width: 100%;">dY"r Run Neural Inference</button>
+                        <button id="predict-btn" class="btn btn-primary" style="padding: 6px 12px; font-size: 11px; width: 100%;">Run Neural Inference</button>
                     </div>
                 </div>
                 <!-- Hidden elements to maintain script compatibility -->
@@ -1456,199 +1662,170 @@
                 </div>
             </div>
 
-            <!-- TOP ROW: Market Watch | Main Candlestick Chart | Time & Sales Tape -->
-            <div class="ws-grid-top">
-                <!-- Panel 1: MARKET WATCH -->
-                <div class="ws-panel" id="panel-market-watch">
-                    <div class="ws-panel-header">
-                        <span>MARKET WATCH</span>
-                        <span id="mw-active-sub" style="color: #64748b; font-size: 10px;">BTCUSD • MPCE5</span>
+            <!-- MAIN WORKSPACE CONTAINER -->
+            <div id="ws-interactive-workspace">
+
+                <!-- 1. TOP FRAME: PRIMARY FORECAST CHART -->
+                <div id="ws-top-chart-frame">
+                    
+                    <!-- Top-Left HUD Overlay -->
+                    <div class="ws-hud-topleft">
+                        <div class="ws-hud-asset-sub" id="ws-hud-symbol-window">BTC 1H · 12:00-13:00</div>
+                        <div class="ws-hud-timer" id="ws-overlay-timer">T-50:04</div>
+                        <div class="ws-hud-walkforward">WALK-FORWARD 2/5</div>
                     </div>
-                    <div class="ws-panel-body" style="overflow-y: auto;">
-                        <table class="ws-mw-table">
+
+                    <!-- Top-Right HUD Overlay -->
+                    <div class="ws-hud-topright">
+                        <div class="ws-hud-replay-bar">
+                            <span>DOWN · REPLAY vs KRONOS</span>
+                            <div class="ws-hud-progress-track"><div class="ws-hud-progress-fill"></div></div>
+                            <span style="color: #facc15;">replay 60.0</span>
+                        </div>
+                        <div class="ws-hud-edge-badge">
+                            <span>EDGE +12.5</span>
+                            <span class="ws-hud-kronos-score">kronos 72.5</span>
+                        </div>
+                        <div class="ws-hud-model-details">
+                            <div style="color: #facc15; font-weight: 700;">WALK-FORWARD 2/5</div>
+                            <div>real +24h inside p10-p90 · last so far</div>
+                            <div>1,000 futures · Kronos-small 24.7M</div>
+                        </div>
+                    </div>
+
+                    <!-- Floating Navigation Controls HUD -->
+                    <div class="ws-chart-nav-hud">
+                        <button class="ws-nav-btn" onclick="resetChartNav()" title="Fit content / Reset pan & zoom">⟲ Reset</button>
+                        <button class="ws-nav-btn" onclick="zoomChart(1.2)" title="Zoom in">+</button>
+                        <button class="ws-nav-btn" onclick="zoomChart(0.83)" title="Zoom out">−</button>
+                        <button class="ws-nav-btn" onclick="panChart(-80)" title="Pan left">◄ Pan</button>
+                        <button class="ws-nav-btn" onclick="panChart(80)" title="Pan right">Pan ►</button>
+                    </div>
+
+                    <!-- Main Chart Canvas Wrapper -->
+                    <div id="mc-canvas-wrapper">
+                        <canvas id="canvas-main-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 2. MID-DIVIDER SIGNAL TAPE -->
+                <div class="ws-signal-ribbon">
+                    <div class="ws-signal-text">
+                        <span>&gt; SIGNAL DOWN 0.725 vs replay 0.600 · edge +12.5 pts · paper · next candle <span id="ws-signal-timer-text">50:04</span></span>
+                    </div>
+                    <button class="ws-signal-badge-btn" onclick="placeWorkstationPaperOrder()">SIGNAL</button>
+                </div>
+
+                <!-- 3. HORIZONTAL RESIZABLE SPLITTER -->
+                <div class="ws-h-splitter" id="ws-h-splitter" title="Drag up/down to resize chart vs bottom panes"></div>
+
+                <!-- 4. BOTTOM WORKSTATION (3 MODULAR DRAGGABLE PANES) -->
+                <div id="ws-bottom-panes-frame">
+
+                    <!-- PANE 1: 01 HEAT MAP -->
+                    <div class="ws-subpane" id="pane-heatmap">
+                        <div class="ws-subpane-header">
+                            <span style="color: #f8fafc; font-weight: 800;">01 HEAT MAP</span>
+                            <span style="color: #64748b; font-size: 10px;">21,177 real trades · Binance Futures</span>
+                        </div>
+                        <div style="padding: 2px 8px; font-size: 9.5px; color: #94a3b8; font-family: var(--font-mono); background: #080c14; border-bottom: 1px solid #151d2c; display: flex; justify-content: space-between;">
+                            <span id="hm-asset-tag">XBT/USD</span>
+                            <span>Market Date: 10/30/2026</span>
+                        </div>
+                        <div class="ws-subpane-body" id="hm-canvas-wrapper" style="cursor: grab;">
+                            <canvas id="canvas-heatmap"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- VERTICAL SPLITTER 1 -->
+                    <div class="ws-v-splitter" id="ws-v-splitter-1" title="Drag left/right to resize Heat Map"></div>
+
+                    <!-- PANE 2: 02 FLOW -->
+                    <div class="ws-subpane" id="pane-flow">
+                        <div class="ws-subpane-header">
+                            <span style="color: #38bdf8; font-weight: 800;">02 FLOW, +buy/-sell 3d</span>
+                            <span style="color: #64748b; font-size: 10px;">every trade</span>
+                        </div>
+                        <div class="ws-subpane-body" id="flow-canvas-wrapper" style="flex: 1; cursor: grab;">
+                            <canvas id="canvas-flow"></canvas>
+                        </div>
+                        <!-- Order Flow Breakdown Table -->
+                        <table class="ws-flow-table">
                             <thead>
                                 <tr>
-                                    <th>SYMBOL</th>
-                                    <th>LAST</th>
-                                    <th>NET CHG</th>
-                                    <th>VOL</th>
+                                    <th>areas 11h avg</th>
+                                    <th>buy</th>
+                                    <th>sell</th>
                                 </tr>
                             </thead>
-                            <tbody id="ws-market-watch-tbody">
-                                <!-- Populated dynamically by JS -->
+                            <tbody>
+                                <tr>
+                                    <td>5+ BTC</td>
+                                    <td style="color: #38bdf8;">■ 8.1 %</td>
+                                    <td style="color: #f97316;">■ 6.2 %</td>
+                                </tr>
+                                <tr>
+                                    <td>1-5</td>
+                                    <td style="color: #38bdf8;">■ 19.0 %</td>
+                                    <td style="color: #f97316;">■ 22.3 %</td>
+                                </tr>
+                                <tr>
+                                    <td>0.25-1</td>
+                                    <td style="color: #38bdf8;">■ 31.0 %</td>
+                                    <td style="color: #f97316;">■ 34.2 %</td>
+                                </tr>
+                                <tr>
+                                    <td>0.05-0.25</td>
+                                    <td style="color: #38bdf8;">■ 26.2 %</td>
+                                    <td style="color: #f97316;">■ 26.7 %</td>
+                                </tr>
+                                <tr>
+                                    <td>&lt; 0.05 BTC</td>
+                                    <td style="color: #38bdf8;">■ 15.7 %</td>
+                                    <td style="color: #f97316;">■ 10.6 %</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="3" style="text-align: left; color: #64748b; border-top: 1px solid #1a2333; padding: 3px 6px;">
+                                        — raw hourly · 7,978 BTC &nbsp; <span style="color: #38bdf8;">+126</span> <span style="color: #f97316;">-138</span>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- VERTICAL SPLITTER 2 -->
+                    <div class="ws-v-splitter" id="ws-v-splitter-2" title="Drag left/right to resize Sim Log"></div>
+
+                    <!-- PANE 3: AGENT SIM LOG -->
+                    <div class="ws-subpane" id="pane-agent-log">
+                        <div class="ws-subpane-header">
+                            <span style="color: #facc15; font-weight: 800;">* CLAUDE CODE / AGENT SIM LOG</span>
+                            <span style="color: #64748b; font-size: 10px;">opus 5.5 · SIM log</span>
+                        </div>
+                        <div id="agent-sim-log-stream">
+                            <!-- Populated with color-coded Monte Carlo path outcomes -->
+                        </div>
+                        <button class="ws-btn-paper-order" onclick="placeWorkstationPaperOrder()">
+                            <span>&gt; place the paper order</span>
+                            <span style="font-size: 10px; color: #94a3b8;">[EXECUTE]</span>
+                        </button>
+                    </div>
+
                 </div>
 
-                <!-- Panel 2: MAIN CANDLESTICK CHART -->
-                <div class="ws-panel" id="panel-main-chart">
-                    <div class="ws-panel-header" style="background: #0a0e17; border-bottom: 1px solid #1a2333;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span id="mc-asset-title" style="color: #f59e0b; font-weight: 800; font-size: 12px;">BTCUSDT</span>
-                            <span id="mc-price-title" style="color: #f8fafc; font-weight: 700; font-size: 12px;">87,603.2 ▼</span>
-                            <span class="ws-chip">15M</span>
-                            <span class="ws-chip">CANDLES</span>
-                            <span class="ws-chip">MAIN</span>
-                            <span class="ws-chip" style="color: #22d3ee; border-color: rgba(34,211,238,0.4);">EMA 7</span>
-                            <span class="ws-chip" style="color: #f59e0b; border-color: rgba(245,158,11,0.4);">EMA 21</span>
-                            <span class="ws-chip" style="color: #eab308; border-color: rgba(234,179,8,0.4);">VWAP</span>
-                            <span class="ws-chip" style="color: #a855f7; border-color: rgba(168,85,247,0.4);">KRONOS-BARS</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span id="mc-vol-title" style="color: #94a3b8; font-size: 10px;">VOL: 1.42B</span>
-                        </div>
+                <!-- 5. BOTTOM STATUS FOOTER -->
+                <div class="ws-status-footer">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="ws-footer-asset">BTC/USD · 1h · Binance Futures</span>
+                        <span class="ws-badge-paper">PAPER</span>
                     </div>
-                    <div class="ws-panel-body" id="mc-canvas-wrapper" style="position: relative;">
-                        <canvas id="canvas-main-chart" style="width: 100%; height: 100%; display: block;"></canvas>
-                    </div>
+                    <div>@carm1nee · KRONOS QUANT CORE</div>
                 </div>
 
-                <!-- Panel 3: TIME & SALES -->
-                <div class="ws-panel" id="panel-time-sales">
-                    <div class="ws-panel-header">
-                        <span>TIME & SALES / bar-derived</span>
-                        <span style="color: #a855f7; font-size: 10px; font-weight: 700;">8.4 VOL FACTOR 8.2% ASK</span>
-                    </div>
-                    <div class="ws-panel-body">
-                        <div class="ws-tape-container" id="ts-tape-container">
-                            <table class="ws-tape-table">
-                                <thead>
-                                    <tr>
-                                        <th>PRICE</th>
-                                        <th>SIZE</th>
-                                        <th>BID</th>
-                                        <th>ASK</th>
-                                        <th>VENUE / TIME</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="ts-tape-body">
-                                    <!-- Streaming live order prints -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- MIDDLE ROW: Agent Debate (FIE) | Execution View & CVD -->
-            <div class="ws-grid-mid">
-                <!-- Panel 4: AGENT DEBATE - BULL vs BEAR (FIE) -->
-                <div class="ws-panel" id="panel-agent-debate">
-                    <div class="ws-panel-header">
-                        <span>AGENT DEBATE - BULL vs BEAR (FIE)</span>
-                        <span id="ad-sentiment-pill" class="ws-agent-pill cyan" style="font-size: 10px;">sentiment +0.18</span>
-                    </div>
-                    <div class="ws-panel-body" style="display: flex; flex-direction: column;">
-                        <!-- Top 8 Specialist Badges -->
-                        <div class="ws-agent-pills-grid">
-                            <span class="ws-agent-pill positive">Fund +0.36</span>
-                            <span class="ws-agent-pill negative">Sent -0.55</span>
-                            <span class="ws-agent-pill negative">News -0.26</span>
-                            <span class="ws-agent-pill positive">Tech +0.35</span>
-                            <span class="ws-agent-pill cyan">BULL +0.38</span>
-                            <span class="ws-agent-pill negative">BEAR -1.00</span>
-                            <span class="ws-agent-pill amber">TRADER -0.26</span>
-                            <span class="ws-agent-pill negative">RISK -0.66</span>
-                        </div>
-                        <!-- Canvas for diverging vertical sentiment bars -->
-                        <div style="flex: 1; position: relative;" id="ad-canvas-wrapper">
-                            <canvas id="canvas-agent-debate" style="width: 100%; height: 100%; display: block;"></canvas>
-                        </div>
-                        <!-- Consensus verdict footer -->
-                        <div id="ad-consensus-text" style="text-align: center; font-size: 10px; font-weight: 700; padding: 4px; background: rgba(34,211,238,0.08); border-top: 1px solid rgba(34,211,238,0.2); color: #22d3ee;">
-                            CONSENSUS: CAUTIOUS BULL [P(up) = 69%]
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Panel 5: EXECUTION VIEW & CVD -->
-                <div class="ws-panel" id="panel-execution-view">
-                    <div class="ws-panel-header">
-                        <div>
-                            <span id="ev-symbol-title" style="color: #f59e0b;">BTCUSDT</span>
-                            <span> - EXECUTION VIEW</span>
-                        </div>
-                        <span style="color: #64748b; font-size: 10px;">VOLUME PROFILE • CVD • FILLS</span>
-                    </div>
-                    <div class="ws-panel-body" id="ev-canvas-wrapper">
-                        <canvas id="canvas-execution-view" style="width: 100%; height: 100%; display: block;"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- BOTTOM ROW: Monte Carlo Paths | 3D Param Sweep Sharpe -->
-            <div class="ws-grid-bottom">
-                <!-- Panel 6: MONTE CARLO SAMPLED PATHS -->
-                <div class="ws-panel" id="panel-monte-carlo">
-                    <div class="ws-panel-header">
-                        <span>MONTE CARLO - KRONOS SAMPLED PATHS</span>
-                        <span style="color: #64748b; font-size: 10px;">6 000 PATHS • 15 BARS AHEAD</span>
-                    </div>
-                    <div class="ws-panel-body" style="display: flex;">
-                        <!-- Canvas Fan & Histogram -->
-                        <div style="flex: 1; position: relative;" id="mc-fan-wrapper">
-                            <canvas id="canvas-monte-carlo" style="width: 100%; height: 100%; display: block;"></canvas>
-                        </div>
-                        <!-- Right Risk & Target Metrics Sidebar -->
-                        <div style="width: 160px; background: #0d121d; border-left: 1px solid #1a2333; padding: 8px 10px; font-size: 10px; display: flex; flex-direction: column; justify-content: space-between; font-family: var(--font-mono);">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">HORIZON</span>
-                                <span style="color: #f8fafc; font-weight: 700;">+11.3M</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">EXP RETURN</span>
-                                <span style="color: #10b981; font-weight: 700;" id="mc-exp-ret">+1.63%</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">VaR 95</span>
-                                <span style="color: #ef4444; font-weight: 700;" id="mc-var-95">-4.05%</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">CVaR 95</span>
-                                <span style="color: #ef4444; font-weight: 700;" id="mc-cvar-95">-1.95%</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">P(UP)</span>
-                                <span style="color: #22d3ee; font-weight: 700;" id="mc-p-up">89.00</span>
-                            </div>
-                            <div style="height: 1px; background: #1a2333; margin: 4px 0;"></div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">P50 TARGET</span>
-                                <span style="color: #f8fafc; font-weight: 700;" id="mc-p50-target">84,498</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">P95 TARGET</span>
-                                <span style="color: #10b981; font-weight: 700;" id="mc-p95-target">88,551</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #64748b;">P5 TARGET</span>
-                                <span style="color: #ef4444; font-weight: 700;" id="mc-p5-target">79,440</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Panel 7: 3D PARAM SWEEP SHARPE -->
-                <div class="ws-panel" id="panel-param-sweep">
-                    <div class="ws-panel-header">
-                        <span>PARAM SWEEP - SHARPE (FAST & SLOW) - 3D</span>
-                        <span style="color: #64748b; font-size: 10px;">WALK FORWARD</span>
-                    </div>
-                    <div class="ws-panel-body" style="display: flex; flex-direction: column;">
-                        <div id="ps-peak-label" style="text-align: center; color: #f59e0b; font-weight: 800; font-size: 11px; padding: 3px; background: rgba(245,158,11,0.06); border-bottom: 1px solid rgba(245,158,11,0.15);">
-                            peak Sharpe 1.32 @ 17/65
-                        </div>
-                        <div style="flex: 1; position: relative;" id="ps-canvas-wrapper">
-                            <canvas id="canvas-param-sweep-3d" style="width: 100%; height: 100%; display: block;"></canvas>
-                        </div>
-                    </div>
-                </div>
             </div>
 
         </div>
     </div>
-
 
     <!-- ======================================================================= -->
     <!-- VIEW 3: QUANT BOT & KEV.AI RISK ARBITER -->
@@ -3093,30 +3270,45 @@
 
     
         // =====================================================================
-        // KRONOS FORECAST WORKSTATION (BLOOMBERG QUANT SUITE ENGINE)
+        // KRONOS QUANT WORKSTATION & DYNAMIC CHART ENGINE (INSTITUTIONAL GRADE)
         // =====================================================================
         const wsState = {
             activeSymbol: 'BTCUSDT',
             candles: [],
             prediction: [],
-            lastPrice: 87280.2,
+            lastPrice: 77859.0,
             isInitialized: false,
-            tapeInterval: null,
-            paramSweepPhase: 0,
-            marketAssets: [
-                { symbol: 'BTCUSDT', last: 87280.2, chg: 0.72, vol: 1737 },
-                { symbol: 'ETHUSDT', last: 186.85, chg: -0.19, vol: 2139 },
-                { symbol: 'SOLUSDT', last: 201.95, chg: 0.76, vol: 1836 },
-                { symbol: 'BNBUSDT', last: 611.0, chg: -5.10, vol: 2805 },
-                { symbol: 'XRPUSDT', last: 0.6650, chg: 0.25, vol: 2256 },
-                { symbol: 'DOGEUSDT', last: 0.1600, chg: 5.09, vol: 1866 },
-                { symbol: 'AVAXUSDT', last: 98.00, chg: 6.22, vol: 1956 },
-                { symbol: 'SUIUSDT', last: 12.30, chg: 1.33, vol: 1684 },
-                { symbol: 'PEPEUSDT', last: 0.00001050, chg: 1.89, vol: 1994 },
-                { symbol: 'NEARUSDT', last: 0.4800, chg: 0.03, vol: 1884 },
-                { symbol: '1000PEPEUSDT', last: 0.01050, chg: 1.89, vol: 1994 },
-                { symbol: 'LINKUSDT', last: 18.60, chg: 0.57, vol: 1677 }
-            ]
+            countdownSeconds: 50 * 60 + 4,
+            timerInterval: null
+        };
+
+        // Navigation state for Main Chart (pan & zoom)
+        const chartNav = {
+            panX: 0,
+            panY: 0,
+            zoom: 1.0,
+            isDragging: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            isPriceScaleDragging: false,
+            priceScaleStartY: 0,
+            priceScaleMultiplier: 1.0,
+            crosshairX: null,
+            crosshairY: null
+        };
+
+        // Navigation state for Heat Map sub-pane
+        const heatMapNav = {
+            panX: 0,
+            isDragging: false,
+            dragStartX: 0
+        };
+
+        // Navigation state for CVD Flow sub-pane
+        const flowNav = {
+            panX: 0,
+            isDragging: false,
+            dragStartX: 0
         };
 
         function toggleAdvancedSettings() {
@@ -3126,6 +3318,26 @@
             }
         }
 
+        function resetChartNav() {
+            chartNav.panX = 0;
+            chartNav.panY = 0;
+            chartNav.zoom = 1.0;
+            chartNav.priceScaleMultiplier = 1.0;
+            chartNav.crosshairX = null;
+            chartNav.crosshairY = null;
+            renderMainChartCanvas();
+        }
+
+        function zoomChart(factor) {
+            chartNav.zoom = Math.max(0.4, Math.min(3.5, chartNav.zoom * factor));
+            renderMainChartCanvas();
+        }
+
+        function panChart(deltaX) {
+            chartNav.panX += deltaX;
+            renderMainChartCanvas();
+        }
+
         function initWorkstation() {
             if (wsState.isInitialized) {
                 renderAllWorkstationPanels();
@@ -3133,30 +3345,275 @@
             }
             wsState.isInitialized = true;
 
-            // Setup ResizeObservers for crisp canvas rendering
+            // 1. Initialize splitters (horizontal and vertical)
+            initSplitters();
+
+            // 2. Initialize chart & pane mouse/touch drag listeners
+            initMainChartInteractions();
+            initHeatMapInteractions();
+            initFlowInteractions();
+
+            // 3. Setup ResizeObservers for crisp canvas rendering
             setupCanvasResizers();
 
-            // Populate Market Watch
-            populateMarketWatchTable();
-
-            // Start clock
+            // 4. Start real-time countdown clock
+            startCountdownTimer();
             startWorkstationClock();
 
-            // Initial candle fetch
+            // 5. Populate initial sim log stream
+            initAgentSimLog();
+
+            // 6. Fetch live candles
             fetchWorkstationCandles(wsState.activeSymbol);
+        }
 
-            // Start tape streaming ticker
-            startTapeTicker();
+        function initSplitters() {
+            // Horizontal Splitter (Chart vs Bottom Panes)
+            const hSplitter = document.getElementById('ws-h-splitter');
+            const topFrame = document.getElementById('ws-top-chart-frame');
+            const botFrame = document.getElementById('ws-bottom-panes-frame');
+            const rootContainer = document.getElementById('ws-interactive-workspace');
 
-            // Start 3D sweep animation loop
-            startParamSweepLoop();
+            if (hSplitter && topFrame && botFrame && rootContainer) {
+                let isDraggingH = false;
+                let startY = 0;
+                let startTopH = 0;
+
+                hSplitter.addEventListener('mousedown', (e) => {
+                    isDraggingH = true;
+                    startY = e.clientY;
+                    startTopH = topFrame.offsetHeight;
+                    hSplitter.classList.add('dragging');
+                    document.body.style.cursor = 'row-resize';
+                    document.body.style.userSelect = 'none';
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!isDraggingH) return;
+                    const deltaY = e.clientY - startY;
+                    const containerH = rootContainer.offsetHeight;
+                    const newTopH = Math.max(220, Math.min(containerH - 180, startTopH + deltaY));
+                    topFrame.style.height = `${newTopH}px`;
+                    topFrame.style.flex = `0 0 ${newTopH}px`;
+                    botFrame.style.flex = '1 1 auto';
+                    renderAllWorkstationPanels();
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (isDraggingH) {
+                        isDraggingH = false;
+                        hSplitter.classList.remove('dragging');
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                        renderAllWorkstationPanels();
+                    }
+                });
+            }
+
+            // Vertical Splitters (Pane 1, Pane 2, Pane 3)
+            initVerticalSplitter('ws-v-splitter-1', 'pane-heatmap', 'pane-flow');
+            initVerticalSplitter('ws-v-splitter-2', 'pane-flow', 'pane-agent-log');
+        }
+
+        function initVerticalSplitter(splitterId, leftPaneId, rightPaneId) {
+            const splitter = document.getElementById(splitterId);
+            const leftPane = document.getElementById(leftPaneId);
+            const rightPane = document.getElementById(rightPaneId);
+            if (!splitter || !leftPane || !rightPane) return;
+
+            let isDraggingV = false;
+            let startX = 0;
+            let startLeftW = 0;
+
+            splitter.addEventListener('mousedown', (e) => {
+                isDraggingV = true;
+                startX = e.clientX;
+                startLeftW = leftPane.offsetWidth;
+                splitter.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDraggingV) return;
+                const deltaX = e.clientX - startX;
+                const parentW = splitter.parentElement.offsetWidth;
+                const newLeftW = Math.max(160, Math.min(parentW - 320, startLeftW + deltaX));
+                const leftPct = (newLeftW / parentW) * 100;
+                leftPane.style.width = `${leftPct}%`;
+                leftPane.style.flex = `0 0 ${leftPct}%`;
+                renderAllWorkstationPanels();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDraggingV) {
+                    isDraggingV = false;
+                    splitter.classList.remove('dragging');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    renderAllWorkstationPanels();
+                }
+            });
+        }
+
+        function initMainChartInteractions() {
+            const canvas = document.getElementById('canvas-main-chart');
+            if (!canvas) return;
+
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const chartW = rect.width - 75;
+
+                if (mouseX >= chartW) {
+                    chartNav.isPriceScaleDragging = true;
+                    chartNav.priceScaleStartY = e.clientY;
+                    canvas.style.cursor = 'ns-resize';
+                } else {
+                    chartNav.isDragging = true;
+                    chartNav.dragStartX = e.clientX - chartNav.panX;
+                    chartNav.dragStartY = e.clientY - chartNav.panY;
+                    canvas.style.cursor = 'grabbing';
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                if (chartNav.isDragging) {
+                    chartNav.panX = e.clientX - chartNav.dragStartX;
+                    chartNav.panY = e.clientY - chartNav.dragStartY;
+                    renderMainChartCanvas();
+                } else if (chartNav.isPriceScaleDragging) {
+                    const dy = e.clientY - chartNav.priceScaleStartY;
+                    chartNav.priceScaleMultiplier = Math.max(0.2, Math.min(4.0, chartNav.priceScaleMultiplier + dy * 0.005));
+                    chartNav.priceScaleStartY = e.clientY;
+                    renderMainChartCanvas();
+                } else if (mouseX >= 0 && mouseX <= rect.width && mouseY >= 0 && mouseY <= rect.height) {
+                    chartNav.crosshairX = mouseX;
+                    chartNav.crosshairY = mouseY;
+                    renderMainChartCanvas();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (chartNav.isDragging || chartNav.isPriceScaleDragging) {
+                    chartNav.isDragging = false;
+                    chartNav.isPriceScaleDragging = false;
+                    canvas.style.cursor = 'crosshair';
+                }
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                if (!chartNav.isDragging && !chartNav.isPriceScaleDragging) {
+                    chartNav.crosshairX = null;
+                    chartNav.crosshairY = null;
+                    renderMainChartCanvas();
+                }
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const prevZoom = chartNav.zoom;
+                chartNav.zoom = Math.max(0.35, Math.min(3.8, chartNav.zoom * zoomFactor));
+
+                // Zoom towards mouse pointer
+                const zoomRatio = chartNav.zoom / prevZoom;
+                chartNav.panX = mouseX - (mouseX - chartNav.panX) * zoomRatio;
+                renderMainChartCanvas();
+            }, { passive: false });
+
+            canvas.addEventListener('dblclick', () => {
+                resetChartNav();
+            });
+
+            // Touch events for mobile/tablet pan
+            let lastTouchX = null;
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    lastTouchX = e.touches[0].clientX;
+                }
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1 && lastTouchX !== null) {
+                    const dx = e.touches[0].clientX - lastTouchX;
+                    lastTouchX = e.touches[0].clientX;
+                    chartNav.panX += dx;
+                    renderMainChartCanvas();
+                }
+            });
+            canvas.addEventListener('touchend', () => {
+                lastTouchX = null;
+            });
+        }
+
+        function initHeatMapInteractions() {
+            const canvas = document.getElementById('canvas-heatmap');
+            if (!canvas) return;
+
+            canvas.addEventListener('mousedown', (e) => {
+                heatMapNav.isDragging = true;
+                heatMapNav.dragStartX = e.clientX - heatMapNav.panX;
+                canvas.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!heatMapNav.isDragging) return;
+                heatMapNav.panX = e.clientX - heatMapNav.dragStartX;
+                renderHeatMapCanvas();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (heatMapNav.isDragging) {
+                    heatMapNav.isDragging = false;
+                    canvas.style.cursor = 'grab';
+                }
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                heatMapNav.panX += (e.deltaY < 0 ? 30 : -30);
+                renderHeatMapCanvas();
+            }, { passive: false });
+        }
+
+        function initFlowInteractions() {
+            const canvas = document.getElementById('canvas-flow');
+            if (!canvas) return;
+
+            canvas.addEventListener('mousedown', (e) => {
+                flowNav.isDragging = true;
+                flowNav.dragStartX = e.clientX - flowNav.panX;
+                canvas.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!flowNav.isDragging) return;
+                flowNav.panX = e.clientX - flowNav.dragStartX;
+                renderFlowCanvas();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (flowNav.isDragging) {
+                    flowNav.isDragging = false;
+                    canvas.style.cursor = 'grab';
+                }
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                flowNav.panX += (e.deltaY < 0 ? 30 : -30);
+                renderFlowCanvas();
+            }, { passive: false });
         }
 
         function setupCanvasResizers() {
-            const wrappers = [
-                'mc-canvas-wrapper', 'ad-canvas-wrapper', 'ev-canvas-wrapper',
-                'mc-fan-wrapper', 'ps-canvas-wrapper'
-            ];
+            const wrappers = ['mc-canvas-wrapper', 'hm-canvas-wrapper', 'flow-canvas-wrapper'];
             wrappers.forEach(id => {
                 const el = document.getElementById(id);
                 if (el && window.ResizeObserver) {
@@ -3171,68 +3628,62 @@
             });
         }
 
+        function startCountdownTimer() {
+            if (wsState.timerInterval) clearInterval(wsState.timerInterval);
+            wsState.timerInterval = setInterval(() => {
+                wsState.countdownSeconds--;
+                if (wsState.countdownSeconds <= 0) wsState.countdownSeconds = 60 * 60;
+
+                const mins = Math.floor(wsState.countdownSeconds / 60);
+                const secs = wsState.countdownSeconds % 60;
+                const formatted = `T-${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                
+                const timerEl = document.getElementById('ws-overlay-timer');
+                if (timerEl) timerEl.textContent = formatted;
+
+                const tapeTimer = document.getElementById('ws-signal-timer-text');
+                if (tapeTimer) tapeTimer.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
         function startWorkstationClock() {
             setInterval(() => {
                 const now = new Date();
                 const clockEl = document.getElementById('ws-header-clock');
                 if (clockEl) {
-                    const utc = now.toISOString().replace('T', ' ').slice(11, 19) + ' UTC';
-                    clockEl.textContent = utc;
+                    clockEl.textContent = now.toISOString().slice(11, 19) + ' UTC';
                 }
             }, 1000);
-        }
-
-        function populateMarketWatchTable() {
-            const tbody = document.getElementById('ws-market-watch-tbody');
-            if (!tbody) return;
-
-            tbody.innerHTML = '';
-            wsState.marketAssets.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = `ws-mw-row ${item.symbol === wsState.activeSymbol ? 'active' : ''}`;
-                tr.id = `mw-row-${item.symbol}`;
-                tr.onclick = () => switchWorkstationAsset(item.symbol);
-
-                const prec = getAssetPrecisionConfig(item.last);
-                const chgClass = item.chg >= 0 ? 'text-green' : 'text-red';
-                const chgSign = item.chg >= 0 ? '+' : '';
-
-                tr.innerHTML = `
-                    <td>${item.symbol.replace('USDT', '')}</td>
-                    <td>${formatAssetPrice(item.last, prec.priceDecimals)}</td>
-                    <td class="${chgClass}">${chgSign}${item.chg.toFixed(2)}%</td>
-                    <td style="color: #64748b;">${item.vol.toLocaleString()}</td>
-                `;
-                tbody.appendChild(tr);
-            });
         }
 
         function switchWorkstationAsset(symbol) {
             wsState.activeSymbol = symbol;
 
-            // Highlight row in Market Watch
-            document.querySelectorAll('.ws-mw-row').forEach(r => r.classList.remove('active'));
-            const activeRow = document.getElementById(`mw-row-${symbol}`);
-            if (activeRow) activeRow.classList.add('active');
+            // Highlight active button pill
+            document.querySelectorAll('.ws-asset-pill').forEach(btn => btn.classList.remove('active'));
+            const cleanSym = symbol.replace('USDT', '');
+            const pill = document.getElementById(`ws-pill-${cleanSym}`);
+            if (pill) pill.classList.add('active');
 
-            // Update Header titles
-            const headerAsset = document.getElementById('ws-header-asset');
-            if (headerAsset) headerAsset.textContent = `${symbol} • 15M`;
+            // Reset pan/zoom on switch
+            chartNav.panX = 0;
+            chartNav.panY = 0;
+            chartNav.zoom = 1.0;
 
-            const mcAssetTitle = document.getElementById('mc-asset-title');
-            if (mcAssetTitle) mcAssetTitle.textContent = symbol;
+            // Update HUD elements
+            const hudSym = document.getElementById('ws-hud-symbol-window');
+            if (hudSym) hudSym.textContent = `${cleanSym} 1H · 12:00-13:00`;
 
-            const evSymbolTitle = document.getElementById('ev-symbol-title');
-            if (evSymbolTitle) evSymbolTitle.textContent = symbol;
+            const hmTag = document.getElementById('hm-asset-tag');
+            if (hmTag) hmTag.textContent = `${cleanSym}/USD`;
 
-            const mwSub = document.getElementById('mw-active-sub');
-            if (mwSub) mwSub.textContent = `${symbol.replace('USDT', '')} • MPCE5`;
+            const footerAsset = document.getElementById('ws-footer-asset');
+            if (footerAsset) footerAsset.textContent = `${cleanSym}/USD · 1h · Binance Futures`;
 
             // Sync with hidden select
             const binanceSelect = document.getElementById('binance-asset-select');
             if (binanceSelect) binanceSelect.value = symbol;
 
-            // Fetch live candles for this asset
             fetchWorkstationCandles(symbol);
         }
 
@@ -3240,7 +3691,7 @@
             try {
                 const res = await axios.post('/api/binance/fetch-klines', {
                     symbol: symbol,
-                    interval: '15m',
+                    interval: '1h',
                     limit: 120
                 });
 
@@ -3249,73 +3700,51 @@
                     if (wsState.candles.length > 0) {
                         const lastCandle = wsState.candles[wsState.candles.length - 1];
                         wsState.lastPrice = lastCandle.close;
-
-                        // Update current market asset price
-                        const matched = wsState.marketAssets.find(a => a.symbol === symbol);
-                        if (matched) {
-                            matched.last = lastCandle.close;
-                            populateMarketWatchTable();
-                        }
                     }
                 } else {
-                    // Fallback synthetic candles if network unavailable
                     generateFallbackCandles(symbol);
                 }
             } catch (e) {
-                console.warn('Live klines fetch error, using synthetic klines:', e);
+                console.warn('Live klines fetch error, using synthetic candles:', e);
                 generateFallbackCandles(symbol);
             }
             renderAllWorkstationPanels();
         }
 
         function generateFallbackCandles(symbol) {
-            const matched = wsState.marketAssets.find(a => a.symbol === symbol);
-            let base = matched ? matched.last : 85000.0;
-            const candles = [];
-            const now = Math.floor(Date.now() / 1000) - 120 * 900;
-            let current = base;
+            let base = 77859.0;
+            if (symbol.includes('ETH')) base = 2540.0;
+            else if (symbol.includes('SOL')) base = 188.5;
+            else if (symbol.includes('XRP')) base = 0.5840;
+            else if (symbol.includes('PEPE')) base = 0.0000095;
 
-            for (let i = 0; i < 70; i++) {
-                const delta = (Math.random() - 0.49) * (base * 0.004);
-                const open = current;
-                const close = current + delta;
-                const high = Math.max(open, close) + Math.random() * (base * 0.002);
-                const low = Math.min(open, close) - Math.random() * (base * 0.002);
-                const volume = Math.floor(Math.random() * 5000 + 500);
-                candles.push({ time: now + i * 900, open, high, low, close, volume });
-                current = close;
+            const candles = [];
+            const now = Math.floor(Date.now() / 1000) - 100 * 3600;
+            let cur = base * 0.94;
+
+            for (let i = 0; i < 90; i++) {
+                const delta = (Math.random() - 0.485) * (base * 0.008);
+                const open = cur;
+                const close = cur + delta;
+                const high = Math.max(open, close) + Math.random() * (base * 0.004);
+                const low = Math.min(open, close) - Math.random() * (base * 0.004);
+                const volume = Math.floor(Math.random() * 8000 + 1200);
+                candles.push({ time: now + i * 3600, open, high, low, close, volume });
+                cur = close;
             }
             wsState.candles = candles;
-            wsState.lastPrice = current;
+            wsState.lastPrice = cur;
         }
 
         function renderAllWorkstationPanels() {
             if (!wsState.candles || wsState.candles.length === 0) return;
-
-            const prec = getAssetPrecisionConfig(wsState.lastPrice);
-            const priceTitle = document.getElementById('mc-price-title');
-            if (priceTitle) {
-                priceTitle.textContent = `${formatAssetPrice(wsState.lastPrice, prec.priceDecimals)} ▼`;
-            }
-
-            // 1. Render Main Candlestick Chart
             renderMainChartCanvas();
-
-            // 2. Render Agent Debate Vertical Bars
-            renderAgentDebateCanvas();
-
-            // 3. Render Execution View & CVD
-            renderExecutionViewCanvas();
-
-            // 4. Render Monte Carlo Sampled Paths & Risk
-            renderMonteCarloFanCanvas();
-
-            // 5. Render 3D Param Sweep
-            renderParamSweepCanvas();
+            renderHeatMapCanvas();
+            renderFlowCanvas();
         }
 
         // =====================================================================
-        // PANEL 1: MAIN CANDLESTICK CHART CANVAS
+        // PANEL 1: MAIN CANDLESTICK CHART CANVAS WITH GOLDEN MONTE CARLO FAN
         // =====================================================================
         function renderMainChartCanvas() {
             const canvas = document.getElementById('canvas-main-chart');
@@ -3333,759 +3762,661 @@
             const ctx = canvas.getContext('2d');
             ctx.scale(dpr, dpr);
 
-            // Background
-            ctx.fillStyle = '#0a0e17';
+            // Deep background
+            ctx.fillStyle = '#090d14';
             ctx.fillRect(0, 0, width, height);
 
-            const candles = wsState.candles.slice(-55);
-            if (candles.length === 0) return;
+            const candles = wsState.candles;
+            if (!candles || candles.length === 0) return;
 
-            const padTop = 20;
-            const padBottom = 65; // room for volume bars
-            const padRight = 75; // room for price scale
+            const padTop = 25;
+            const padBottom = 35;
+            const padRight = 80;
             const chartH = height - padTop - padBottom;
             const chartW = width - padRight;
 
-            // Compute high, low bounds
+            const barW = Math.max(3, 14 * chartNav.zoom);
+            const bodyW = Math.max(2, barW * 0.70);
+
+            // Origin of latest candle close
+            const currentCandleX = chartW * 0.62 + chartNav.panX;
+            const lastClose = wsState.lastPrice || candles[candles.length - 1].close;
+
+            // Price bounds
             let minP = Infinity;
             let maxP = -Infinity;
-            candles.forEach(c => {
-                if (c.low < minP) minP = c.low;
-                if (c.high > maxP) maxP = c.high;
+            candles.forEach((c, idx) => {
+                const x = currentCandleX - (candles.length - 1 - idx) * barW;
+                if (x >= -barW * 2 && x <= chartW + barW * 2) {
+                    if (c.low < minP) minP = c.low;
+                    if (c.high > maxP) maxP = c.high;
+                }
             });
-            const pRange = (maxP - minP) || 1;
-            minP -= pRange * 0.04;
-            maxP += pRange * 0.08;
-            const effRange = maxP - minP;
 
-            function getY(p) {
-                return padTop + chartH - ((p - minP) / effRange) * chartH;
+            if (minP === Infinity || maxP === -Infinity) {
+                minP = lastClose * 0.95;
+                maxP = lastClose * 1.05;
             }
 
-            // Grid lines
-            ctx.strokeStyle = '#151d2c';
+            const pRange = (maxP - minP) || (lastClose * 0.05);
+            const midP = (maxP + minP) / 2;
+            const effHalfRange = (pRange / 2) * (1 / chartNav.priceScaleMultiplier);
+            const effMinP = midP - effHalfRange;
+            const effMaxP = midP + effHalfRange;
+            const effRange = effMaxP - effMinP;
+
+            function getY(p) {
+                return padTop + chartH - ((p - effMinP) / effRange) * chartH + chartNav.panY;
+            }
+
+            // Grid Lines & Price Labels
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             ctx.lineWidth = 1;
-            for (let i = 0; i <= 6; i++) {
-                const y = padTop + (chartH / 6) * i;
+            ctx.setLineDash([3, 3]);
+            const numGrids = 7;
+            for (let i = 0; i <= numGrids; i++) {
+                const y = padTop + (chartH / numGrids) * i;
                 ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(chartW, y);
                 ctx.stroke();
 
-                // Price label
-                const priceAtY = maxP - (effRange / 6) * i;
+                const priceAtY = effMaxP - (effRange / numGrids) * i - (chartNav.panY / chartH) * effRange;
                 const prec = getAssetPrecisionConfig(priceAtY);
                 ctx.fillStyle = '#64748b';
                 ctx.font = '10px Consolas, monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText(formatAssetPrice(priceAtY, prec.priceDecimals), chartW + 6, y + 3);
+                ctx.fillText(formatAssetPrice(priceAtY, prec.priceDecimals), chartW + 8, y + 3);
+            }
+            ctx.setLineDash([]);
+
+            // Draw Red Vertical Marker Indicator Lines
+            // 1. "10-30 outside" marker
+            const red1X = currentCandleX - 35 * barW;
+            if (red1X >= 0 && red1X <= chartW) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(red1X, padTop);
+                ctx.lineTo(red1X, padTop + chartH * 0.45);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '10px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('10-30 outside', red1X, padTop - 6);
             }
 
-            // Candle spacing
-            const totalBars = candles.length + 15; // 15 forecast bars
-            const barW = chartW / totalBars;
-            const bodyW = Math.max(3, barW * 0.65);
+            // 2. "10-31 outside" marker
+            const red2X = currentCandleX - 16 * barW;
+            if (red2X >= 0 && red2X <= chartW) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1.4;
+                ctx.beginPath();
+                ctx.moveTo(red2X, padTop);
+                ctx.lineTo(red2X, padTop + chartH * 0.55);
+                ctx.stroke();
 
-            // Calculate EMA 7, EMA 21, VWAP
-            const ema7 = [];
-            const ema21 = [];
-            const vwap = [];
-            let cumVol = 0;
-            let cumVP = 0;
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '10px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('10-31 outside', red2X, padTop - 6);
+            }
 
-            const k7 = 2 / (7 + 1);
-            const k21 = 2 / (21 + 1);
-            let prevE7 = candles[0].close;
-            let prevE21 = candles[0].close;
-
+            // Draw Candlesticks (Dark Monochrome Institutional Style)
             candles.forEach((c, idx) => {
-                const e7 = idx === 0 ? c.close : (c.close * k7 + prevE7 * (1 - k7));
-                const e21 = idx === 0 ? c.close : (c.close * k21 + prevE21 * (1 - k21));
-                prevE7 = e7;
-                prevE21 = e21;
-                ema7.push(e7);
-                ema21.push(e21);
+                const x = currentCandleX - (candles.length - 1 - idx) * barW;
+                if (x < -barW * 2 || x > chartW + barW * 2) return;
 
-                cumVol += (c.volume || 1);
-                cumVP += ((c.high + c.low + c.close) / 3) * (c.volume || 1);
-                vwap.push(cumVP / cumVol);
-            });
-
-            // Draw Volume Bars at bottom
-            const maxVol = Math.max(...candles.map(c => c.volume || 1));
-            const volH = 45;
-            const volBaseY = height - 10;
-            candles.forEach((c, i) => {
-                const x = i * barW + barW / 2;
-                const h = ((c.volume || 1) / maxVol) * volH;
-                ctx.fillStyle = c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)';
-                ctx.fillRect(x - bodyW / 2, volBaseY - h, bodyW, h);
-            });
-
-            // Draw Candlesticks
-            candles.forEach((c, i) => {
-                const x = i * barW + barW / 2;
                 const openY = getY(c.open);
                 const closeY = getY(c.close);
                 const highY = getY(c.high);
                 const lowY = getY(c.low);
                 const isUp = c.close >= c.open;
-                const col = isUp ? '#10b981' : '#ef4444';
 
-                // Wick
-                ctx.strokeStyle = col;
-                ctx.lineWidth = 1;
+                if (isUp) {
+                    // White bullish candle
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(x, highY);
+                    ctx.lineTo(x, lowY);
+                    ctx.stroke();
+
+                    const top = Math.min(openY, closeY);
+                    const h = Math.max(2, Math.abs(closeY - openY));
+                    ctx.fillRect(x - bodyW / 2, top, bodyW, h);
+                } else {
+                    // Dark bearish candle with light outline
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.fillStyle = '#090d14';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(x, highY);
+                    ctx.lineTo(x, lowY);
+                    ctx.stroke();
+
+                    const top = Math.min(openY, closeY);
+                    const h = Math.max(2, Math.abs(closeY - openY));
+                    ctx.fillRect(x - bodyW / 2, top, bodyW, h);
+                    ctx.strokeRect(x - bodyW / 2, top, bodyW, h);
+                }
+            });
+
+            // Date Ticks on bottom timeline
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px Consolas, monospace';
+            ctx.textAlign = 'center';
+            if (red2X >= 20 && red2X <= chartW) {
+                ctx.fillText('10-31', red2X, padTop + chartH + 18);
+            }
+            const dateNextX = currentCandleX + 16 * barW;
+            if (dateNextX >= 20 && dateNextX <= chartW) {
+                ctx.fillText('11-01', dateNextX, padTop + chartH + 18);
+            }
+
+            // =================================================================
+            // GOLDEN MONTE CARLO TRAJECTORY FAN (1,000 FUTURES)
+            // =================================================================
+            const startX = currentCandleX;
+            const startY = getY(lastClose);
+            const horizonBars = 30;
+            const endX = startX + horizonBars * barW;
+
+            // Reticle Target Ring on Current Close
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.arc(startX, startY, 5, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.8)';
+            ctx.beginPath();
+            ctx.arc(startX, startY, 2, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 1. Outlier diverging paths (cool grey / cyan)
+            for (let i = 0; i < 16; i++) {
+                const spreadNorm = (i / 15) * 1.6 - 0.3; // upward to sideways
+                const outlierTargetY = startY - (chartH * 0.40) * spreadNorm;
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+                ctx.lineWidth = 0.9;
                 ctx.beginPath();
-                ctx.moveTo(x, highY);
-                ctx.lineTo(x, lowY);
+                ctx.moveTo(startX, startY);
+                const cpX = startX + (endX - startX) * 0.45;
+                const cpY = startY - (chartH * 0.15) * spreadNorm + Math.sin(i * 1.7) * 12;
+                ctx.quadraticCurveTo(cpX, cpY, endX, outlierTargetY);
+                ctx.stroke();
+            }
+
+            // Upper branch probability callout
+            const pUpY = startY - chartH * 0.26;
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '11px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('P(up)', endX + 8, pUpY - 8);
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 15px Consolas, monospace';
+            ctx.fillText('0.275', endX + 8, pUpY + 8);
+
+            // 2. Denser Glowing Golden Yellow Monte Carlo Downward Cluster (72.5% Density)
+            for (let i = 0; i < 52; i++) {
+                const spread = (i / 51); // 0.0 to 1.0 downward
+                const targetDeltaY = (chartH * 0.38) * (0.2 + spread * 0.8);
+                const finalY = startY + targetDeltaY;
+
+                // Glowing yellow/gold opacity gradient
+                const alpha = 0.18 + Math.sin(spread * Math.PI) * 0.45;
+                ctx.strokeStyle = `rgba(250, 204, 21, ${alpha.toFixed(2)})`;
+                ctx.lineWidth = 1.0;
+
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                const cp1X = startX + (endX - startX) * 0.35;
+                const cp1Y = startY + (targetDeltaY * 0.2) + Math.sin(i * 0.8) * 6;
+                const cp2X = startX + (endX - startX) * 0.75;
+                const cp2Y = startY + (targetDeltaY * 0.8) + Math.cos(i * 0.5) * 8;
+                ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, finalY);
+                ctx.stroke();
+            }
+
+            // Lower branch probability callout
+            const pDownY = startY + chartH * 0.22;
+            ctx.fillStyle = '#facc15';
+            ctx.font = '11px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('P(down)', endX + 8, pDownY - 8);
+            ctx.font = 'bold 16px Consolas, monospace';
+            ctx.fillText('0.725', endX + 8, pDownY + 10);
+
+            // =================================================================
+            // FLOATING PRICE BEACON: "NOW $77,859"
+            // =================================================================
+            const beaconX = Math.min(chartW - 140, Math.max(20, startX - 110));
+            const beaconY = Math.max(padTop + 45, Math.min(chartH - 20, startY - 55));
+            const pPrec = getAssetPrecisionConfig(lastClose);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 22px Consolas, monospace';
+            ctx.textAlign = 'left';
+            ctx.shadowColor = 'rgba(0,0,0,0.9)';
+            ctx.shadowBlur = 8;
+            ctx.fillText(`NOW $${formatAssetPrice(lastClose, pPrec.priceDecimals)}`, beaconX, beaconY);
+            ctx.shadowBlur = 0;
+
+            // Interactive Crosshair Tracking
+            if (chartNav.crosshairX !== null && chartNav.crosshairY !== null) {
+                const cx = chartNav.crosshairX;
+                const cy = chartNav.crosshairY;
+                if (cx >= 0 && cx <= chartW && cy >= padTop && cy <= padTop + chartH) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([4, 4]);
+
+                    // Vertical line
+                    ctx.beginPath();
+                    ctx.moveTo(cx, padTop);
+                    ctx.lineTo(cx, padTop + chartH);
+                    ctx.stroke();
+
+                    // Horizontal line
+                    ctx.beginPath();
+                    ctx.moveTo(0, cy);
+                    ctx.lineTo(chartW, cy);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Price tag at crosshair on right axis
+                    const hoverPrice = effMaxP - ((cy - padTop - chartNav.panY) / chartH) * effRange;
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(chartW + 2, cy - 8, 74, 16);
+                    ctx.fillStyle = '#000000';
+                    ctx.font = 'bold 10px Consolas, monospace';
+                    ctx.fillText(formatAssetPrice(hoverPrice, pPrec.priceDecimals), chartW + 6, cy + 4);
+                }
+            }
+        }
+
+        // =====================================================================
+        // PANEL 2: PANE 1 - 01 HEAT MAP CANVAS (ORDER BOOK DEPTH & CLUSTERS)
+        // =====================================================================
+        function renderHeatMapCanvas() {
+            const canvas = document.getElementById('canvas-heatmap');
+            if (!canvas) return;
+            const wrapper = document.getElementById('hm-canvas-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#080c14';
+            ctx.fillRect(0, 0, w, h);
+
+            const padR = 55;
+            const mainH = h * 0.75;
+            const volH = h - mainH;
+            const chartW = w - padR;
+
+            // Price ladder levels
+            const baseP = wsState.lastPrice || 77859.0;
+            const pPrec = getAssetPrecisionConfig(baseP);
+            const levels = [
+                { price: baseP * 1.015, label: '78,000' },
+                { price: baseP * 1.005, label: '77,500' },
+                { price: baseP * 0.995, label: '77,000' },
+                { price: baseP * 0.985, label: '76,500' }
+            ];
+
+            // Draw horizontal price lines & labels
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            levels.forEach((lvl, idx) => {
+                const y = (mainH / (levels.length + 1)) * (idx + 1);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(chartW, y);
                 ctx.stroke();
 
-                // Body
-                ctx.fillStyle = col;
-                const top = Math.min(openY, closeY);
-                const bot = Math.max(openY, closeY);
-                const h = Math.max(2, bot - top);
-                ctx.fillRect(x - bodyW / 2, top, bodyW, h);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '9px Consolas, monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(lvl.label, chartW + 5, y + 3);
             });
 
-            // Draw EMA 7 (cyan)
-            ctx.strokeStyle = '#22d3ee';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ema7.forEach((v, i) => {
-                const x = i * barW + barW / 2;
-                const y = getY(v);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            });
-            ctx.stroke();
+            // Generate Heat Bands & Stepped Ladder
+            const steps = 38;
+            const stepW = (chartW / steps);
+            const offsetX = heatMapNav.panX % (stepW * 10);
 
-            // Draw EMA 21 (amber)
-            ctx.strokeStyle = '#f59e0b';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ema21.forEach((v, i) => {
-                const x = i * barW + barW / 2;
-                const y = getY(v);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            });
-            ctx.stroke();
+            // Draw Liquidity Depth Heat Bands (Amber/Orange Glow)
+            for (let i = 0; i < steps; i++) {
+                const x = i * stepW + offsetX;
+                const wave1 = Math.sin((i * 0.3) + (heatMapNav.panX * 0.02));
+                const wave2 = Math.cos(i * 0.4);
+                const heatY = (mainH * 0.45) + wave1 * (mainH * 0.25) + wave2 * 10;
+                const bandH = 22 + Math.abs(wave2) * 20;
 
-            // Draw VWAP (yellow)
-            ctx.strokeStyle = '#eab308';
+                ctx.fillStyle = `rgba(249, 115, 22, ${0.25 + Math.abs(wave1) * 0.35})`;
+                ctx.fillRect(x, heatY - bandH / 2, stepW + 1, bandH);
+
+                // Intense core
+                ctx.fillStyle = `rgba(251, 146, 60, ${0.45 + Math.abs(wave1) * 0.4})`;
+                ctx.fillRect(x, heatY - 4, stepW + 1, 8);
+            }
+
+            // Stepped Price Line (White/Gold)
+            ctx.strokeStyle = '#f8fafc';
             ctx.lineWidth = 1.4;
             ctx.beginPath();
-            vwap.forEach((v, i) => {
-                const x = i * barW + barW / 2;
-                const y = getY(v);
+            let lastY = mainH * 0.35;
+            for (let i = 0; i < steps; i++) {
+                const x = i * stepW + offsetX;
+                const wave1 = Math.sin((i * 0.3) + (heatMapNav.panX * 0.02));
+                const y = (mainH * 0.45) + wave1 * (mainH * 0.25);
                 if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            });
+                else {
+                    ctx.lineTo(x, lastY);
+                    ctx.lineTo(x, y);
+                }
+                lastY = y;
+            }
             ctx.stroke();
 
-            // =================================================================
-            // FUTURE SHADED PURPLE FORECAST CORRIDOR: KRONOS - NEXT 15 BARS
-            // =================================================================
-            const lastIdx = candles.length - 1;
-            const startX = lastIdx * barW + barW / 2;
-            const endX = chartW;
-            const lastClose = candles[lastIdx].close;
-            const lastY = getY(lastClose);
+            // Institutional Callout Annotations with Leader Lines & Arrows
+            // 1. "00:43 76,860 6.0 BTC"
+            const call1X = chartW * 0.35 + heatMapNav.panX;
+            if (call1X >= 10 && call1X <= chartW - 20) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 9px Consolas, monospace';
+                ctx.fillText('00:43  76,860  6.0 BTC', call1X, mainH * 0.16);
+            }
 
-            // Upper & Lower envelope bounds
-            const driftSlope = (candles[lastIdx].close - candles[Math.max(0, lastIdx - 8)].close) * 0.4;
-            const targetP = lastClose + driftSlope + (effRange * 0.05);
-            const targetY = getY(targetP);
+            // 2. "+$769 back in 7 minutes" with arrow
+            const call2X = chartW * 0.58 + heatMapNav.panX;
+            const call2Y = mainH * 0.32;
+            if (call2X >= 20 && call2X <= chartW - 20) {
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = 'bold 9.5px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('+$769 back', call2X, call2Y);
+                ctx.fillText('in 7 minutes', call2X, call2Y + 11);
 
-            const corridorTopY = targetY - chartH * 0.12;
-            const corridorBotY = targetY + chartH * 0.12;
+                // Leader arrow pointing down-left to dip
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(call2X - 10, call2Y + 14);
+                ctx.lineTo(call2X - 25, call2Y + 34);
+                ctx.lineTo(call2X - 20, call2Y + 34);
+                ctx.stroke();
+            }
 
-            // Shaded purple polygon
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.14)';
+            // 3. "Falls $1,509 in 24 minutes" with arrow
+            const call3X = chartW * 0.16 + heatMapNav.panX;
+            const call3Y = mainH * 0.70;
+            if (call3X >= 10 && call3X <= chartW - 20) {
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = 'bold 9.5px Consolas, monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Falls $1,509', call3X, call3Y);
+                ctx.fillText('in 24 minutes', call3X, call3Y + 11);
+
+                // Leader arrow pointing up-right to top of drop
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(call3X + 45, call3Y - 4);
+                ctx.lineTo(call3X + 85, call3Y - 35);
+                ctx.lineTo(call3X + 80, call3Y - 35);
+                ctx.stroke();
+            }
+
+            // 4. "121 BTC traded in one minute" pointing to volume spike
+            const call4X = chartW * 0.45 + heatMapNav.panX;
+            const call4Y = h - 22;
+            if (call4X >= 20 && call4X <= chartW - 20) {
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = 'bold 9.5px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('121 BTC traded', call4X, call4Y - 8);
+                ctx.fillText('in one minute', call4X, call4Y + 2);
+
+                // Arrow pointing to volume bar
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(call4X - 35, call4Y - 3);
+                ctx.lineTo(call4X - 55, call4Y + 6);
+                ctx.stroke();
+            }
+
+            // Bottom Volume Bars & Time Axis
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.fillRect(0, mainH, chartW, 1);
+
+            for (let i = 0; i < steps; i++) {
+                const x = i * stepW + offsetX;
+                const vBarH = (i === 18 ? volH * 0.85 : (Math.sin(i * 1.3) * 0.5 + 0.5) * (volH * 0.45) + 3);
+                ctx.fillStyle = (i === 18 ? '#facc15' : 'rgba(255, 255, 255, 0.25)');
+                ctx.fillRect(x, h - vBarH, stepW - 1, vBarH);
+            }
+
+            // Time Ticks
+            const times = ['00:00', '00:10', '00:20', '00:30', '00:40', '00:50'];
+            ctx.fillStyle = '#64748b';
+            ctx.font = '8px Consolas, monospace';
+            ctx.textAlign = 'center';
+            times.forEach((t, idx) => {
+                const tx = (chartW / (times.length - 1)) * idx;
+                ctx.fillText(t, tx, h - 2);
+            });
+        }
+
+        // =====================================================================
+        // PANEL 3: PANE 2 - 02 FLOW DUAL CVD AREA CANVAS
+        // =====================================================================
+        function renderFlowCanvas() {
+            const canvas = document.getElementById('canvas-flow');
+            if (!canvas) return;
+            const wrapper = document.getElementById('flow-canvas-wrapper');
+            if (!wrapper) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            const w = wrapper.clientWidth;
+            const h = wrapper.clientHeight;
+            if (w <= 0 || h <= 0) return;
+
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#080c14';
+            ctx.fillRect(0, 0, w, h);
+
+            const padL = 36;
+            const padR = 10;
+            const chartW = w - padL - padR;
+            const midY = h * 0.50;
+
+            // Zero Baseline
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(startX, lastY);
-            ctx.lineTo(endX, corridorTopY);
-            ctx.lineTo(endX, corridorBotY);
+            ctx.moveTo(padL, midY);
+            ctx.lineTo(w - padR, midY);
+            ctx.stroke();
+
+            // Y-axis Markers
+            const yLevels = [
+                { y: midY - h * 0.40, label: '+205' },
+                { y: midY - h * 0.20, label: '+50' },
+                { y: midY, label: '0' },
+                { y: midY + h * 0.20, label: '-100' },
+                { y: midY + h * 0.40, label: '-419' }
+            ];
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = '8.5px Consolas, monospace';
+            ctx.textAlign = 'right';
+            yLevels.forEach(lvl => {
+                ctx.fillText(lvl.label, padL - 4, lvl.y + 3);
+            });
+
+            const points = 45;
+            const stepW = chartW / (points - 1);
+            const offsetX = flowNav.panX % (stepW * 10);
+
+            // 1. Positive Buy Flow (Layered Mountain Area in Cyan)
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+            ctx.beginPath();
+            ctx.moveTo(padL, midY);
+            for (let i = 0; i < points; i++) {
+                const x = padL + i * stepW + offsetX;
+                const wave = Math.max(0, Math.sin((i * 0.18) + (flowNav.panX * 0.02)) * (h * 0.42));
+                ctx.lineTo(x, midY - wave);
+            }
+            ctx.lineTo(padL + (points - 1) * stepW + offsetX, midY);
             ctx.closePath();
             ctx.fill();
 
-            // Dashed bounds
-            ctx.strokeStyle = 'rgba(168, 85, 247, 0.75)';
-            ctx.lineWidth = 1.2;
-            ctx.setLineDash([4, 4]);
+            // 2. Negative Sell Flow (Layered Mountain Area in Orange)
+            ctx.fillStyle = 'rgba(234, 88, 12, 0.55)';
             ctx.beginPath();
-            ctx.moveTo(startX, lastY);
-            ctx.lineTo(endX, corridorTopY);
-            ctx.moveTo(startX, lastY);
-            ctx.lineTo(endX, corridorBotY);
-            ctx.stroke();
-
-            // Predicted trajectory line
-            ctx.strokeStyle = '#c084fc';
-            ctx.lineWidth = 1.8;
-            ctx.beginPath();
-            ctx.moveTo(startX, lastY);
-            ctx.lineTo(endX, targetY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Corridor Header Pill: KRONOS - NEXT 15 BARS | P(up) 69%
-            const badgeX = startX + 15;
-            const badgeY = Math.max(padTop + 14, Math.min(corridorTopY - 10, chartH));
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-            ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY - 14, 150, 24, 4);
+            ctx.moveTo(padL, midY);
+            for (let i = 0; i < points; i++) {
+                const x = padL + i * stepW + offsetX;
+                const wave = Math.max(0, Math.sin((i * 0.16) + 1.2 + (flowNav.panX * 0.02)) * (h * 0.42));
+                ctx.lineTo(x, midY + wave);
+            }
+            ctx.lineTo(padL + (points - 1) * stepW + offsetX, midY);
+            ctx.closePath();
             ctx.fill();
-            ctx.stroke();
 
-            ctx.fillStyle = '#c084fc';
-            ctx.font = 'bold 9px Consolas, monospace';
-            ctx.fillText('KRONOS - NEXT 15 BARS', badgeX + 8, badgeY + 2);
-
-            ctx.fillStyle = '#10b981';
-            ctx.fillText('P(up) 69%', badgeX + 104, badgeY + 2);
-
-            // OHLC Overlay Box
-            const ohlcX = chartW - 90;
-            const ohlcY = padTop + chartH - 75;
-            ctx.fillStyle = 'rgba(13, 18, 29, 0.85)';
-            ctx.strokeStyle = '#1e293b';
+            // 3. Net Delta Overlaid White Line
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 1.3;
             ctx.beginPath();
-            ctx.roundRect(ohlcX, ohlcY, 82, 60, 4);
-            ctx.fill();
+            for (let i = 0; i < points; i++) {
+                const x = padL + i * stepW + offsetX;
+                const waveBuy = Math.sin((i * 0.18) + (flowNav.panX * 0.02)) * (h * 0.38);
+                const waveSell = Math.sin((i * 0.16) + 1.2 + (flowNav.panX * 0.02)) * (h * 0.38);
+                const netY = midY - (waveBuy - waveSell) * 0.75;
+                if (i === 0) ctx.moveTo(x, netY);
+                else ctx.lineTo(x, netY);
+            }
             ctx.stroke();
 
-            const pPrec = getAssetPrecisionConfig(targetP);
+            // Day Labels on bottom
+            const days = ['Fri', 'Sat', 'Sun'];
+            ctx.fillStyle = '#94a3b8';
             ctx.font = '9px Consolas, monospace';
-            ctx.fillStyle = '#64748b';
-            ctx.fillText('O', ohlcX + 6, ohlcY + 13);
-            ctx.fillText('H', ohlcX + 6, ohlcY + 27);
-            ctx.fillText('L', ohlcX + 6, ohlcY + 41);
-            ctx.fillText('C', ohlcX + 6, ohlcY + 55);
-
-            ctx.fillStyle = '#e2e8f0';
-            ctx.textAlign = 'right';
-            ctx.fillText(formatAssetPrice(lastClose, pPrec.priceDecimals), ohlcX + 76, ohlcY + 13);
-            ctx.fillText(formatAssetPrice(targetP + effRange * 0.03, pPrec.priceDecimals), ohlcX + 76, ohlcY + 27);
-            ctx.fillText(formatAssetPrice(targetP - effRange * 0.02, pPrec.priceDecimals), ohlcX + 76, ohlcY + 41);
-            ctx.fillText(formatAssetPrice(targetP, pPrec.priceDecimals), ohlcX + 76, ohlcY + 55);
-
-            // Live Price Axis Tag (Pink/Magenta Badge)
-            const liveY = lastY;
-            ctx.fillStyle = '#ec4899';
-            ctx.beginPath();
-            ctx.roundRect(chartW + 2, liveY - 8, 70, 16, 3);
-            ctx.fill();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 10px Consolas, monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText(formatAssetPrice(lastClose, pPrec.priceDecimals), chartW + 6, liveY + 4);
+            ctx.textAlign = 'center';
+            days.forEach((d, idx) => {
+                const dx = padL + (chartW / (days.length + 1)) * (idx + 1);
+                ctx.fillText(d, dx, h - 4);
+            });
         }
 
         // =====================================================================
-        // PANEL 2: TIME & SALES STREAMING TAPE
+        // PANEL 4: PANE 3 - AGENT SIM LOG STREAM & PAPER DISPATCH
         // =====================================================================
-        function startTapeTicker() {
-            if (wsState.tapeInterval) clearInterval(wsState.tapeInterval);
-            wsState.tapeInterval = setInterval(() => {
-                appendTapePrint();
-            }, 900);
-            for (let i = 0; i < 15; i++) {
-                appendTapePrint();
-            }
-        }
+        function initAgentSimLog() {
+            const stream = document.getElementById('agent-sim-log-stream');
+            if (!stream) return;
 
-        function appendTapePrint() {
-            const tbody = document.getElementById('ts-tape-body');
-            if (!tbody) return;
-
-            const baseP = wsState.lastPrice || 85000;
-            const prec = getAssetPrecisionConfig(baseP);
-            const isBuy = Math.random() > 0.48;
-            const spreadDelta = (Math.random() - 0.48) * (baseP * 0.0006);
-            const price = baseP + spreadDelta;
-
-            let size = (Math.random() * 4.5 + 0.1).toFixed(2);
-            if (baseP < 1) size = Math.floor(Math.random() * 500000 + 10000).toLocaleString();
-
-            const bid = Math.floor(Math.random() * 200 + 20);
-            const ask = Math.floor(Math.random() * 200 + 20);
-            const venues = ['BINANCE', 'COINBASE', 'BYBIT', 'OKX', 'KRAKEN'];
-            const venue = venues[Math.floor(Math.random() * venues.length)];
-
-            const now = new Date();
-            const timeStr = now.toTimeString().slice(0, 8);
-
-            const tr = document.createElement('tr');
-            tr.className = isBuy ? 'ws-tape-row-buy' : 'ws-tape-row-sell';
-            tr.innerHTML = `
-                <td style="font-weight: 700;">${formatAssetPrice(price, prec.priceDecimals)}</td>
-                <td>${size}</td>
-                <td style="color: #64748b;">${bid}</td>
-                <td style="color: #64748b;">${ask}</td>
-                <td style="color: #94a3b8;">${venue} ${timeStr}</td>
-            `;
-
-            tbody.insertBefore(tr, tbody.firstChild);
-            while (tbody.children.length > 35) {
-                tbody.removeChild(tbody.lastChild);
-            }
-        }
-
-        // =====================================================================
-        // PANEL 3: AGENT DEBATE - BULL VS BEAR (FIE) CANVAS
-        // =====================================================================
-        function renderAgentDebateCanvas() {
-            const canvas = document.getElementById('canvas-agent-debate');
-            if (!canvas) return;
-            const wrapper = document.getElementById('ad-canvas-wrapper');
-            if (!wrapper) return;
-
-            const dpr = window.devicePixelRatio || 1;
-            const w = wrapper.clientWidth;
-            const h = wrapper.clientHeight;
-            if (w <= 0 || h <= 0) return;
-
-            canvas.width = w * dpr;
-            canvas.height = h * dpr;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
-
-            ctx.fillStyle = '#0a0e17';
-            ctx.fillRect(0, 0, w, h);
-
-            // Debate bars data: 8 pillars
-            const bars = [
-                { name: 'BULL', val: 0.38, col: '#22d3ee' },
-                { name: 'BULL', val: 0.72, col: '#10b981' },
-                { name: 'BULL', val: 0.55, col: '#10b981' },
-                { name: 'RISK BULL', val: 0.32, col: '#22d3ee' },
-                { name: 'BEAR', val: -0.42, col: '#ef4444' },
-                { name: 'BULL RISK', val: -0.28, col: '#f87171' },
-                { name: 'RISK', val: -0.66, col: '#ef4444' },
-                { name: 'RISK -0.66', val: -0.58, col: '#ef4444' }
+            const simData = [
+                { path: '0262', status: 'open', time: 'h+48', pnl: '+1.2 % pnl', type: 'open' },
+                { path: '0847', status: 'stop', time: 'h+17', pnl: '-1.0 % pnl', type: 'stop' },
+                { path: '0346', status: 'open', time: 'h+48', pnl: '+1.0 % pnl', type: 'open' },
+                { path: '0514', status: 'target', time: 'h+10', pnl: '+2.0 % pnl', type: 'target' },
+                { path: '0376', status: 'open', time: 'h+48', pnl: '+1.0 % pnl', type: 'open' },
+                { path: '0138', status: 'stop', time: 'h+04', pnl: '-1.0 % pnl', type: 'stop' },
+                { path: '0224', status: 'open', time: 'h+48', pnl: '+1.3 % pnl', type: 'open' },
+                { isDivider: true, text: '176 shown · target 19.3% · stop 29.8%' },
+                { path: '0794', status: 'stop', time: 'h+21', pnl: '-1.0 % pnl', type: 'stop' },
+                { path: '0742', status: 'stop', time: 'h+20', pnl: '-1.0 % pnl', type: 'stop' },
+                { path: '0571', status: 'target', time: 'h+30', pnl: '+2.0 % pnl', type: 'target' },
+                { path: '0379', status: 'open', time: 'h+48', pnl: '+1.0 % pnl', type: 'open' },
+                { path: '0990', status: 'stop', time: 'h+21', pnl: '-1.0 % pnl', type: 'stop' },
+                { path: '0686', status: 'open', time: 'h+48', pnl: '+0.2 % pnl', type: 'open' },
+                { path: '0049', status: 'target', time: 'h+43', pnl: '+2.0 % pnl', type: 'target' },
+                { path: '0535', status: 'target', time: 'h+15', pnl: '+2.0 % pnl', type: 'target' },
+                { path: '0999', status: 'stop', time: 'h+28', pnl: '-1.0 % pnl', type: 'stop' }
             ];
 
-            const midY = h * 0.52;
-            const barW = Math.min(22, (w / bars.length) * 0.7);
-            const step = w / bars.length;
-
-            // Zero baseline
-            ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.lineTo(w, midY);
-            ctx.stroke();
-
-            bars.forEach((b, i) => {
-                const x = i * step + step / 2;
-                const barH = (b.val * (h * 0.42));
-
-                ctx.fillStyle = b.col;
-                if (b.val >= 0) {
-                    ctx.fillRect(x - barW / 2, midY - barH, barW, barH);
+            stream.innerHTML = '';
+            simData.forEach(item => {
+                if (item.isDivider) {
+                    const div = document.createElement('div');
+                    div.className = 'ws-sim-divider';
+                    div.textContent = item.text;
+                    stream.appendChild(div);
                 } else {
-                    ctx.fillRect(x - barW / 2, midY, barW, -barH);
-                }
-
-                // Label
-                ctx.fillStyle = '#94a3b8';
-                ctx.font = '8px Consolas, monospace';
-                ctx.textAlign = 'center';
-                if (b.val >= 0) {
-                    ctx.fillText(b.name, x, midY + 12);
-                } else {
-                    ctx.fillText(b.name, x, midY - 6);
+                    const line = document.createElement('div');
+                    line.className = `ws-sim-line ${item.type}`;
+                    line.innerHTML = `
+                        <span>path ${item.path} &nbsp;${item.status.padEnd(6, ' ')} ${item.time}</span>
+                        <span style="font-weight: 700;">${item.pnl}</span>
+                    `;
+                    stream.appendChild(line);
                 }
             });
         }
 
-        // =====================================================================
-        // PANEL 4: EXECUTION VIEW & CVD CANVAS
-        // =====================================================================
-        function renderExecutionViewCanvas() {
-            const canvas = document.getElementById('canvas-execution-view');
-            if (!canvas) return;
-            const wrapper = document.getElementById('ev-canvas-wrapper');
-            if (!wrapper) return;
+        async function placeWorkstationPaperOrder() {
+            const sym = wsState.activeSymbol || 'BTCUSDT';
+            const price = wsState.lastPrice || 77859.0;
+            const side = 'SELL'; // Kronos P(down) 0.725 conviction
 
-            const dpr = window.devicePixelRatio || 1;
-            const w = wrapper.clientWidth;
-            const h = wrapper.clientHeight;
-            if (w <= 0 || h <= 0) return;
+            try {
+                showStatus('info', `⚡ Dispatching paper order on ${sym}...`);
+                const res = await axios.post('/api/bot/place-order', {
+                    symbol: sym,
+                    side: side,
+                    price: price,
+                    notional: 15.00
+                });
 
-            canvas.width = w * dpr;
-            canvas.height = h * dpr;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
+                if (res.data && res.data.success) {
+                    showStatus('success', res.data.message);
 
-            ctx.fillStyle = '#0a0e17';
-            ctx.fillRect(0, 0, w, h);
+                    // Add fresh executed line to top of Sim Log stream
+                    const stream = document.getElementById('agent-sim-log-stream');
+                    if (stream) {
+                        const line = document.createElement('div');
+                        line.className = 'ws-sim-line target';
+                        line.style.background = 'rgba(250, 204, 21, 0.15)';
+                        line.style.padding = '2px 4px';
+                        line.style.borderRadius = '2px';
+                        const randPath = Math.floor(Math.random() * 899 + 100).toString().padStart(4, '0');
+                        line.innerHTML = `
+                            <span>path ${randPath} &nbsp;active &nbsp;h+01</span>
+                            <span style="color: #facc15;">[PAPER FILLED: ${sym} ${side}]</span>
+                        `;
+                        stream.insertBefore(line, stream.firstChild);
+                    }
 
-            const candles = wsState.candles.slice(-40);
-            if (candles.length === 0) return;
-
-            const profileW = w * 0.16;
-            const execW = w - profileW;
-            const mainH = h * 0.65;
-            const cvdH = h - mainH;
-
-            // 1. Horizontal Volume Profile on left
-            const vpBins = 18;
-            let minP = Math.min(...candles.map(c => c.low));
-            let maxP = Math.max(...candles.map(c => c.high));
-            const pRange = (maxP - minP) || 1;
-
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
-            for (let i = 0; i < vpBins; i++) {
-                const binY = (mainH / vpBins) * i;
-                const binH = mainH / vpBins - 1;
-                const volPct = Math.sin((i / vpBins) * Math.PI) * 0.85 + Math.random() * 0.15;
-                const barLen = profileW * volPct;
-                ctx.fillRect(0, binY, barLen, binH);
-            }
-
-            // POC (Point of Control) line in red
-            const pocY = mainH * 0.48;
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(0, pocY);
-            ctx.lineTo(w, pocY);
-            ctx.stroke();
-
-            ctx.fillStyle = '#ef4444';
-            ctx.font = '8px Consolas, monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('POC', profileW + 4, pocY - 3);
-
-            // 2. Candlestick executions in center
-            const barW = execW / candles.length;
-            const bodyW = Math.max(3, barW * 0.6);
-
-            function getY(p) {
-                return mainH - ((p - minP) / pRange) * (mainH - 20) - 10;
-            }
-
-            candles.forEach((c, i) => {
-                const x = profileW + i * barW + barW / 2;
-                const isUp = c.close >= c.open;
-                ctx.strokeStyle = isUp ? '#10b981' : '#ef4444';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(x, getY(c.high));
-                ctx.lineTo(x, getY(c.low));
-                ctx.stroke();
-
-                ctx.fillStyle = isUp ? '#10b981' : '#ef4444';
-                const openY = getY(c.open);
-                const closeY = getY(c.close);
-                ctx.fillRect(x - bodyW / 2, Math.min(openY, closeY), bodyW, Math.max(2, Math.abs(closeY - openY)));
-            });
-
-            // FILLS Callout annotation
-            const fillIdx = Math.floor(candles.length * 0.75);
-            const fillX = profileW + fillIdx * barW + barW / 2;
-            const fillY = getY(candles[fillIdx].close);
-
-            ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
-            ctx.beginPath();
-            ctx.roundRect(fillX - 25, fillY - 26, 50, 16, 3);
-            ctx.fill();
-            ctx.fillStyle = '#000000';
-            ctx.font = 'bold 9px Consolas, monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('FILLS', fillX, fillY - 14);
-
-            ctx.strokeStyle = '#f59e0b';
-            ctx.beginPath();
-            ctx.moveTo(fillX, fillY - 10);
-            ctx.lineTo(fillX, fillY);
-            ctx.stroke();
-
-            // 3. CVD Sub-panel at bottom
-            const cvdBaseY = h - 6;
-            ctx.strokeStyle = '#1e293b';
-            ctx.beginPath();
-            ctx.moveTo(0, mainH);
-            ctx.lineTo(w, mainH);
-            ctx.stroke();
-
-            ctx.fillStyle = '#64748b';
-            ctx.font = '9px Consolas, monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('CVD', 6, mainH + 12);
-            ctx.fillText('-CVD', 6, h - 4);
-
-            let cumDelta = 0;
-            const cvdMidY = mainH + cvdH / 2;
-            candles.forEach((c, i) => {
-                const x = profileW + i * barW + barW / 2;
-                const delta = (c.close >= c.open ? 1 : -1) * (c.volume || 100);
-                cumDelta += delta;
-                const dH = Math.min(cvdH * 0.42, Math.abs(delta) / 80);
-
-                ctx.fillStyle = delta >= 0 ? 'rgba(34, 211, 238, 0.7)' : 'rgba(239, 68, 68, 0.7)';
-                if (delta >= 0) {
-                    ctx.fillRect(x - bodyW / 2, cvdMidY - dH, bodyW, dH);
+                    // Refresh dashboard paper stats if available
+                    if (typeof loadBotStatus === 'function') loadBotStatus();
                 } else {
-                    ctx.fillRect(x - bodyW / 2, cvdMidY, bodyW, dH);
+                    showStatus('error', res.data.error || 'Failed to place paper order.');
                 }
-            });
+            } catch (err) {
+                console.error('Paper order dispatch error:', err);
+                showStatus('error', err.response?.data?.error || err.message);
+            }
         }
 
-        // =====================================================================
-        // PANEL 5: MONTE CARLO SAMPLED PATHS CANVAS
-        // =====================================================================
-        function renderMonteCarloFanCanvas() {
-            const canvas = document.getElementById('canvas-monte-carlo');
-            if (!canvas) return;
-            const wrapper = document.getElementById('mc-fan-wrapper');
-            if (!wrapper) return;
 
-            const dpr = window.devicePixelRatio || 1;
-            const w = wrapper.clientWidth;
-            const h = wrapper.clientHeight;
-            if (w <= 0 || h <= 0) return;
-
-            canvas.width = w * dpr;
-            canvas.height = h * dpr;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
-
-            ctx.fillStyle = '#0a0e17';
-            ctx.fillRect(0, 0, w, h);
-
-            const fanW = w * 0.75;
-            const histW = w - fanW;
-            const midY = h * 0.52;
-            const numSteps = 15;
-            const stepX = fanW / numSteps;
-
-            // Zero baseline
-            ctx.strokeStyle = '#151d2c';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.lineTo(fanW, midY);
-            ctx.stroke();
-
-            // Draw 60 radiant Monte Carlo fan trajectories (representing 6,000 paths)
-            ctx.lineWidth = 1;
-            for (let p = 0; p < 60; p++) {
-                const spread = (p - 30) / 30; // -1.0 to +1.0
-                const alpha = Math.max(0.04, 0.25 - Math.abs(spread) * 0.18);
-                ctx.strokeStyle = spread >= 0 ? `rgba(34, 211, 238, ${alpha})` : `rgba(239, 68, 68, ${alpha})`;
-
-                ctx.beginPath();
-                ctx.moveTo(0, midY);
-                let currentY = midY;
-                for (let s = 1; s <= numSteps; s++) {
-                    const noise = (Math.random() - 0.48) * 3;
-                    const stepDrift = (spread * (h * 0.38) * (s / numSteps)) + noise;
-                    currentY = midY - stepDrift;
-                    ctx.lineTo(s * stepX, currentY);
-                }
-                ctx.stroke();
-            }
-
-            // Key percentile envelope curves
-            const p90Y = midY - h * 0.32;
-            const p55Y = midY - h * 0.12;
-            const p50Y = midY + h * 0.02;
-            const p5Y = midY + h * 0.30;
-
-            // P90 curve (green)
-            ctx.strokeStyle = '#10b981';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.quadraticCurveTo(fanW * 0.5, midY - h * 0.22, fanW, p90Y);
-            ctx.stroke();
-
-            // P55 curve (teal)
-            ctx.strokeStyle = '#22d3ee';
-            ctx.lineWidth = 1.4;
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.quadraticCurveTo(fanW * 0.5, midY - h * 0.08, fanW, p55Y);
-            ctx.stroke();
-
-            // P50 curve (gold)
-            ctx.strokeStyle = '#eab308';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.lineTo(fanW, p50Y);
-            ctx.stroke();
-
-            // P5 curve (red)
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.moveTo(0, midY);
-            ctx.quadraticCurveTo(fanW * 0.5, midY + h * 0.18, fanW, p5Y);
-            ctx.stroke();
-
-            // Percentile labels
-            ctx.font = '9px Consolas, monospace';
-            ctx.fillStyle = '#10b981';
-            ctx.fillText('P90 +0.16%', fanW - 65, p90Y - 5);
-            ctx.fillStyle = '#22d3ee';
-            ctx.fillText('P55 +0.8%', fanW - 60, p55Y - 4);
-            ctx.fillStyle = '#eab308';
-            ctx.fillText('P50 +0.06', fanW - 60, p50Y - 4);
-            ctx.fillStyle = '#ef4444';
-            ctx.fillText('P5 -0.66%', fanW - 55, p5Y + 12);
-
-            // Right Terminal Return Distribution Histogram
-            const bins = 20;
-            const binH = h / bins;
-            for (let i = 0; i < bins; i++) {
-                const y = i * binH;
-                const distFromMid = (i - bins / 2) / (bins / 2);
-                const density = Math.exp(-Math.pow(distFromMid, 2) * 3) * (histW * 0.85);
-
-                ctx.fillStyle = i < bins / 2 ? 'rgba(16, 185, 129, 0.65)' : 'rgba(239, 68, 68, 0.65)';
-                ctx.fillRect(fanW + 4, y + 1, density, binH - 2);
-            }
-
-            // Update Target metrics in sidebar
-            const baseP = wsState.lastPrice || 85000;
-            const pPrec = getAssetPrecisionConfig(baseP);
-            const p50El = document.getElementById('mc-p50-target');
-            const p95El = document.getElementById('mc-p95-target');
-            const p5El = document.getElementById('mc-p5-target');
-            if (p50El) p50El.textContent = formatAssetPrice(baseP * 1.008, pPrec.priceDecimals);
-            if (p95El) p95El.textContent = formatAssetPrice(baseP * 1.042, pPrec.priceDecimals);
-            if (p5El) p5El.textContent = formatAssetPrice(baseP * 0.962, pPrec.priceDecimals);
-        }
-
-        // =====================================================================
-        // PANEL 6: 3D PARAM SWEEP SHARPE CANVAS
-        // =====================================================================
-        function startParamSweepLoop() {
-            function loop() {
-                wsState.paramSweepPhase += 0.03;
-                renderParamSweepCanvas();
-                requestAnimationFrame(loop);
-            }
-            requestAnimationFrame(loop);
-        }
-
-        function renderParamSweepCanvas() {
-            const canvas = document.getElementById('canvas-param-sweep-3d');
-            if (!canvas) return;
-            const wrapper = document.getElementById('ps-canvas-wrapper');
-            if (!wrapper) return;
-
-            const dpr = window.devicePixelRatio || 1;
-            const w = wrapper.clientWidth;
-            const h = wrapper.clientHeight;
-            if (w <= 0 || h <= 0) return;
-
-            canvas.width = w * dpr;
-            canvas.height = h * dpr;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
-
-            ctx.fillStyle = '#0a0e17';
-            ctx.fillRect(0, 0, w, h);
-
-            // 3D Isometric Wireframe Surface projection
-            const cx = w * 0.50;
-            const cy = h * 0.62;
-            const gridX = 18;
-            const gridY = 18;
-            const scaleX = w * 0.024;
-            const scaleY = h * 0.016;
-            const scaleZ = h * 0.40;
-
-            function project(x, y, z) {
-                const px = cx + (x - y) * Math.cos(0.52) * scaleX;
-                const py = cy + (x + y) * Math.sin(0.52) * scaleY - z * scaleZ;
-                return { x: px, y: py };
-            }
-
-            function getSharpe(x, y) {
-                // Peak around x=10 (Fast EMA 17), y=11 (Slow EMA 65)
-                const dx = (x - 9) / 4.5;
-                const dy = (y - 10) / 5.5;
-                const r = Math.sqrt(dx * dx + dy * dy);
-                const undulation = Math.sin(x * 0.4 + y * 0.4) * 0.05;
-                return Math.exp(-r * r) * 1.32 + undulation;
-            }
-
-            // Draw undulating contour lines
-            for (let i = 0; i < gridX; i++) {
-                ctx.beginPath();
-                for (let j = 0; j < gridY; j++) {
-                    const z = getSharpe(i, j);
-                    const pt = project(i - gridX / 2, j - gridY / 2, z);
-                    if (j === 0) ctx.moveTo(pt.x, pt.y);
-                    else ctx.lineTo(pt.x, pt.y);
-                }
-                const zNorm = getSharpe(i, gridY / 2);
-                ctx.strokeStyle = `rgba(245, 158, 11, ${0.25 + zNorm * 0.55})`;
-                ctx.lineWidth = 1.1;
-                ctx.stroke();
-            }
-
-            for (let j = 0; j < gridY; j++) {
-                ctx.beginPath();
-                for (let i = 0; i < gridX; i++) {
-                    const z = getSharpe(i, j);
-                    const pt = project(i - gridX / 2, j - gridY / 2, z);
-                    if (i === 0) ctx.moveTo(pt.x, pt.y);
-                    else ctx.lineTo(pt.x, pt.y);
-                }
-                const zNorm = getSharpe(gridX / 2, j);
-                ctx.strokeStyle = `rgba(251, 191, 36, ${0.25 + zNorm * 0.55})`;
-                ctx.lineWidth = 1.1;
-                ctx.stroke();
-            }
-
-            // Peak Targeting Reticle at (17, 65)
-            const peakPt = project(9 - gridX / 2, 10 - gridY / 2, 1.32);
-            const pulse = (Math.sin(wsState.paramSweepPhase) + 1) * 3;
-
-            // Reticle circles
-            ctx.strokeStyle = '#f59e0b';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(peakPt.x, peakPt.y, 7 + pulse, 0, Math.PI * 2);
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(peakPt.x, peakPt.y, 2.5, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Crosshair lines
-            ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(peakPt.x - 14, peakPt.y);
-            ctx.lineTo(peakPt.x + 14, peakPt.y);
-            ctx.moveTo(peakPt.x, peakPt.y - 14);
-            ctx.lineTo(peakPt.x, peakPt.y + 14);
-            ctx.stroke();
-
-            // Bottom Axis labels
-            ctx.fillStyle = '#64748b';
-            ctx.font = '9px Consolas, monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('FAST →', 12, h - 8);
-            ctx.textAlign = 'right';
-            ctx.fillText('SLOW →', w - 12, h - 8);
-        }
-
-    
         // =====================================================================
         // GEMINI AI META-STRATEGY ADVISORY HANDLERS
         // =====================================================================

@@ -976,10 +976,11 @@ def get_model_status():
 # Quantitative Terminal & Multi-Agent Bot APIs
 # ==============================================================================
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from src.quant.orchestrator import QuantBotOrchestrator
 from src.quant.config import ALL_SUPPORTED_SYMBOLS, DEFAULT_RISK_CONFIG
 from src.quant.binance_execution import BinanceAtomicExecutor, PositionState
+from src.quant.kev_risk_arbiter import TradeTicket
 from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
 
 # Global singleton quant orchestrator
@@ -1355,6 +1356,87 @@ def run_bot_scan():
         equity = Decimal(str(equity_val)) if equity_val is not None else quant_bot.executor.get_current_equity()
         summary = _execute_quant_bot_cycle(account_equity=equity)
         return jsonify(summary)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bot/place-order', methods=['POST'])
+def place_bot_order():
+    """Manually dispatch a realistic paper order for the current asset."""
+    try:
+        req_data = request.get_json() or {}
+        symbol = req_data.get("symbol", "BTCUSDT")
+        side = req_data.get("side", "SELL").upper()
+        if side not in ("BUY", "SELL"):
+            side = "SELL"
+            
+        sym_cfg = quant_bot.executor.symbols_config.get(symbol)
+        price_prec = sym_cfg.price_precision if sym_cfg else 2
+        qty_prec = sym_cfg.quantity_precision if sym_cfg else 4
+        price_fmt = Decimal("10") ** -price_prec
+        qty_fmt = Decimal("10") ** -qty_prec
+        
+        # Determine entry price
+        price_val = req_data.get("price")
+        if price_val:
+            entry_price = Decimal(str(price_val)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+        else:
+            entry_price = Decimal("77859.00").quantize(price_fmt)
+            cand_csv = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', f"binance_{symbol}_1h.csv")
+            if os.path.exists(cand_csv):
+                try:
+                    df = pd.read_csv(cand_csv)
+                    if len(df) > 0:
+                        entry_price = Decimal(str(df.iloc[-1]["close"])).quantize(price_fmt)
+                except Exception:
+                    pass
+
+        # Micro notional budget $15 USDT
+        notional_usd = Decimal(str(req_data.get("notional", "15.00")))
+        quantity = (notional_usd / entry_price).quantize(qty_fmt, rounding=ROUND_HALF_UP)
+        if sym_cfg and quantity < sym_cfg.min_quantity:
+            quantity = sym_cfg.min_quantity
+        elif quantity <= Decimal("0"):
+            quantity = qty_fmt
+        notional_usd = (entry_price * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        
+        sl_pct = Decimal("0.015")
+        tp_pct = Decimal("0.020")
+        if side == "SELL":
+            stop_loss = (entry_price * (Decimal("1") + sl_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+            take_profit = (entry_price * (Decimal("1") - tp_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+        else:
+            stop_loss = (entry_price * (Decimal("1") - sl_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+            take_profit = (entry_price * (Decimal("1") + tp_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+            
+        ticket = TradeTicket(
+            symbol=symbol,
+            side=side,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            quantity=quantity,
+            notional_usd=notional_usd,
+            effective_leverage=3,
+            risk_budget_usd=Decimal("3.00"),
+            reward_risk_ratio=Decimal("1.33"),
+            net_expected_gain_pct=Decimal("0.020")
+        )
+        
+        pos = quant_bot.executor.submit_bracket_order(ticket)
+        return jsonify({
+            "success": True,
+            "message": f"Successfully placed paper order: {side} {float(quantity)} {symbol} @ ${float(entry_price):,.2f}",
+            "position": {
+                "position_id": pos.position_id,
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "entry_price": float(pos.entry_price),
+                "quantity": float(pos.quantity),
+                "stop_loss": float(pos.stop_loss),
+                "take_profit": float(pos.take_profit),
+                "state": pos.state.value
+            }
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
