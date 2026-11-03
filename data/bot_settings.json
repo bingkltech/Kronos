@@ -3,7 +3,7 @@
   "interval_seconds": 60,
   "last_cycle_summary": {
     "success": true,
-    "timestamp": "2026-11-03T17:44:53.915924+00:00",
+    "timestamp": "2026-11-03T19:12:08.789352+00:00",
     "macro_regime": "BULL_EXPANSION",
     "breadth_pct": "75.0%",
     "evaluated_count": 0,
@@ -475,5 +475,5 @@
   },
   "gemini_auto_apply": true,
   "latest_gemini_assessment": null,
-  "updated_at": "2026-11-03T17:44:54.790657+00:00"
+  "updated_at": "2026-11-03T19:12:09.571037+00:00"
 }
