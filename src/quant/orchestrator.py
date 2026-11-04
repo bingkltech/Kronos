@@ -183,6 +183,7 @@ class QuantBotOrchestrator:
             )
 
             # 7. KEV.ai Supreme Veto Gate & Kelly Sizing
+            free_margin = self.executor.get_free_margin()
             decision = self.risk_arbiter.evaluate_candidate(
                 trajectory=trajectory,
                 news_verdict=news_verdict,
@@ -190,7 +191,8 @@ class QuantBotOrchestrator:
                 carry_verdict=carry_verdict,
                 account_equity=account_equity,
                 active_positions=active_symbols,
-                confidence_multiplier=confidence_multiplier
+                confidence_multiplier=confidence_multiplier,
+                free_margin=free_margin
             )
             decisions[symbol] = decision
 

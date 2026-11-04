@@ -122,16 +122,13 @@ class KronosTrajectoryEngine:
             proposed_side = "LONG"
             inferred_sl = min(spot_price - min_stop_distance, path_low)
             stop_loss = cfg.quantize_price(inferred_sl)
-            risk_dist = spot_price - stop_loss
 
-            # Institutional Positive Expectancy: Ensure TP envelope provides >= 1.60:1 Reward/Risk
-            min_tp_dist = risk_dist * Decimal("1.60")
-            target_tp = max(terminal_close, path_high, spot_price + min_tp_dist)
+            # Institutional Target: Take-profit reflects organic forecast trajectory ceiling
+            target_tp = max(terminal_close, path_high)
             take_profit = cfg.quantize_price(target_tp)
-            raw_drift = (take_profit - spot_price) / spot_price
 
             rationale = (
-                f"Kronos Bullish Drift: Envelope Target +{raw_drift*Decimal('100'):.2f}% to {take_profit}. "
+                f"Kronos Bullish Drift: Terminal Target +{raw_drift*Decimal('100'):.2f}% to {terminal_close}. "
                 f"Envelope TP: {take_profit}, SL: {stop_loss}."
             )
 
@@ -140,16 +137,13 @@ class KronosTrajectoryEngine:
             proposed_side = "SHORT"
             inferred_sl = max(spot_price + min_stop_distance, path_high)
             stop_loss = cfg.quantize_price(inferred_sl)
-            risk_dist = stop_loss - spot_price
 
-            # Institutional Positive Expectancy: Ensure TP envelope provides >= 1.60:1 Reward/Risk
-            min_tp_dist = risk_dist * Decimal("1.60")
-            target_tp = min(terminal_close, path_low, spot_price - min_tp_dist)
+            # Institutional Target: Take-profit reflects organic forecast trajectory floor
+            target_tp = min(terminal_close, path_low)
             take_profit = cfg.quantize_price(target_tp)
-            raw_drift = (take_profit - spot_price) / spot_price
 
             rationale = (
-                f"Kronos Bearish Drift: Envelope Target {raw_drift*Decimal('100'):.2f}% to {take_profit}. "
+                f"Kronos Bearish Drift: Terminal Target {raw_drift*Decimal('100'):.2f}% to {terminal_close}. "
                 f"Envelope TP: {take_profit}, SL: {stop_loss}."
             )
         else:

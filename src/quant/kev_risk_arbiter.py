@@ -100,7 +100,8 @@ class KEVSupremeArbiter:
         active_positions: Optional[List[str]] = None,
         correlation_matrix: Optional[Dict[str, Dict[str, Decimal]]] = None,
         confidence_multiplier: Decimal = Decimal("1.0"),
-        is_maker_sniper: bool = False
+        is_maker_sniper: bool = False,
+        free_margin: Optional[Decimal] = None
     ) -> KEVDecision:
         """
         Evaluate candidate trade against all 6 Supreme Veto Gates.
@@ -307,17 +308,18 @@ class KEVSupremeArbiter:
                 quantized_qty = max(cfg.min_quantity, needed_units)
                 notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-            # 3. Capital preservation guard: ensure required margin does not exhaust account equity
+            # 3. Capital preservation guard: ensure required margin does not exhaust available free margin
+            available_margin = free_margin if free_margin is not None else account_equity
             margin_required = notional_usd / Decimal(str(self.risk_config.max_account_leverage))
-            if margin_required > account_equity:
+            if margin_required > available_margin:
                 return KEVDecision(
                     approved=False,
                     symbol=symbol,
                     side=side,
                     veto_gate_failed="GATE_SIZING_MICRO_LEVERAGE",
-                    veto_reason=f"VETO: Micro notional ${notional_usd} requires margin ${margin_required:.2f} exceeding account equity ${account_equity:.2f}.",
+                    veto_reason=f"VETO: Micro notional ${notional_usd} requires margin ${margin_required:.2f} exceeding available margin ${available_margin:.2f} (Total equity: ${account_equity:.2f}).",
                     ticket=None,
-                    adversarial_notes="Minimum contract size exceeds account margin purchasing power."
+                    adversarial_notes="Minimum contract size exceeds available free margin purchasing power."
                 )
 
             adversarial_notes.append(f"Micro-trading active: Sized to {quantized_qty} {symbol} (${notional_usd} notional) for small-account capital preservation.")

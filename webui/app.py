@@ -1399,8 +1399,8 @@ def place_bot_order():
             quantity = qty_fmt
         notional_usd = (entry_price * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         
-        sl_pct = Decimal("0.015")
-        tp_pct = Decimal("0.020")
+        sl_pct = Decimal("0.0125")
+        tp_pct = Decimal("0.0250")
         if side == "SELL":
             stop_loss = (entry_price * (Decimal("1") + sl_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
             take_profit = (entry_price * (Decimal("1") - tp_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
@@ -1418,8 +1418,8 @@ def place_bot_order():
             notional_usd=notional_usd,
             effective_leverage=3,
             risk_budget_usd=Decimal("3.00"),
-            reward_risk_ratio=Decimal("1.33"),
-            net_expected_gain_pct=Decimal("0.020")
+            reward_risk_ratio=Decimal("2.00"),
+            net_expected_gain_pct=Decimal("0.025")
         )
         
         pos = quant_bot.executor.submit_bracket_order(ticket)

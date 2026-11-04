@@ -332,6 +332,22 @@ class BinanceAtomicExecutor:
         ) if self.closed_trades else Decimal("0.00")
         return self.paper_initial_equity + realized_total
 
+    def get_locked_margin(self) -> Decimal:
+        """Compute aggregate margin currently committed across active bracket positions."""
+        locked = Decimal("0.00")
+        leverage = Decimal(str(DEFAULT_RISK_CONFIG.max_account_leverage))
+        for pos in self.active_positions.values():
+            if pos.state == PositionState.BRACKETS_ACTIVE:
+                pos_notional = pos.entry_price * pos.quantity
+                locked += (pos_notional / leverage).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return locked
+
+    def get_free_margin(self) -> Decimal:
+        """Compute available unencumbered margin for new position entries."""
+        current_eq = self.get_current_equity()
+        locked = self.get_locked_margin()
+        return max(Decimal("0.00"), current_eq - locked)
+
     def get_paper_summary(self, current_prices: Optional[Dict[str, Decimal]] = None) -> Dict[str, Any]:
         """Generate audit report of paper trading performance (wins vs losses)."""
         total = len(self.closed_trades)
@@ -396,9 +412,14 @@ class BinanceAtomicExecutor:
         current_equity_dec = self.paper_initial_equity + realized_pnl_dec + unrealized_pnl_dec
         net_return_pct = ((realized_pnl_dec / self.paper_initial_equity) * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if self.paper_initial_equity > 0 else Decimal("0.00")
 
+        locked_margin_dec = self.get_locked_margin()
+        free_margin_dec = max(Decimal("0.00"), current_equity_dec - locked_margin_dec)
+
         return {
             "initial_equity": float(self.paper_initial_equity),
             "current_equity": float(current_equity_dec),
+            "free_margin_usd": float(free_margin_dec),
+            "locked_margin_usd": float(locked_margin_dec),
             "realized_pnl_usd": float(realized_pnl_dec),
             "gross_pnl_usd": float(gross_pnl_dec),
             "total_fees_usd": float(total_fees_dec),
