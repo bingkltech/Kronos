@@ -1206,7 +1206,10 @@
                     <span>📈</span> Neural Forecaster
                 </button>
                 <button class="nav-tab" id="tab-bot" onclick="switchAppView('bot')">
-                    <span>🤖</span> Quant Bot & KEV.ai
+                    <span>🤖</span> Paper Quant Bot
+                </button>
+                <button class="nav-tab" id="tab-live" onclick="switchAppView('live')">
+                    <span style="color: #ff5252;">🔴</span> Real Live Trading
                 </button>
             </div>
         </div>
@@ -2121,6 +2124,326 @@
 
     </div>
 
+    <!-- ======================================================================= -->
+    <!-- VIEW 4: REAL LIVE TRADING (BINANCE USD(S)-M FUTURES) -->
+    <!-- ======================================================================= -->
+    <div id="view-live" class="app-view" style="display: none;">
+        
+        <!-- Live Trading Control Bar -->
+        <div class="panel" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; border-left: 4px solid #ff5252;">
+            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Real Live Engine</span>
+                    <span style="font-size: 16px; font-weight: 800; color: #ff5252; display: flex; align-items: center; gap: 6px;" id="live-state-badge">
+                        <span class="pulse-dot" style="background: #ff5252;"></span> STANDBY (PAUSED)
+                    </span>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Autonomous Cycle</span>
+                    <span style="font-size: 13px; font-weight: 700; color: #58a6ff; display: flex; align-items: center; gap: 6px;" id="live-cycle-timer">
+                        ⏳ Next scan in: <strong id="live-countdown" style="font-family: var(--font-mono); color: #00E676;">60s</strong>
+                    </span>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Scan Interval</span>
+                    <select id="live-interval-select" style="background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;" onchange="updateLiveInterval(this.value)">
+                        <option value="30">Every 30s</option>
+                        <option value="60" selected>Every 60s (Standard)</option>
+                        <option value="300">Every 5m</option>
+                    </select>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Execution Rails</span>
+                    <span style="font-size: 13px; font-weight: 800; color: #ff5252; display: flex; align-items: center; gap: 4px;">
+                        <span>⚡</span> Binance Futures (LIVE)
+                    </span>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Safety Guard</span>
+                    <span style="font-size: 12px; font-weight: 700; color: #58a6ff;">🔒 ISOLATED Margin | &le;5x</span>
+                </div>
+                <div style="height: 36px; width: 1px; background: var(--border-subtle);"></div>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Micro Lot Ceiling</span>
+                    <span style="font-size: 12px; font-weight: 700; color: #00E676;">$15 - $50 Notional</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn-primary" id="btn-toggle-live-autopilot" style="background: #21262d; border-color: #ff5252; color: #ff7b72;" onclick="toggleLiveAutopilot()">
+                    🔴 Live Auto-Pilot: OFF
+                </button>
+                <button class="btn-secondary" id="live-scan-btn" onclick="triggerLiveScan()">
+                    ⚡ Live Scan Now
+                </button>
+                <button class="btn-danger" style="background: #b62324; border-color: #ff5252; font-weight: 800;" onclick="flattenLivePositions()">
+                    🛑 EMERGENCY FLATTEN ALL LIVE
+                </button>
+            </div>
+        </div>
+
+        <!-- Mutual Exclusion Warning Banner -->
+        <div id="live-mutual-exclusion-banner" style="background: rgba(255, 82, 82, 0.1); border: 1px solid rgba(255, 82, 82, 0.3); border-radius: 6px; padding: 10px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 18px;">🛡️</span>
+                <div>
+                    <strong style="color: #ff5252; font-size: 13px;">Strict Mutual Exclusion Active:</strong>
+                    <span style="color: var(--text-muted); font-size: 12px; margin-left: 6px;" id="mutual-exclusion-status-text">
+                        When Real Live Trading is turned ON, Paper Trading is automatically paused to prevent double-polling, rate-limit burning, and risk conflicts.
+                    </span>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="badge-regime" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; font-size: 11px;">
+                    🧠 Shared Brain & ONNX
+                </span>
+                <span class="badge-regime" style="background: rgba(255, 165, 0, 0.15); color: #ffa500; font-size: 11px;">
+                    ⚖️ 2.5x Weight on Live Lessons
+                </span>
+            </div>
+        </div>
+
+        <!-- Real Binance Futures Metrics Row -->
+        <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 16px;">
+            <div class="panel" style="margin-bottom: 0;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Futures Wallet Balance</span>
+                <div style="font-size: 22px; font-weight: 800; font-family: var(--font-mono); color: #2ea043; margin-top: 4px;" id="live-wallet-balance-val">
+                    $0.00 USDT
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="live-wallet-subtext">
+                    Binance USD(S)-M Futures Wallet
+                </div>
+            </div>
+
+            <div class="panel" style="margin-bottom: 0;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Available Margin Collateral</span>
+                <div style="font-size: 22px; font-weight: 800; font-family: var(--font-mono); color: #58a6ff; margin-top: 4px;" id="live-avail-balance-val">
+                    $0.00 USDT
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                    Free for new micro-bracket orders
+                </div>
+            </div>
+
+            <div class="panel" style="margin-bottom: 0;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Unrealized PnL</span>
+                <div style="font-size: 22px; font-weight: 800; font-family: var(--font-mono); color: #8b949e; margin-top: 4px;" id="live-unrealized-pnl-val">
+                    $0.00 USDT
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="live-unrealized-subtext">
+                    Mark-to-market live valuation
+                </div>
+            </div>
+
+            <div class="panel" style="margin-bottom: 0;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Maintenance Margin Ratio</span>
+                <div style="font-size: 22px; font-weight: 800; font-family: var(--font-mono); color: #3fb950; margin-top: 4px;" id="live-margin-ratio-val">
+                    0.00%
+                </div>
+                <div style="font-size: 11px; margin-top: 4px;">
+                    <span id="live-margin-ratio-badge" class="badge-regime regime-bull" style="font-size: 10px;">SAFE (&lt; 20%)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- KEV.ai 6-Point Supreme Veto Gate Visual Audit (Live Capital Guard) -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>⚖️</span> KEV.ai 6-Point Supreme Veto Gate (Live Execution Pre-Clearance)
+                </span>
+                <span style="font-size: 12px; color: var(--text-muted);">
+                    All live candidates must pass 100% of veto tests before real capital dispatch
+                </span>
+            </div>
+
+            <div class="gate-grid-6">
+                <!-- Gate 1 -->
+                <div class="gate-card">
+                    <span class="gate-num">Gate 1</span>
+                    <span class="gate-name">News Shield</span>
+                    <span class="gate-status-badge gate-pass" id="live-gate-1-badge">PASS: CLEAR</span>
+                </div>
+
+                <!-- Gate 2 -->
+                <div class="gate-card">
+                    <span class="gate-num">Gate 2</span>
+                    <span class="gate-name">Macro Breadth</span>
+                    <span class="gate-status-badge gate-pass" id="live-gate-2-badge">PASS: &gt;60%</span>
+                </div>
+
+                <!-- Gate 3 -->
+                <div class="gate-card">
+                    <span class="gate-num">Gate 3</span>
+                    <span class="gate-name">Net Fee Hurdle</span>
+                    <span class="gate-status-badge gate-pass" id="live-gate-3-badge">PASS: &gt;=0.50%</span>
+                </div>
+
+                <!-- Gate 4 -->
+                <div class="gate-card">
+                    <span class="gate-num">Gate 4</span>
+                    <span class="gate-name">Funding Carry</span>
+                    <span class="gate-status-badge gate-pass" id="live-gate-4-badge">PASS: &lt;0.03%</span>
+                </div>
+
+                <!-- Gate 5 -->
+                <div class="gate-card">
+                    <span class="gate-num">Gate 5</span>
+                    <span class="gate-name">Correlation &rho;</span>
+                    <span class="gate-status-badge gate-pass" id="live-gate-5-badge">PASS: &lt;0.85</span>
+                </div>
+
+                <!-- Gate 6 -->
+                <div class="gate-card">
+                    <span class="gate-num">Gate 6</span>
+                    <span class="gate-name">Risk / Reward</span>
+                    <span class="gate-status-badge gate-pass" id="live-gate-6-badge">PASS: &gt;=1.50</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Real Live Positions Monitor -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>🎯</span> Active Real Live Futures Positions (/fapi/v2/positionRisk)
+                </span>
+                <span style="font-size: 12px; color: #58a6ff;">
+                    HMAC-SHA256 Authenticated Real-Time Positions
+                </span>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="quant-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Position Amount</th>
+                            <th>Notional Value ($)</th>
+                            <th>Entry Price</th>
+                            <th>Mark Price</th>
+                            <th>Liquidation Price</th>
+                            <th>Margin Mode</th>
+                            <th>Leverage</th>
+                            <th>Unrealized PnL ($)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="live-active-positions-tbody">
+                        <tr>
+                            <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                                No active real live positions on Binance Futures. Real positions will appear here when filled.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Real Live Executed Trade History & Realized PnL -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>🏆</span> Real Live Trade & Fill History (/fapi/v1/userTrades)
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="badge-regime" style="background: rgba(255, 82, 82, 0.15); color: #ff7b72; border: 1px solid rgba(255, 82, 82, 0.3); font-size: 11px;">
+                        🔴 Real Capital Fills & Commissions
+                    </span>
+                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="loadLiveTradesHistory()">
+                        🔄 Refresh Live Trades
+                    </button>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto; max-height: 250px;">
+                <table class="quant-table">
+                    <thead>
+                        <tr>
+                            <th>Time (UTC)</th>
+                            <th>Order ID</th>
+                            <th>Symbol</th>
+                            <th>Side</th>
+                            <th>Fill Price</th>
+                            <th>Quantity</th>
+                            <th>Commission Fee</th>
+                            <th>Realized PnL ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="live-trades-tbody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 25px;">
+                                Awaiting real executed live trades...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Live Candidate Scan Decision Log -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>📋</span> Latest Live Scan Decisions & Adversarial Gate Logs
+                </span>
+                <span style="font-size: 12px; color: var(--text-muted);" id="live-scan-time-badge">
+                    Awaiting live scan execution...
+                </span>
+            </div>
+
+            <div style="overflow-x: auto; max-height: 300px;">
+                <table class="quant-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Direction</th>
+                            <th>KEV Verdict</th>
+                            <th>Veto Gate / Live Ticket</th>
+                            <th>Veto Reason / Sizing Rationale</th>
+                            <th>Adversarial Devil's Advocate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="live-scan-decisions-tbody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                                Click "Live Scan Now" to evaluate Top-10 assets against real-capital KEV.ai criteria.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bayesian Adaptive Learning & Shared Intelligence Section -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>🧠</span> Shared Neural Brain & Partitioned Bayesian Learning Engine
+                </span>
+                <span class="badge-regime" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; font-size: 11px;">
+                    SQLite data/lessons.db
+                </span>
+            </div>
+            <div style="padding: 10px 0; font-size: 13px; line-height: 1.6; color: var(--text-muted);">
+                <p>
+                    <strong style="color: var(--text-primary);">Unified Intelligence Contract:</strong>
+                    The ONNX deep sequence forecaster, macro breadth index, carry specialist, and KEV.ai 6-point veto gates are shared universally between paper and live trading.
+                </p>
+                <p style="margin-top: 6px;">
+                    <strong style="color: #ffa500;">Partitioned Learning Governor:</strong>
+                    Real live trade outcomes receive <strong style="color: #00E676;">2.5x priority weighting</strong> in Brier calibration score calculation over paper simulations. Live real-world fee drag and slippage directly reshape future position sizing.
+                </p>
+            </div>
+        </div>
+
+    </div>
+
     <!-- Status Message Toast Container -->
     <div id="status-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; max-width: 400px;"></div>
 
@@ -2188,6 +2511,8 @@
                 loadMacroOverview();
             } else if (viewName === 'bot') {
                 loadBotDashboard();
+            } else if (viewName === 'live') {
+                loadLiveDashboard();
             }
         }
 
@@ -2645,6 +2970,314 @@
         }
 
         // =====================================================================
+        // VIEW 4: REAL LIVE TRADING JAVASCRIPT API & TELEMETRY ENGINE
+        // =====================================================================
+        let liveAutopilotActive = false;
+
+        async function loadLiveDashboard() {
+            try {
+                const resp = await axios.get('/api/live/status');
+                const data = resp.data;
+                if (!data.success) return;
+
+                liveAutopilotActive = !!(data.autopilot && data.autopilot.enabled);
+
+                // Update Control Bar & Badges
+                const badge = document.getElementById('live-state-badge');
+                const btnAuto = document.getElementById('btn-toggle-live-autopilot');
+                const cdEl = document.getElementById('live-countdown');
+                const intSelect = document.getElementById('live-interval-select');
+                const topPill = document.getElementById('topbar-bot-pill');
+                const bannerText = document.getElementById('mutual-exclusion-status-text');
+
+                if (intSelect && data.autopilot && data.autopilot.interval_seconds) {
+                    intSelect.value = String(data.autopilot.interval_seconds);
+                }
+
+                if (liveAutopilotActive) {
+                    if (badge) {
+                        badge.innerHTML = '<span class="pulse-dot" style="background: #00E676;"></span> LIVE AUTOPILOT ACTIVE';
+                        badge.style.color = '#00E676';
+                    }
+                    if (btnAuto) {
+                        btnAuto.innerHTML = '🔴 Live Auto-Pilot: ON';
+                        btnAuto.style.background = '#b62324';
+                        btnAuto.style.borderColor = '#ff5252';
+                        btnAuto.style.color = '#ffffff';
+                    }
+                    if (topPill) {
+                        topPill.innerHTML = '<span class="pulse-dot" style="background: #ff5252;"></span> LIVE BINANCE: ACTIVE';
+                        topPill.classList.add('status-online');
+                    }
+                    if (bannerText) {
+                        bannerText.innerHTML = '<strong style="color: #00E676;">LIVE ACTIVE</strong> — Paper trading daemon is paused. Real capital risk governor and isolated bracket execution engaged.';
+                    }
+                } else {
+                    if (badge) {
+                        badge.innerHTML = 'STANDBY (PAUSED)';
+                        badge.style.color = '#8b949e';
+                    }
+                    if (btnAuto) {
+                        btnAuto.innerHTML = '⏸️ Live Auto-Pilot: PAUSED';
+                        btnAuto.style.background = '#21262d';
+                        btnAuto.style.borderColor = '#30363d';
+                        btnAuto.style.color = '#8b949e';
+                    }
+                    if (bannerText) {
+                        bannerText.innerHTML = 'When Real Live Trading is turned ON, Paper Trading is automatically paused to prevent double-polling, rate-limit burning, and risk conflicts.';
+                    }
+                }
+
+                if (cdEl && data.autopilot) {
+                    cdEl.textContent = `${data.autopilot.next_scan_seconds}s`;
+                }
+
+                // Update Real Binance Futures Account Metrics
+                const acct = data.live_account || {};
+                const walletBal = Number(acct.total_wallet_balance_usd || 0);
+                const availBal = Number(acct.available_balance_usd || 0);
+                const unrealPnl = Number(acct.unrealized_pnl_usd || 0);
+                const marginRatio = Number(acct.margin_ratio_pct || 0);
+
+                const elWallet = document.getElementById('live-wallet-balance-val');
+                const elAvail = document.getElementById('live-avail-balance-val');
+                const elPnl = document.getElementById('live-unrealized-pnl-val');
+                const elMargin = document.getElementById('live-margin-ratio-val');
+                const elMarginBadge = document.getElementById('live-margin-ratio-badge');
+
+                if (elWallet) elWallet.textContent = `$${walletBal.toFixed(2)} USDT`;
+                if (elAvail) elAvail.textContent = `$${availBal.toFixed(2)} USDT`;
+                if (elPnl) {
+                    elPnl.textContent = `${unrealPnl >= 0 ? '+' : ''}$${unrealPnl.toFixed(2)} USDT`;
+                    elPnl.style.color = unrealPnl > 0 ? '#3fb950' : (unrealPnl < 0 ? '#f85149' : '#8b949e');
+                }
+                if (elMargin) elMargin.textContent = `${marginRatio.toFixed(2)}%`;
+                if (elMarginBadge) {
+                    if (marginRatio < 20.0) {
+                        elMarginBadge.textContent = 'SAFE (< 20%)';
+                        elMarginBadge.className = 'badge-regime regime-bull';
+                    } else if (marginRatio < 50.0) {
+                        elMarginBadge.textContent = 'MODERATE';
+                        elMarginBadge.className = 'badge-regime regime-chop';
+                    } else {
+                        elMarginBadge.textContent = 'CRITICAL RISK (> 50%)';
+                        elMarginBadge.className = 'badge-regime regime-bear';
+                    }
+                }
+
+                // Update Active Live Positions Table
+                const posTbody = document.getElementById('live-active-positions-tbody');
+                if (posTbody) {
+                    posTbody.innerHTML = '';
+                    const positions = acct.positions || [];
+                    if (positions.length === 0) {
+                        posTbody.innerHTML = `
+                            <tr>
+                                <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                                    No active real live positions on Binance Futures. Real positions will appear here when filled.
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        positions.forEach(p => {
+                            const tr = document.createElement('tr');
+                            const sideColor = p.side === 'BUY' || p.side === 'LONG' ? '#3fb950' : '#f85149';
+                            const pnl = Number(p.unrealized_pnl_usd || 0);
+                            const pnlColor = pnl >= 0 ? '#3fb950' : '#f85149';
+                            tr.innerHTML = `
+                                <td><strong>${p.symbol}</strong></td>
+                                <td><strong style="color: ${sideColor};">${p.side}</strong></td>
+                                <td>${p.position_amt}</td>
+                                <td>$${Number(p.notional_usd || 0).toFixed(2)}</td>
+                                <td>$${Number(p.entry_price || 0).toFixed(2)}</td>
+                                <td>$${Number(p.mark_price || 0).toFixed(2)}</td>
+                                <td style="color: #ffa500;">$${Number(p.liquidation_price || 0).toFixed(2)}</td>
+                                <td><span class="badge-regime" style="color: #58a6ff;">${p.margin_type.toUpperCase()}</span></td>
+                                <td>${p.leverage}x</td>
+                                <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                                <td>
+                                    <button class="btn-table-action" style="color: #f85149;" onclick="flattenLivePositions()">Close</button>
+                                </td>
+                            `;
+                            posTbody.appendChild(tr);
+                        });
+                    }
+                }
+
+                // Update Live Trade History Table
+                const tradesTbody = document.getElementById('live-trades-tbody');
+                if (tradesTbody && data.trade_history) {
+                    tradesTbody.innerHTML = '';
+                    if (data.trade_history.length === 0) {
+                        tradesTbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 25px;">
+                                    Awaiting real executed live trades...
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        data.trade_history.forEach(t => {
+                            const tr = document.createElement('tr');
+                            const pnl = Number(t.realized_pnl_usd || 0);
+                            const pnlColor = pnl > 0 ? '#3fb950' : (pnl < 0 ? '#f85149' : 'var(--text-muted)');
+                            const sideColor = t.side === 'BUY' ? '#3fb950' : '#f85149';
+                            tr.innerHTML = `
+                                <td style="color: var(--text-muted); font-size: 11px;">${t.time.replace('T', ' ').slice(0, 19)}</td>
+                                <td><code style="color: #58a6ff;">${t.order_id || t.trade_id}</code></td>
+                                <td><strong>${t.symbol}</strong></td>
+                                <td><strong style="color: ${sideColor};">${t.side}</strong></td>
+                                <td>$${Number(t.price || 0).toFixed(2)}</td>
+                                <td>${t.quantity}</td>
+                                <td style="color: var(--text-muted); font-size: 11px;">$${Number(t.fee_usd || 0).toFixed(4)} ${t.fee_asset || 'USDT'}</td>
+                                <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                            `;
+                            tradesTbody.appendChild(tr);
+                        });
+                    }
+                }
+
+                // Update KEV Gate Badges & Decisions from last live cycle
+                if (data.last_cycle && data.last_cycle.decisions && data.last_cycle.decisions.length > 0) {
+                    renderLiveScanDecisions(data.last_cycle);
+                }
+
+            } catch (err) {
+                console.error('Failed to load live trading status:', err);
+            }
+        }
+
+        function renderLiveScanDecisions(cycleData) {
+            const tbody = document.getElementById('live-scan-decisions-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const timeBadge = document.getElementById('live-scan-time-badge');
+            if (timeBadge && cycleData.timestamp) {
+                timeBadge.textContent = `Last Live Scan: ${cycleData.timestamp.replace('T', ' ').slice(0, 19)} UTC (${cycleData.evaluated_count} coins evaluated)`;
+            }
+
+            cycleData.decisions.forEach(d => {
+                const tr = document.createElement('tr');
+                const verdictBadge = d.approved ?
+                    '<span class="badge-regime regime-bull">LIVE APPROVED</span>' :
+                    '<span class="badge-regime regime-bear">VETOED</span>';
+
+                let gateOrTicket = d.approved ?
+                    `<span style="color: #3fb950; font-weight: 700;">Qty: ${d.ticket.quantity} | Notional: $${d.ticket.notional_usd.toFixed(2)}</span>` :
+                    `<code style="color: #f85149;">${d.veto_gate || 'VETO'}</code>`;
+
+                tr.innerHTML = `
+                    <td><strong>${d.symbol}</strong></td>
+                    <td>${d.side}</td>
+                    <td>${verdictBadge}</td>
+                    <td>${gateOrTicket}</td>
+                    <td style="font-size: 11px; max-width: 320px;">${d.reason}</td>
+                    <td style="font-size: 11px; color: var(--text-muted); max-width: 250px;">${d.adversarial_notes}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const g1 = document.getElementById('live-gate-1-badge');
+            const g2 = document.getElementById('live-gate-2-badge');
+            const g3 = document.getElementById('live-gate-3-badge');
+            const g4 = document.getElementById('live-gate-4-badge');
+            const g5 = document.getElementById('live-gate-5-badge');
+            const g6 = document.getElementById('live-gate-6-badge');
+
+            if (g1) g1.textContent = 'PASS: CLEAR';
+            if (g2 && cycleData.breadth_pct) g2.textContent = `PASS: ${cycleData.breadth_pct} (${cycleData.macro_regime})`;
+
+            const vetoGates = cycleData.decisions.map(d => d.veto_gate).filter(Boolean);
+            if (g3) g3.textContent = vetoGates.includes('GATE_3_FEE_HURDLE') ? 'AUDIT: 0.04% FILTER ACTIVE' : 'PASS: NET EDGE >= 0.04%';
+            if (g4) g4.textContent = vetoGates.includes('GATE_2_FUNDING_DRAG') ? 'AUDIT: CARRY SPIKE FILTERED' : 'PASS: FAVORABLE CARRY';
+            if (g5) g5.textContent = vetoGates.includes('GATE_5_KELLY_SIZING') ? 'AUDIT: KELLY CONSTRAINED' : 'PASS: ρ < 0.85';
+            if (g6) g6.textContent = vetoGates.includes('GATE_4_RR_RATIO') ? 'AUDIT: RR < 2.0 FILTERED' : 'PASS: RR >= 2.0';
+        }
+
+        async function toggleLiveAutopilot() {
+            try {
+                const resp = await axios.post('/api/live/toggle', {});
+                if (resp.data.success) {
+                    showStatus('success', resp.data.message);
+                    loadLiveDashboard();
+                    loadBotDashboard();
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to toggle live autopilot');
+            }
+        }
+
+        async function updateLiveInterval(seconds) {
+            try {
+                const resp = await axios.post('/api/live/toggle', { interval_seconds: parseInt(seconds) });
+                if (resp.data.success) {
+                    showStatus('success', `Live scan interval set to ${seconds}s`);
+                    loadLiveDashboard();
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to update live interval');
+            }
+        }
+
+        async function triggerLiveScan() {
+            const btn = document.getElementById('live-scan-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '⏳ Scanning Live Market...';
+            }
+            showStatus('info', 'Executing live universe scan with real Binance account balance...');
+
+            try {
+                const resp = await axios.post('/api/live/scan', {});
+                const data = resp.data;
+                if (!data.success) {
+                    showStatus('error', data.error || 'Live scan failed');
+                    return;
+                }
+                showStatus('success', `Live scan complete: Evaluated ${data.evaluated_count} coins. Dispatched ${data.dispatched_count} live brackets.`);
+                loadLiveDashboard();
+            } catch (err) {
+                showStatus('error', 'Live scan request error: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '⚡ Live Scan Now';
+                }
+            }
+        }
+
+        async function flattenLivePositions() {
+            if (!confirm('EMERGENCY ACTION: Are you sure you want to cancel all open orders and market-flatten ALL live positions on Binance Futures?')) {
+                return;
+            }
+            showStatus('info', 'Dispatching emergency flatten to Binance Futures...');
+            try {
+                const resp = await axios.post('/api/live/flatten', {});
+                if (resp.data.success) {
+                    showStatus('success', 'Emergency flatten executed successfully.');
+                    loadLiveDashboard();
+                } else {
+                    showStatus('error', resp.data.error || 'Flatten failed');
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to dispatch flatten: ' + err.message);
+            }
+        }
+
+        async function loadLiveTradesHistory() {
+            try {
+                const resp = await axios.get('/api/live/trades?limit=50');
+                if (resp.data.success && resp.data.trades) {
+                    showStatus('success', `Fetched ${resp.data.trades.length} live Binance trades.`);
+                    loadLiveDashboard();
+                }
+            } catch (err) {
+                showStatus('error', 'Failed to fetch live trade history');
+            }
+        }
+
+        // =====================================================================
         // VIEW 2: ORIGINAL TRADINGVIEW & FORECASTER JAVASCRIPT
         // =====================================================================
         document.addEventListener('DOMContentLoaded', function() {
@@ -2652,10 +3285,18 @@
             initializeApp();
             loadMacroOverview();
             loadBotDashboard();
+            loadLiveDashboard();
 
             // Real-time reactive polling for autonomous bot scans and telemetry
             setInterval(() => {
-                loadBotDashboard();
+                if (currentActiveView === 'live') {
+                    loadLiveDashboard();
+                } else if (currentActiveView === 'bot') {
+                    loadBotDashboard();
+                } else {
+                    // Update pill in background
+                    if (liveAutopilotActive) loadLiveDashboard();
+                }
             }, 3000);
             setInterval(() => {
                 loadMacroOverview();

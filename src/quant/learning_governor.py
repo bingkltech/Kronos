@@ -31,6 +31,7 @@ class TradeOutcome:
     realized_pnl_usd: Decimal
     exit_reason: str               # "TP_HIT", "SL_HIT", "STALE_EXPIRED"
     timestamp_utc: datetime.datetime
+    execution_mode: str = "PAPER"  # "PAPER" or "LIVE"
 
 
 @dataclass(frozen=True)
@@ -73,9 +74,15 @@ class LearningGovernor:
                         realized_hit INTEGER NOT NULL,
                         realized_pnl_usd TEXT NOT NULL,
                         exit_reason TEXT NOT NULL,
+                        execution_mode TEXT DEFAULT 'PAPER',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                # Migration check for existing databases
+                try:
+                    cursor.execute("ALTER TABLE trade_outcomes ADD COLUMN execution_mode TEXT DEFAULT 'PAPER'")
+                except sqlite3.OperationalError:
+                    pass
         finally:
             conn.close()
 
@@ -87,8 +94,8 @@ class LearningGovernor:
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT OR REPLACE INTO trade_outcomes 
-                    (trade_id, symbol, side, forecast_confidence, realized_hit, realized_pnl_usd, exit_reason)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (trade_id, symbol, side, forecast_confidence, realized_hit, realized_pnl_usd, exit_reason, execution_mode)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     outcome.trade_id,
                     outcome.symbol,
@@ -96,7 +103,8 @@ class LearningGovernor:
                     str(outcome.forecast_confidence),
                     outcome.realized_hit,
                     str(outcome.realized_pnl_usd),
-                    outcome.exit_reason
+                    outcome.exit_reason,
+                    outcome.execution_mode
                 ))
         finally:
             conn.close()
@@ -128,15 +136,19 @@ class LearningGovernor:
             )
 
         n = len(outcomes)
-        total_squared_error = Decimal("0.0")
+        weighted_sq_err = Decimal("0.0")
+        total_weight = Decimal("0.0")
 
         for o in outcomes:
             p = o.forecast_confidence
             y = Decimal(str(o.realized_hit))
+            # Live real trades have 2.5x credibility weight over synthetic paper trades
+            weight = Decimal("2.5") if getattr(o, "execution_mode", "PAPER") == "LIVE" else Decimal("1.0")
             err = (p - y) ** Decimal("2")
-            total_squared_error += err
+            weighted_sq_err += weight * err
+            total_weight += weight
 
-        brier_score = (total_squared_error / Decimal(str(n))).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+        brier_score = (weighted_sq_err / total_weight).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) if total_weight > Decimal("0") else Decimal("0.1000")
 
         # Capital Throttle Logic (Requires minimum 5 trades for statistical significance)
         if n < 5:
@@ -178,7 +190,7 @@ class LearningGovernor:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT trade_id, symbol, side, forecast_confidence, realized_hit, realized_pnl_usd, exit_reason, created_at
+                SELECT trade_id, symbol, side, forecast_confidence, realized_hit, realized_pnl_usd, exit_reason, created_at, execution_mode
                 FROM trade_outcomes
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -186,7 +198,8 @@ class LearningGovernor:
             rows = cursor.fetchall()
 
             for row in rows:
-                tid, sym, side, conf, hit, pnl, exit_r, dt_str = row
+                tid, sym, side, conf, hit, pnl, exit_r, dt_str = row[:8]
+                mode = row[8] if len(row) > 8 and row[8] else "PAPER"
                 try:
                     ts = datetime.datetime.fromisoformat(dt_str)
                 except Exception:
@@ -200,7 +213,8 @@ class LearningGovernor:
                     realized_hit=int(hit),
                     realized_pnl_usd=Decimal(pnl),
                     exit_reason=exit_r,
-                    timestamp_utc=ts
+                    timestamp_utc=ts,
+                    execution_mode=mode
                 ))
         finally:
             conn.close()

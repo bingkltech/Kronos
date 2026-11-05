@@ -1052,6 +1052,14 @@ bot_autopilot_next_scan_time = None
 bot_last_cycle_summary = None
 bot_autopilot_lock = threading.Lock()
 
+# Live Real Capital Trading Configuration & Mutual Exclusion
+live_trading_enabled = False          # False by default for strict safety
+live_trading_interval = 60           # 60s autonomous live scan interval
+live_trading_last_scan = None
+live_trading_next_scan_time = None
+live_last_cycle_summary = None
+live_account_lock = threading.Lock()
+
 # Gemini Meta-Strategy Arbiter (Google Gemini Free Tier)
 gemini_arbiter = GeminiStrategyArbiter()
 gemini_auto_apply = True
@@ -1066,6 +1074,7 @@ BOT_SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath
 def _load_bot_settings():
     """Restore autopilot settings and last cycle state across server restarts."""
     global bot_autopilot_enabled, bot_autopilot_interval, bot_last_cycle_summary
+    global live_trading_enabled, live_trading_interval, live_last_cycle_summary
     if not os.path.exists(BOT_SETTINGS_FILE):
         return
     try:
@@ -1077,6 +1086,12 @@ def _load_bot_settings():
                 bot_autopilot_interval = max(10, int(cfg["interval_seconds"]))
             if "last_cycle_summary" in cfg and cfg["last_cycle_summary"]:
                 bot_last_cycle_summary = cfg["last_cycle_summary"]
+            if "live_trading_enabled" in cfg:
+                live_trading_enabled = bool(cfg["live_trading_enabled"])
+            if "live_trading_interval" in cfg:
+                live_trading_interval = max(10, int(cfg["live_trading_interval"]))
+            if "live_last_cycle_summary" in cfg and cfg["live_last_cycle_summary"]:
+                live_last_cycle_summary = cfg["live_last_cycle_summary"]
             if "gemini_auto_apply" in cfg:
                 gemini_auto_apply = bool(cfg["gemini_auto_apply"])
             if "latest_gemini_assessment" in cfg and cfg["latest_gemini_assessment"]:
@@ -1101,6 +1116,9 @@ def _save_bot_settings():
         payload = {
             "enabled": bot_autopilot_enabled,
             "interval_seconds": bot_autopilot_interval,
+            "live_trading_enabled": live_trading_enabled,
+            "live_trading_interval": live_trading_interval,
+            "live_last_cycle_summary": live_last_cycle_summary,
             "last_cycle_summary": bot_last_cycle_summary,
             "gemini_auto_apply": gemini_auto_apply,
             "latest_gemini_assessment": latest_gemini_assessment,
@@ -1194,30 +1212,144 @@ def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
     _save_bot_settings()
     return summary
 
+def _execute_live_bot_cycle():
+    """Executes a single autonomous live scan cycle with real Binance execution and mutual exclusion."""
+    global live_trading_last_scan, live_trading_next_scan_time, live_last_cycle_summary
+    live_summary = quant_bot.executor.get_live_account_summary()
+    if not live_summary.get("connected"):
+        summary = {
+            "success": False,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "error": live_summary.get("error", "Binance API credentials missing or invalid."),
+            "live_account": live_summary
+        }
+        live_last_cycle_summary = summary
+        _save_bot_settings()
+        return summary
+
+    account_equity = live_summary.get("total_wallet_balance_usd", Decimal("0.00"))
+    if account_equity <= Decimal("0"):
+        account_equity = quant_bot.risk_config.small_account_threshold
+
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+    lookbacks = {}
+    for sym in list(ALL_SUPPORTED_SYMBOLS.keys())[:5]:
+        try:
+            live_df = quant_bot.index_engine.fetch_lookback_dataframe(sym, limit=100)
+            if live_df is not None and len(live_df) >= 20:
+                lookbacks[sym] = live_df
+        except Exception as e:
+            logger.warning("Live lookback fetch error for %s: %s", sym, e)
+
+    report = quant_bot.run_scan_cycle(
+        account_equity=account_equity,
+        lookback_data_map=lookbacks if lookbacks else None,
+        execution_mode="LIVE"
+    )
+    live_trading_last_scan = report.timestamp_utc
+    live_trading_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=live_trading_interval)
+
+    decisions_summary = []
+    for sym, dec in report.decisions.items():
+        decisions_summary.append({
+            "symbol": sym,
+            "side": dec.side,
+            "approved": dec.approved,
+            "veto_gate": dec.veto_gate_failed,
+            "reason": dec.veto_reason,
+            "adversarial_notes": dec.adversarial_notes,
+            "ticket": {
+                "entry_price": float(dec.ticket.entry_price),
+                "stop_loss": float(dec.ticket.stop_loss),
+                "take_profit": float(dec.ticket.take_profit),
+                "quantity": float(dec.ticket.quantity),
+                "notional_usd": float(dec.ticket.notional_usd),
+                "effective_leverage": dec.ticket.effective_leverage,
+                "rr_ratio": float(dec.ticket.reward_risk_ratio),
+                "net_gain_pct": float(dec.ticket.net_expected_gain_pct)
+            } if dec.ticket else None
+        })
+
+    dispatched = [
+        {
+            "position_id": p.position_id,
+            "symbol": p.symbol,
+            "side": p.side,
+            "entry_price": float(p.entry_price),
+            "stop_loss": float(p.stop_loss),
+            "take_profit": float(p.take_profit),
+            "quantity": float(p.quantity)
+        }
+        for p in report.dispatched_trades
+    ]
+
+    fresh_account = quant_bot.executor.get_live_account_summary()
+
+    summary = {
+        "success": True,
+        "timestamp": report.timestamp_utc.isoformat(),
+        "macro_regime": report.macro_verdict.macro_regime,
+        "breadth_pct": f"{float(report.macro_verdict.breadth_ratio)*100:.1f}%",
+        "evaluated_count": len(decisions_summary),
+        "dispatched_count": len(dispatched),
+        "decisions": decisions_summary,
+        "dispatched_trades": dispatched,
+        "live_account": {
+            "total_wallet_balance_usd": float(fresh_account.get("total_wallet_balance_usd", Decimal("0.00"))),
+            "available_balance_usd": float(fresh_account.get("available_balance_usd", Decimal("0.00"))),
+            "unrealized_pnl_usd": float(fresh_account.get("unrealized_pnl_usd", Decimal("0.00"))),
+            "margin_ratio_pct": float(fresh_account.get("margin_ratio_pct", Decimal("0.00"))),
+            "active_positions": fresh_account.get("positions", [])
+        }
+    }
+    live_last_cycle_summary = summary
+    _save_bot_settings()
+    return summary
+
 def _autopilot_daemon_loop():
-    """Background thread running autonomous scans and temporal exit monitoring."""
-    print(">> [Quant Bot & KEV.ai] Autonomous Background Daemon Worker Initialized (Interval: 60s).")
+    """Background thread running autonomous scans with strict mutual exclusion."""
+    print(">> [Quant Bot & KEV.ai] Autonomous Background Daemon Worker Initialized.")
     # Brief pause to let web server bind to socket
     time.sleep(2)
     # Immediate initial scan
     try:
-        _execute_quant_bot_cycle()
-        print(">> [Quant Bot & KEV.ai] Initial universe market scan completed successfully.")
+        if live_trading_enabled:
+            _execute_live_bot_cycle()
+            print(">> [Quant Bot & KEV.ai] Initial LIVE market scan completed successfully.")
+        elif bot_autopilot_enabled:
+            _execute_quant_bot_cycle()
+            print(">> [Quant Bot & KEV.ai] Initial universe market scan completed successfully.")
     except Exception as e:
         print(f">> [Quant Bot & KEV.ai] Initial scan deferred: {e}")
 
     while True:
+        with live_account_lock:
+            live_active = live_trading_enabled
+            live_int = live_trading_interval
         with bot_autopilot_lock:
-            enabled = bot_autopilot_enabled
-            interval = bot_autopilot_interval
+            paper_active = bot_autopilot_enabled
+            paper_int = bot_autopilot_interval
 
-        if enabled:
-            for _ in range(int(interval)):
-                if not bot_autopilot_enabled:
+        # Strict Mutual Exclusion: If LIVE trading is enabled, PAPER is forced paused!
+        if live_active:
+            for _ in range(int(live_int)):
+                if not live_trading_enabled:
                     break
                 time.sleep(1)
 
-            if bot_autopilot_enabled:
+            if live_trading_enabled:
+                try:
+                    _execute_live_bot_cycle()
+                except Exception as e:
+                    print(f">> [Live Trading Autopilot Error] {e}")
+
+        elif paper_active:
+            for _ in range(int(paper_int)):
+                if not bot_autopilot_enabled or live_trading_enabled:
+                    break
+                time.sleep(1)
+
+            if bot_autopilot_enabled and not live_trading_enabled:
                 try:
                     _execute_quant_bot_cycle()
                 except Exception as e:
@@ -1325,10 +1457,10 @@ def reset_paper_report():
 @app.route('/api/bot/autopilot/toggle', methods=['POST'])
 def toggle_bot_autopilot():
     """Toggle or update autonomous auto-pilot settings."""
-    global bot_autopilot_enabled, bot_autopilot_interval
+    global bot_autopilot_enabled, bot_autopilot_interval, live_trading_enabled
     try:
         data = request.get_json(silent=True) or {}
-        with bot_autopilot_lock:
+        with bot_autopilot_lock, live_account_lock:
             if "enabled" in data:
                 bot_autopilot_enabled = bool(data["enabled"])
             else:
@@ -1337,11 +1469,16 @@ def toggle_bot_autopilot():
             if "interval_seconds" in data:
                 bot_autopilot_interval = max(10, int(data["interval_seconds"]))
 
+            # Strict Mutual Exclusion: If Paper is turned ON, Live Trading MUST be turned OFF
+            if bot_autopilot_enabled and live_trading_enabled:
+                live_trading_enabled = False
+
             _save_bot_settings()
 
         return jsonify({
             "success": True,
             "autopilot_enabled": bot_autopilot_enabled,
+            "live_trading_enabled": live_trading_enabled,
             "interval_seconds": bot_autopilot_interval,
             "message": f"Quant Bot Auto-Pilot {'ENABLED' if bot_autopilot_enabled else 'PAUSED'}."
         })
@@ -1628,6 +1765,200 @@ def toggle_gemini_auto_apply_endpoint():
         gemini_auto_apply = not gemini_auto_apply
     _save_bot_settings()
     return jsonify({"success": True, "auto_apply": gemini_auto_apply})
+
+
+# ==============================================================================
+# Real Live Trading Endpoints & Real-Time Futures API
+# ==============================================================================
+
+@app.route('/api/live/status', methods=['GET'])
+def get_live_status():
+    """Return real Binance Futures account summary, positions, and live autopilot state."""
+    try:
+        live_account = quant_bot.executor.get_live_account_summary()
+        trade_history = quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else []
+        calib = quant_bot.learning_governor.calculate_brier_calibration()
+
+        next_sec = 0
+        if live_trading_enabled and live_trading_next_scan_time:
+            now_u = datetime.datetime.now(datetime.timezone.utc)
+            next_sec = max(0, int((live_trading_next_scan_time - now_u).total_seconds()))
+
+        return jsonify({
+            "success": True,
+            "connected": live_account.get("connected", False),
+            "error": live_account.get("error"),
+            "bot_state": "ACTIVE" if live_trading_enabled else "STANDBY_PAUSED",
+            "execution_mode": "REAL LIVE TRADING (BINANCE FUTURES)",
+            "mutual_exclusion": {
+                "live_trading_active": live_trading_enabled,
+                "paper_trading_paused": live_trading_enabled or not bot_autopilot_enabled
+            },
+            "live_account": {
+                "total_wallet_balance_usd": float(live_account.get("total_wallet_balance_usd", Decimal("0.00"))),
+                "available_balance_usd": float(live_account.get("available_balance_usd", Decimal("0.00"))),
+                "unrealized_pnl_usd": float(live_account.get("unrealized_pnl_usd", Decimal("0.00"))),
+                "margin_ratio_pct": float(live_account.get("margin_ratio_pct", Decimal("0.00"))),
+                "active_positions_count": len(live_account.get("positions", [])),
+                "positions": live_account.get("positions", [])
+            },
+            "trade_history": trade_history,
+            "autopilot": {
+                "enabled": live_trading_enabled,
+                "interval_seconds": live_trading_interval,
+                "last_scan_utc": live_trading_last_scan.isoformat() if live_trading_last_scan else None,
+                "next_scan_seconds": next_sec
+            },
+            "confidence_multiplier": float(calib.confidence_multiplier),
+            "last_cycle": live_last_cycle_summary
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/toggle', methods=['POST'])
+def toggle_live_trading():
+    """Toggle real live trading. Automatically pauses paper trading when enabled."""
+    global live_trading_enabled, live_trading_interval, bot_autopilot_enabled
+    try:
+        data = request.get_json(silent=True) or {}
+        with live_account_lock, bot_autopilot_lock:
+            if "enabled" in data:
+                live_trading_enabled = bool(data["enabled"])
+            else:
+                live_trading_enabled = not live_trading_enabled
+
+            if "interval_seconds" in data:
+                live_trading_interval = max(10, int(data["interval_seconds"]))
+
+            # Strict Mutual Exclusion:
+            if live_trading_enabled:
+                bot_autopilot_enabled = False
+                msg = "Real Live Trading ACTIVATED on Binance Futures. Paper Trading has been PAUSED."
+            else:
+                msg = "Real Live Trading PAUSED. System standing by."
+
+            _save_bot_settings()
+
+        return jsonify({
+            "success": True,
+            "live_trading_enabled": live_trading_enabled,
+            "paper_autopilot_enabled": bot_autopilot_enabled,
+            "interval_seconds": live_trading_interval,
+            "message": msg
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/scan', methods=['POST'])
+def run_live_scan():
+    """Trigger an immediate live scan and potential order dispatch."""
+    try:
+        summary = _execute_live_bot_cycle()
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/flatten', methods=['POST'])
+def flatten_live_positions():
+    """Emergency flatten all live positions and cancel open orders on Binance."""
+    try:
+        with live_account_lock:
+            res = quant_bot.executor.flatten_all_live_positions()
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/trades', methods=['GET'])
+def get_live_trades():
+    """Fetch recent live executed trade history with real fees and PnL."""
+    try:
+        limit = min(100, int(request.args.get("limit", 50)))
+        trades = quant_bot.executor.get_live_trade_history(limit=limit)
+        return jsonify({"success": True, "trades": trades})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/place-order', methods=['POST'])
+def place_live_order():
+    """Manually dispatch a real live bracket order with KEV.ai safeguards."""
+    try:
+        req_data = request.get_json() or {}
+        symbol = req_data.get("symbol", "BTCUSDT")
+        side = req_data.get("side", "SELL").upper()
+        if side not in ("BUY", "SELL"):
+            side = "SELL"
+
+        sym_cfg = quant_bot.executor.symbols_config.get(symbol)
+        price_prec = sym_cfg.price_precision if sym_cfg else 2
+        qty_prec = sym_cfg.quantity_precision if sym_cfg else 4
+        price_fmt = Decimal("10") ** -price_prec
+        qty_fmt = Decimal("10") ** -qty_prec
+
+        # Fetch current price from live Binance API
+        try:
+            klines = quant_bot.index_engine.fetch_24h_klines(symbol)
+            if klines:
+                entry_price = klines[-1]["close"].quantize(price_fmt)
+            else:
+                entry_price = Decimal(str(req_data.get("price", "77859.00"))).quantize(price_fmt)
+        except Exception:
+            entry_price = Decimal(str(req_data.get("price", "77859.00"))).quantize(price_fmt)
+
+        # Micro notional budget $15 - $50 max
+        raw_notional = Decimal(str(req_data.get("notional", "15.00")))
+        notional_usd = min(quant_bot.risk_config.small_account_micro_lot_max_usd, max(Decimal("10.00"), raw_notional))
+        quantity = (notional_usd / entry_price).quantize(qty_fmt, rounding=ROUND_HALF_UP)
+        if sym_cfg and quantity < sym_cfg.min_quantity:
+            quantity = sym_cfg.min_quantity
+        elif quantity <= Decimal("0"):
+            quantity = qty_fmt
+        notional_usd = (entry_price * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        sl_pct = Decimal("0.0125")
+        tp_pct = Decimal("0.0250")
+        if side == "SELL":
+            stop_loss = (entry_price * (Decimal("1") + sl_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+            take_profit = (entry_price * (Decimal("1") - tp_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+        else:
+            stop_loss = (entry_price * (Decimal("1") - sl_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+            take_profit = (entry_price * (Decimal("1") + tp_pct)).quantize(price_fmt, rounding=ROUND_HALF_UP)
+
+        ticket = TradeTicket(
+            symbol=symbol,
+            side=side,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            quantity=quantity,
+            notional_usd=notional_usd,
+            effective_leverage=min(3, quant_bot.risk_config.max_account_leverage),
+            risk_budget_usd=Decimal("3.00"),
+            reward_risk_ratio=Decimal("2.00"),
+            net_expected_gain_pct=Decimal("0.025")
+        )
+
+        pos = quant_bot.executor.submit_live_bracket_order(ticket)
+        return jsonify({
+            "success": True,
+            "message": f"Successfully executed live bracket order: {side} {float(quantity)} {symbol} @ ${float(entry_price):,.2f}",
+            "position": {
+                "position_id": pos.position_id,
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "entry_price": float(pos.entry_price),
+                "quantity": float(pos.quantity),
+                "stop_loss": float(pos.stop_loss),
+                "take_profit": float(pos.take_profit),
+                "state": pos.state.value
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     print("Starting Kronos Web UI...")

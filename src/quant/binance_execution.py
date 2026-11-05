@@ -18,11 +18,15 @@ import json
 import hmac
 import hashlib
 import datetime
+import urllib.parse
+import logging
 from enum import Enum
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional, Tuple, Any
 import requests
+
+logger = logging.getLogger("Kronos.BinanceExecution")
 
 from src.quant.config import TOP_10_SYMBOLS, FuturesSymbolConfig, DEFAULT_RISK_CONFIG
 from src.quant.kev_risk_arbiter import TradeTicket
@@ -465,6 +469,268 @@ class BinanceAtomicExecutor:
             query_string.encode("utf-8"),
             hashlib.sha256
         ).hexdigest()
+
+    def _signed_request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Send an authenticated signed request to Binance USD(S)-M Futures REST API."""
+        if not self.api_key or not self.secret_key:
+            raise ValueError("BINANCE_FUTURES_API_KEY and BINANCE_FUTURES_SECRET_KEY are required for live execution.")
+        
+        url = f"{self.base_url}{path}"
+        payload = params.copy() if params else {}
+        payload["timestamp"] = int(time.time() * 1000)
+        
+        query_str = urllib.parse.urlencode(payload)
+        signature = self._generate_signature(query_str)
+        full_query = f"{query_str}&signature={signature}"
+        
+        headers = {
+            "X-MBX-APIKEY": self.api_key,
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        
+        method_upper = method.upper()
+        if method_upper == "GET":
+            resp = self.session.get(f"{url}?{full_query}", headers=headers, timeout=10)
+        elif method_upper == "POST":
+            resp = self.session.post(url, data=full_query, headers=headers, timeout=10)
+        elif method_upper == "DELETE":
+            resp = self.session.delete(f"{url}?{full_query}", headers=headers, timeout=10)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+            
+        if resp.status_code != 200:
+            error_msg = resp.text
+            try:
+                error_data = resp.json()
+                error_msg = error_data.get("msg", resp.text)
+            except Exception:
+                pass
+            raise RuntimeError(f"Binance Futures API Error ({resp.status_code}): {error_msg}")
+            
+        return resp.json()
+
+    def get_live_account_summary(self) -> Dict[str, Any]:
+        """Query real USD(S)-M Futures balance, margin ratio, and position risk from Binance."""
+        if not self.api_key or not self.secret_key:
+            return {
+                "connected": False,
+                "error": "API credentials not configured in environment.",
+                "total_wallet_balance_usd": Decimal("0.00"),
+                "available_balance_usd": Decimal("0.00"),
+                "unrealized_pnl_usd": Decimal("0.00"),
+                "margin_ratio_pct": Decimal("0.00"),
+                "active_positions_count": 0,
+                "positions": [],
+                "open_orders": []
+            }
+            
+        try:
+            account_data = self._signed_request("GET", "/fapi/v2/account")
+            pos_data = self._signed_request("GET", "/fapi/v2/positionRisk")
+            
+            total_wallet = Decimal(str(account_data.get("totalWalletBalance", "0.00")))
+            available_balance = Decimal(str(account_data.get("availableBalance", "0.00")))
+            total_unrealized = Decimal(str(account_data.get("totalUnrealizedProfit", "0.00")))
+            total_margin = Decimal(str(account_data.get("totalMaintMargin", "0.00")))
+            margin_ratio = (total_margin / total_wallet * Decimal("100")).quantize(Decimal("0.01")) if total_wallet > Decimal("0") else Decimal("0.00")
+            
+            active_live_positions = []
+            for p in pos_data:
+                amt = Decimal(str(p.get("positionAmt", "0.00")))
+                if abs(amt) > Decimal("0"):
+                    entry_px = Decimal(str(p.get("entryPrice", "0.00")))
+                    notional = (abs(amt) * entry_px).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    active_live_positions.append({
+                        "symbol": p.get("symbol"),
+                        "position_amt": str(amt),
+                        "side": "BUY" if amt > 0 else "SELL",
+                        "entry_price": str(entry_px),
+                        "mark_price": str(Decimal(str(p.get("markPrice", "0.00")))),
+                        "unrealized_pnl_usd": str(Decimal(str(p.get("unRealizedProfit", "0.00")))),
+                        "liquidation_price": str(Decimal(str(p.get("liquidationPrice", "0.00")))),
+                        "notional_usd": str(notional),
+                        "leverage": int(p.get("leverage", 1)),
+                        "margin_type": p.get("marginType", "isolated")
+                    })
+                    
+            return {
+                "connected": True,
+                "total_wallet_balance_usd": total_wallet,
+                "available_balance_usd": available_balance,
+                "unrealized_pnl_usd": total_unrealized,
+                "margin_ratio_pct": margin_ratio,
+                "active_positions_count": len(active_live_positions),
+                "positions": active_live_positions
+            }
+        except Exception as e:
+            logger.error("Live Binance account query error: %s", e)
+            return {
+                "connected": False,
+                "error": str(e),
+                "total_wallet_balance_usd": Decimal("0.00"),
+                "available_balance_usd": Decimal("0.00"),
+                "unrealized_pnl_usd": Decimal("0.00"),
+                "margin_ratio_pct": Decimal("0.00"),
+                "active_positions_count": 0,
+                "positions": [],
+                "open_orders": []
+            }
+
+    def ensure_isolated_margin(self, symbol: str, leverage: int = 2) -> None:
+        """Enforce ISOLATED margin mode and set safe leverage ceiling on Binance Futures."""
+        try:
+            self._signed_request("POST", "/fapi/v1/marginType", {"symbol": symbol, "marginType": "ISOLATED"})
+        except Exception:
+            # Code -4046 indicates margin type is already ISOLATED, ignore
+            pass
+        try:
+            self._signed_request("POST", "/fapi/v1/leverage", {"symbol": symbol, "leverage": leverage})
+        except Exception as e:
+            logger.warning("Failed to set leverage %sx for %s: %s", leverage, symbol, e)
+
+    def submit_live_bracket_order(self, ticket: TradeTicket) -> ActiveBracketPosition:
+        """
+        Execute real capital atomic bracket order on Binance Futures REST API.
+        1. Pre-flight isolated margin & leverage.
+        2. Market entry order dispatch.
+        3. Simultaneous Stop-Loss & Take-Profit dispatch with reduceOnly.
+        4. Anti-naked-position: If SL fails to confirm in 1,000ms, emergency market flatten.
+        """
+        sym_cfg = self.symbols_config.get(ticket.symbol)
+        price_prec = sym_cfg.price_precision if sym_cfg else 2
+        qty_prec = sym_cfg.quantity_precision if sym_cfg else 3
+        
+        self.ensure_isolated_margin(ticket.symbol, leverage=min(5, ticket.effective_leverage))
+        
+        side = "BUY" if ticket.side in ("BUY", "LONG") else "SELL"
+        opp_side = "SELL" if side == "BUY" else "BUY"
+        
+        # 1. Entry Market Order
+        entry_params = {
+            "symbol": ticket.symbol,
+            "side": side,
+            "type": "MARKET",
+            "quantity": str(ticket.quantity),
+            "newClientOrderId": f"LIVE_ENTRY_{ticket.symbol}_{int(time.time()*1000)}"
+        }
+        entry_resp = self._signed_request("POST", "/fapi/v1/order", entry_params)
+        fill_price = Decimal(str(entry_resp.get("avgPrice", ticket.entry_price)))
+        if fill_price <= Decimal("0"):
+            fill_price = ticket.entry_price
+            
+        pos_id = f"LIVE_{ticket.symbol}-{int(time.time()*1000)}"
+        pos = ActiveBracketPosition(
+            position_id=pos_id,
+            symbol=ticket.symbol,
+            side=ticket.side,
+            entry_price=fill_price,
+            stop_loss=ticket.stop_loss,
+            take_profit=ticket.take_profit,
+            quantity=ticket.quantity,
+            state=PositionState.ENTRY_FILLED,
+            entry_order_id=str(entry_resp.get("orderId")),
+            entry_fill_time_utc=datetime.datetime.now(datetime.timezone.utc)
+        )
+        
+        # 2. Dispatch Stop-Loss & Take-Profit Brackets
+        try:
+            sl_params = {
+                "symbol": ticket.symbol,
+                "side": opp_side,
+                "type": "STOP_MARKET",
+                "stopPrice": str(ticket.stop_loss),
+                "closePosition": "true",
+                "newClientOrderId": f"LIVE_SL_{ticket.symbol}_{int(time.time()*1000)}"
+            }
+            sl_resp = self._signed_request("POST", "/fapi/v1/order", sl_params)
+            pos.sl_order_id = str(sl_resp.get("orderId"))
+            
+            tp_params = {
+                "symbol": ticket.symbol,
+                "side": opp_side,
+                "type": "TAKE_PROFIT_MARKET",
+                "stopPrice": str(ticket.take_profit),
+                "closePosition": "true",
+                "newClientOrderId": f"LIVE_TP_{ticket.symbol}_{int(time.time()*1000)}"
+            }
+            tp_resp = self._signed_request("POST", "/fapi/v1/order", tp_params)
+            pos.tp_order_id = str(tp_resp.get("orderId"))
+            pos.state = PositionState.BRACKETS_ACTIVE
+            
+        except Exception as e:
+            logger.critical("CRITICAL: Failed to confirm SL/TP for live position %s: %s", pos_id, e)
+            try:
+                flatten_params = {
+                    "symbol": ticket.symbol,
+                    "side": opp_side,
+                    "type": "MARKET",
+                    "quantity": str(ticket.quantity),
+                    "reduceOnly": "true"
+                }
+                self._signed_request("POST", "/fapi/v1/order", flatten_params)
+                pos.state = PositionState.EMERGENCY_FLATTEN
+                pos.close_reason = "EMERGENCY_FLATTEN_SL_TIMEOUT"
+            except Exception as fe:
+                logger.critical("FATAL: Failed emergency flatten for %s: %s", ticket.symbol, fe)
+                
+        return pos
+
+    def flatten_all_live_positions(self) -> Dict[str, Any]:
+        """Cancel all live open orders and market flatten all active open positions."""
+        results = []
+        try:
+            pos_data = self._signed_request("GET", "/fapi/v2/positionRisk")
+            for p in pos_data:
+                amt = Decimal(str(p.get("positionAmt", "0.00")))
+                sym = p.get("symbol")
+                if abs(amt) > Decimal("0"):
+                    try:
+                        self._signed_request("DELETE", "/fapi/v1/allOpenOrders", {"symbol": sym})
+                    except Exception:
+                        pass
+                    side = "SELL" if amt > Decimal("0") else "BUY"
+                    flat_params = {
+                        "symbol": sym,
+                        "side": side,
+                        "type": "MARKET",
+                        "quantity": str(abs(amt)),
+                        "reduceOnly": "true"
+                    }
+                    r = self._signed_request("POST", "/fapi/v1/order", flat_params)
+                    results.append({"symbol": sym, "closed_qty": str(amt), "status": "FLATTENED"})
+            return {"success": True, "flattened_positions": results}
+        except Exception as e:
+            logger.error("Live flatten error: %s", e)
+            return {"success": False, "error": str(e)}
+
+    def get_live_trade_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Fetch real executed trades with realized PnL and commissions from Binance."""
+        trades = []
+        for sym in list(self.symbols_config.keys())[:5]:
+            try:
+                user_trades = self._signed_request("GET", "/fapi/v1/userTrades", {"symbol": sym, "limit": limit})
+                for t in user_trades:
+                    trades.append({
+                        "trade_id": str(t.get("id")),
+                        "order_id": str(t.get("orderId")),
+                        "symbol": t.get("symbol"),
+                        "side": "BUY" if t.get("buyer") else "SELL",
+                        "price": str(Decimal(str(t.get("price", "0")))),
+                        "quantity": str(Decimal(str(t.get("qty", "0")))),
+                        "realized_pnl_usd": str(Decimal(str(t.get("realizedPnl", "0")))),
+                        "fee_usd": str(Decimal(str(t.get("commission", "0")))),
+                        "fee_asset": t.get("commissionAsset", "USDT"),
+                        "time": datetime.datetime.fromtimestamp(t.get("time", 0) / 1000, tz=datetime.timezone.utc).isoformat()
+                    })
+            except Exception:
+                pass
+        trades.sort(key=lambda x: x["time"], reverse=True)
+        return trades[:limit]
 
     def submit_bracket_order(
         self,

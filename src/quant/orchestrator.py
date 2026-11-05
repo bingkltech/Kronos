@@ -83,16 +83,32 @@ class QuantBotOrchestrator:
         lookback_data_map: Optional[Dict[str, pd.DataFrame]] = None,
         current_time_utc: Optional[datetime.datetime] = None,
         mock_preloaded_klines: Optional[Dict[str, List[Dict[str, Decimal]]]] = None,
-        mock_trajectories: Optional[Dict[str, TrajectoryVerdict]] = None
+        mock_trajectories: Optional[Dict[str, TrajectoryVerdict]] = None,
+        execution_mode: str = "PAPER"
     ) -> CycleReport:
         """
         Execute an end-to-end market scan across the Top 10 universe.
+        Supports both PAPER simulation and real LIVE execution.
         """
-        if account_equity is None:
-            account_equity = self.executor.get_current_equity()
-
         if current_time_utc is None:
             current_time_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        if execution_mode == "LIVE":
+            live_summary = self.executor.get_live_account_summary()
+            if account_equity is None:
+                account_equity = live_summary.get("total_wallet_balance_usd", Decimal("0.00"))
+                if account_equity <= Decimal("0"):
+                    account_equity = self.risk_config.small_account_threshold
+            active_symbols = [p["symbol"] for p in live_summary.get("positions", [])]
+            free_margin = live_summary.get("available_balance_usd", account_equity)
+        else:
+            if account_equity is None:
+                account_equity = self.executor.get_current_equity()
+            active_symbols = [
+                pos.symbol for pos in self.executor.active_positions.values()
+                if pos.state == PositionState.BRACKETS_ACTIVE
+            ]
+            free_margin = self.executor.get_free_margin()
 
         # 1. Macro News Blackout Shield
         news_verdict = self.news_specialist.evaluate_blackout(current_time_utc)
@@ -108,32 +124,29 @@ class QuantBotOrchestrator:
         funding_map = self.carry_specialist.fetch_funding_rates() if not mock_trajectories else {}
 
         # 4b. Evaluate active positions for TP/SL hits and temporal expiry
-        current_prices = {
-            sym: stats.current_price
-            for sym, stats in macro_verdict.symbol_stats.items()
-        }
-        closed_by_price = self.executor.check_bracket_price_triggers(current_prices, current_time_utc=current_time_utc)
-        for pos in closed_by_price:
-            hit = 1 if pos.close_reason == "TAKE_PROFIT_TRIGGERED" else 0
-            self.learning_governor.record_outcome(TradeOutcome(
-                trade_id=pos.position_id,
-                symbol=pos.symbol,
-                side=pos.side,
-                forecast_confidence=Decimal("0.70"),
-                realized_hit=hit,
-                realized_pnl_usd=pos.realized_pnl_usd,
-                exit_reason=pos.close_reason or "BRACKET_EXIT",
-                timestamp_utc=pos.close_time_utc or current_time_utc
-            ))
+        if execution_mode == "PAPER":
+            current_prices = {
+                sym: stats.current_price
+                for sym, stats in macro_verdict.symbol_stats.items()
+            }
+            closed_by_price = self.executor.check_bracket_price_triggers(current_prices, current_time_utc=current_time_utc)
+            for pos in closed_by_price:
+                hit = 1 if pos.close_reason == "TAKE_PROFIT_TRIGGERED" else 0
+                self.learning_governor.record_outcome(TradeOutcome(
+                    trade_id=pos.position_id,
+                    symbol=pos.symbol,
+                    side=pos.side,
+                    forecast_confidence=Decimal("0.70"),
+                    realized_hit=hit,
+                    realized_pnl_usd=pos.realized_pnl_usd,
+                    exit_reason=pos.close_reason or "BRACKET_EXIT",
+                    timestamp_utc=pos.close_time_utc or current_time_utc,
+                    execution_mode="PAPER"
+                ))
 
-        self.sweep_temporal_exits(current_time_utc=current_time_utc, current_prices=current_prices)
+            self.sweep_temporal_exits(current_time_utc=current_time_utc, current_prices=current_prices)
 
         # 5. Check Active Positions & Capacity
-        active_symbols = [
-            pos.symbol for pos in self.executor.active_positions.values()
-            if pos.state == PositionState.BRACKETS_ACTIVE
-        ]
-
         decisions: Dict[str, KEVDecision] = {}
         dispatched_trades: List[ActiveBracketPosition] = []
 
@@ -198,7 +211,10 @@ class QuantBotOrchestrator:
 
             # 8. Dispatch Approved Trades
             if decision.approved and decision.ticket:
-                pos = self.executor.submit_bracket_order(decision.ticket, fill_time_utc=current_time_utc)
+                if execution_mode == "LIVE":
+                    pos = self.executor.submit_live_bracket_order(decision.ticket)
+                else:
+                    pos = self.executor.submit_bracket_order(decision.ticket, fill_time_utc=current_time_utc)
                 dispatched_trades.append(pos)
                 active_symbols.append(symbol)
 
