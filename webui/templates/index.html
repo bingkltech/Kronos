@@ -1292,14 +1292,17 @@
         <div class="panel" style="border: 1px solid rgba(88, 166, 255, 0.3); background: rgba(22, 27, 34, 0.85); margin-bottom: 20px;">
             <div class="panel-header">
                 <span class="panel-title" style="color: #58a6ff;">
-                    <span>📊</span> Paper Trading Performance & Win/Loss Audit
+                    <span>📊</span> <span id="dash-portfolio-title">Paper Trading Performance & Win/Loss Audit</span>
                 </span>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <span class="badge-regime" style="background: rgba(35, 134, 54, 0.2); color: #3fb950; border: 1px solid rgba(46, 160, 67, 0.4);" id="dash-paper-micro-badge">
                         ⚡ Micro-Trading Active (Small Account: $200.00 Base)
                     </span>
-                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="resetPaperTrading()">
+                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="dash-reset-btn" onclick="resetPaperTrading()">
                         🔄 Reset Paper Account
+                    </button>
+                    <button class="btn-primary" style="padding: 4px 10px; font-size: 11px; background: #b62324; border-color: #ff5252; display: none;" id="dash-live-btn" onclick="switchAppView('live')">
+                        🔴 View Live Terminal
                     </button>
                 </div>
             </div>
@@ -3065,6 +3068,49 @@
                     }
                 }
 
+                // If live autopilot is active, dynamically dedicate the main dashboard to Live Trading!
+                if (liveAutopilotActive) {
+                    const dTitle = document.getElementById('dash-portfolio-title');
+                    const dBadge = document.getElementById('dash-paper-micro-badge');
+                    const dReset = document.getElementById('dash-reset-btn');
+                    const dLiveBtn = document.getElementById('dash-live-btn');
+                    const dEquity = document.getElementById('dash-paper-equity');
+                    const dStarting = document.getElementById('dash-paper-starting');
+                    const dPnl = document.getElementById('dash-paper-pnl');
+                    const dPnlPct = document.getElementById('dash-paper-pnl-pct');
+                    const dWinLoss = document.getElementById('dash-paper-winloss');
+                    const dWinRate = document.getElementById('dash-paper-winrate-badge');
+                    const dTotal = document.getElementById('dash-paper-total-trades');
+                    const dPF = document.getElementById('dash-paper-profitfactor');
+                    const dFeeDrag = document.getElementById('dash-paper-fee-drag');
+
+                    if (dTitle) dTitle.innerHTML = '<span style="color: #ff5252;">🔴 Real Live Futures Trading & Binance Margin Audit</span>';
+                    if (dBadge) {
+                        dBadge.innerHTML = '🔴 REAL LIVE CAPITAL ACTIVE (Binance Futures ISOLATED)';
+                        dBadge.style.color = '#ff7b72';
+                        dBadge.style.background = 'rgba(255, 82, 82, 0.2)';
+                        dBadge.style.borderColor = 'rgba(255, 82, 82, 0.4)';
+                    }
+                    if (dReset) dReset.style.display = 'none';
+                    if (dLiveBtn) dLiveBtn.style.display = 'inline-block';
+
+                    if (dEquity) {
+                        dEquity.textContent = `$${walletBal.toFixed(2)} USDT`;
+                        dEquity.style.color = '#00E676';
+                    }
+                    if (dStarting) dStarting.textContent = `Available Collateral: $${availBal.toFixed(2)} USDT`;
+                    if (dPnl) {
+                        dPnl.textContent = `${unrealPnl >= 0 ? '+' : ''}$${unrealPnl.toFixed(2)}`;
+                        dPnl.style.color = unrealPnl >= 0 ? '#3fb950' : '#f85149';
+                    }
+                    if (dPnlPct) dPnlPct.textContent = `Margin Ratio: ${marginRatio.toFixed(2)}%`;
+                    if (dWinLoss) dWinLoss.textContent = `${acct.positions ? acct.positions.length : 0} Active Live Contracts`;
+                    if (dWinRate) dWinRate.textContent = `Leverage: <=5x`;
+                    if (dTotal) dTotal.textContent = `Margin Mode: ISOLATED`;
+                    if (dPF) dPF.textContent = `${data.confidence_multiplier.toFixed(2)}x Calib`;
+                    if (dFeeDrag) dFeeDrag.textContent = `Live Telemetry via Binance API /fapi/v2/account`;
+                }
+
                 // Update Active Live Positions Table
                 const posTbody = document.getElementById('live-active-positions-tbody');
                 if (posTbody) {
@@ -3804,38 +3850,54 @@
                 if (botLastTrade) botLastTrade.textContent = awaitHtml;
             }
 
-            // 1. Update Dashboard View Elements
-            const dashEquity = document.getElementById('dash-paper-equity');
-            const dashStarting = document.getElementById('dash-paper-starting');
-            const dashPnl = document.getElementById('dash-paper-pnl');
-            const dashPnlPct = document.getElementById('dash-paper-pnl-pct');
-            const dashWinLoss = document.getElementById('dash-paper-winloss');
-            const dashWinRate = document.getElementById('dash-paper-winrate-badge');
-            const dashTotal = document.getElementById('dash-paper-total-trades');
-            const dashPF = document.getElementById('dash-paper-profitfactor');
+            // 1. Update Dashboard View Elements (Only if live autopilot is not currently running)
+            if (!liveAutopilotActive) {
+                const dTitle = document.getElementById('dash-portfolio-title');
+                const dBadge = document.getElementById('dash-paper-micro-badge');
+                const dReset = document.getElementById('dash-reset-btn');
+                const dLiveBtn = document.getElementById('dash-live-btn');
+                if (dTitle) dTitle.innerHTML = 'Paper Trading Performance & Win/Loss Audit';
+                if (dBadge) {
+                    dBadge.innerHTML = '⚡ Micro-Trading Active (Small Account: $200.00 Base)';
+                    dBadge.style.color = '#3fb950';
+                    dBadge.style.background = 'rgba(35, 134, 54, 0.2)';
+                    dBadge.style.borderColor = 'rgba(46, 160, 67, 0.4)';
+                }
+                if (dReset) dReset.style.display = 'inline-block';
+                if (dLiveBtn) dLiveBtn.style.display = 'none';
 
-            if (dashEquity) {
-                dashEquity.textContent = `$${rep.current_equity.toFixed(2)}`;
-                dashEquity.style.color = rep.current_equity >= rep.initial_equity ? '#00E676' : '#f85149';
-            }
-            if (dashStarting) dashStarting.textContent = `Starting: $${rep.initial_equity.toFixed(2)} USDT`;
-            if (dashPnl) {
-                dashPnl.textContent = `${rep.realized_pnl_usd >= 0 ? '+' : ''}$${rep.realized_pnl_usd.toFixed(2)}`;
-                dashPnl.style.color = rep.realized_pnl_usd >= 0 ? '#3fb950' : '#f85149';
-            }
-            if (dashPnlPct) {
-                dashPnlPct.textContent = `Return: ${rep.net_return_pct >= 0 ? '+' : ''}${rep.net_return_pct.toFixed(2)}%`;
-                dashPnlPct.style.color = rep.net_return_pct >= 0 ? '#3fb950' : '#f85149';
-            }
-            if (dashWinLoss) dashWinLoss.textContent = `${rep.winning_trades} Wins vs ${rep.losing_trades} Losses`;
-            if (dashWinRate) dashWinRate.textContent = `Win Rate: ${rep.win_rate_pct.toFixed(1)}%`;
-            if (dashTotal) dashTotal.textContent = `${rep.total_trades} Total Trades`;
-            if (dashPF) dashPF.textContent = `${rep.profit_factor.toFixed(2)}x`;
-            const dashFeeDrag = document.getElementById('dash-paper-fee-drag');
-            if (dashFeeDrag) {
-                const totalFees = rep.total_fees_usd || 0;
-                const grossPnl = rep.gross_pnl_usd !== undefined ? rep.gross_pnl_usd : rep.realized_pnl_usd;
-                dashFeeDrag.textContent = `Fee Drag: -$${totalFees.toFixed(2)} | Gross: ${grossPnl >= 0 ? '+' : ''}$${grossPnl.toFixed(2)}`;
+                const dashEquity = document.getElementById('dash-paper-equity');
+                const dashStarting = document.getElementById('dash-paper-starting');
+                const dashPnl = document.getElementById('dash-paper-pnl');
+                const dashPnlPct = document.getElementById('dash-paper-pnl-pct');
+                const dashWinLoss = document.getElementById('dash-paper-winloss');
+                const dashWinRate = document.getElementById('dash-paper-winrate-badge');
+                const dashTotal = document.getElementById('dash-paper-total-trades');
+                const dashPF = document.getElementById('dash-paper-profitfactor');
+
+                if (dashEquity) {
+                    dashEquity.textContent = `$${rep.current_equity.toFixed(2)}`;
+                    dashEquity.style.color = rep.current_equity >= rep.initial_equity ? '#00E676' : '#f85149';
+                }
+                if (dashStarting) dashStarting.textContent = `Starting: $${rep.initial_equity.toFixed(2)} USDT`;
+                if (dashPnl) {
+                    dashPnl.textContent = `${rep.realized_pnl_usd >= 0 ? '+' : ''}$${rep.realized_pnl_usd.toFixed(2)}`;
+                    dashPnl.style.color = rep.realized_pnl_usd >= 0 ? '#3fb950' : '#f85149';
+                }
+                if (dashPnlPct) {
+                    dashPnlPct.textContent = `Return: ${rep.net_return_pct >= 0 ? '+' : ''}${rep.net_return_pct.toFixed(2)}%`;
+                    dashPnlPct.style.color = rep.net_return_pct >= 0 ? '#3fb950' : '#f85149';
+                }
+                if (dashWinLoss) dashWinLoss.textContent = `${rep.winning_trades} Wins vs ${rep.losing_trades} Losses`;
+                if (dashWinRate) dashWinRate.textContent = `Win Rate: ${rep.win_rate_pct.toFixed(1)}%`;
+                if (dashTotal) dashTotal.textContent = `${rep.total_trades} Total Trades`;
+                if (dashPF) dashPF.textContent = `${rep.profit_factor.toFixed(2)}x`;
+                const dashFeeDrag = document.getElementById('dash-paper-fee-drag');
+                if (dashFeeDrag) {
+                    const totalFees = rep.total_fees_usd || 0;
+                    const grossPnl = rep.gross_pnl_usd !== undefined ? rep.gross_pnl_usd : rep.realized_pnl_usd;
+                    dashFeeDrag.textContent = `Fee Drag: -$${totalFees.toFixed(2)} | Gross: ${grossPnl >= 0 ? '+' : ''}$${grossPnl.toFixed(2)}`;
+                }
             }
 
             // 2. Update Bot View Elements
