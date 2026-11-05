@@ -177,9 +177,11 @@ class GlobalRiskConfig:
 
     # Micro-Trading & Small Account Safe-Guards
     micro_trading_mode: bool = True                        # Enable micro-lot sizing for small accounts
-    small_account_threshold_usd: Decimal = Decimal("1000.00") # Accounts <= $1000 use micro sizing
+    small_account_threshold_usd: Decimal = Decimal("2500.00") # Accounts <= $2500 use micro sizing
     max_micro_margin_ratio: Decimal = Decimal("0.35")      # Max 35% margin allocated per micro-position
     default_paper_equity: Decimal = Decimal("200.00")      # Default paper testing account equity (USDT)
+    max_micro_notional_usd: Decimal = Decimal("50.00")     # Hard ceiling on single micro notional ($50 max for small accounts)
+    max_paper_notional_cap_usd: Decimal = Decimal("25000.00") # Hard ceiling on single trade notional
 
 
 DEFAULT_RISK_CONFIG = GlobalRiskConfig()

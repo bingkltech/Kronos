@@ -289,7 +289,7 @@ class KEVSupremeArbiter:
         raw_qty = risk_budget_usd / risk_distance
         quantized_qty = cfg.quantize_quantity(raw_qty)
 
-        is_small_account = (account_equity <= getattr(self.risk_config, "small_account_threshold_usd", Decimal("1000.00")))
+        is_small_account = (account_equity <= getattr(self.risk_config, "small_account_threshold_usd", Decimal("2500.00")))
         is_micro_mode = getattr(self.risk_config, "micro_trading_mode", True) and is_small_account
 
         if is_micro_mode:
@@ -308,7 +308,16 @@ class KEVSupremeArbiter:
                 quantized_qty = max(cfg.min_quantity, needed_units)
                 notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-            # 3. Capital preservation guard: ensure required margin does not exhaust available free margin
+            # 3. Micro notional ceiling guard ($50 USDT max per trade on small accounts)
+            max_micro_notional = getattr(self.risk_config, "max_micro_notional_usd", Decimal("50.00"))
+            if notional_usd > max_micro_notional:
+                step = Decimal("10") ** -cfg.quantity_precision
+                max_units = (max_micro_notional / entry).quantize(step, rounding=ROUND_DOWN)
+                if max_units >= cfg.min_quantity and (max_units * entry) >= cfg.min_notional:
+                    quantized_qty = max_units
+                    notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            # 4. Capital preservation guard: ensure required margin does not exhaust available free margin
             available_margin = free_margin if free_margin is not None else account_equity
             margin_required = notional_usd / Decimal(str(self.risk_config.max_account_leverage))
             if margin_required > available_margin:
@@ -346,6 +355,13 @@ class KEVSupremeArbiter:
                     ticket=None,
                     adversarial_notes="Trade value does not meet exchange notional threshold."
                 )
+
+            # Hard ceiling on paper notional size
+            max_paper_notional = getattr(self.risk_config, "max_paper_notional_cap_usd", Decimal("25000.00"))
+            if notional_usd > max_paper_notional:
+                step = Decimal("10") ** -cfg.quantity_precision
+                quantized_qty = (max_paper_notional / entry).quantize(step, rounding=ROUND_DOWN)
+                notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         raw_leverage = int((notional_usd / account_equity).quantize(Decimal("1"), rounding=ROUND_DOWN)) + 1
         effective_leverage = min(self.risk_config.max_account_leverage, max(1, raw_leverage))

@@ -35,6 +35,7 @@ class PositionState(Enum):
     BRACKETS_ACTIVE = "BRACKETS_ACTIVE"
     EMERGENCY_FLATTEN = "EMERGENCY_FLATTEN"
     CLOSED = "CLOSED"
+    REJECTED = "REJECTED"
 
 
 @dataclass
@@ -533,6 +534,28 @@ class BinanceAtomicExecutor:
 
         # Successful SL & TP dispatch
         if self.dry_run:
+            # Bracket sanity invariant:
+            # BUY: stop_loss < entry < take_profit
+            # SELL: take_profit < entry < stop_loss
+            if ticket.side in ("BUY", "LONG"):
+                if not (position.stop_loss < position.entry_price < position.take_profit):
+                    logger.warning(
+                        "Rejected inverted bracket order for %s: SL %s, Entry %s, TP %s",
+                        ticket.symbol, position.stop_loss, position.entry_price, position.take_profit
+                    )
+                    position.state = PositionState.REJECTED
+                    position.close_reason = "INVALID_BRACKET_PRICES"
+                    return position
+            elif ticket.side in ("SELL", "SHORT"):
+                if not (position.take_profit < position.entry_price < position.stop_loss):
+                    logger.warning(
+                        "Rejected inverted bracket order for %s: TP %s, Entry %s, SL %s",
+                        ticket.symbol, position.take_profit, position.entry_price, position.stop_loss
+                    )
+                    position.state = PositionState.REJECTED
+                    position.close_reason = "INVALID_BRACKET_PRICES"
+                    return position
+
             position.sl_order_id = f"DRY_SL_{pos_id}"
             position.tp_order_id = f"DRY_TP_{pos_id}"
             position.state = PositionState.BRACKETS_ACTIVE

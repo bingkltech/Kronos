@@ -1127,15 +1127,16 @@ def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
 
     data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
     lookbacks = {}
-    for sym in ALL_SUPPORTED_SYMBOLS.keys():
-        cand_csv = os.path.join(data_dir, f"binance_{sym}_1h.csv")
-        if os.path.exists(cand_csv):
-            try:
-                df = pd.read_csv(cand_csv)
-                if len(df) >= 20:
-                    lookbacks[sym] = df
-            except Exception:
-                pass
+    # Fetch live lookback candles directly from Binance API to ensure real-time forward execution
+    for sym in list(ALL_SUPPORTED_SYMBOLS.keys())[:5]:
+        try:
+            live_df = quant_bot.index_engine.fetch_lookback_dataframe(sym, limit=100)
+            if live_df is not None and len(live_df) >= 20:
+                lookbacks[sym] = live_df
+                # Sync fresh candles to disk so UI chart stays synchronized with reality
+                live_df.to_csv(os.path.join(data_dir, f"binance_{sym}_1h.csv"), index=False)
+        except Exception as e:
+            logger.warning("Live lookback fetch error for %s: %s", sym, e)
 
     report = quant_bot.run_scan_cycle(
         account_equity=account_equity,
@@ -1380,15 +1381,14 @@ def place_bot_order():
         if price_val:
             entry_price = Decimal(str(price_val)).quantize(price_fmt, rounding=ROUND_HALF_UP)
         else:
-            entry_price = Decimal("77859.00").quantize(price_fmt)
-            cand_csv = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', f"binance_{symbol}_1h.csv")
-            if os.path.exists(cand_csv):
-                try:
-                    df = pd.read_csv(cand_csv)
-                    if len(df) > 0:
-                        entry_price = Decimal(str(df.iloc[-1]["close"])).quantize(price_fmt)
-                except Exception:
-                    pass
+            try:
+                klines = quant_bot.index_engine.fetch_24h_klines(symbol)
+                if klines:
+                    entry_price = klines[-1]["close"].quantize(price_fmt)
+                else:
+                    entry_price = Decimal("77859.00").quantize(price_fmt)
+            except Exception:
+                entry_price = Decimal("77859.00").quantize(price_fmt)
 
         # Micro notional budget $15 USDT
         notional_usd = Decimal(str(req_data.get("notional", "15.00")))
