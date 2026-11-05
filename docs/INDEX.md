@@ -14,6 +14,7 @@ Welcome to the institutional documentation repository for **Kronos**, an autonom
 | **[4. Gemini Free Tier Quota & Rate Limit Guide](file:///F:/012D_TRADE/Kronos/docs/GEMINI_FREE_TIER_RATE_LIMITS_AND_QUOTA_GUIDE.md)** | Strategic AI Copilot Governance | 1,500 RPD / 15 RPM Free Tier Math, Architectural Separation (Local Execution vs Remote Meta-Strategy), Zero Disruption Fallback. |
 | **[5. Unified Terminal Operator Guide](file:///F:/012D_TRADE/Kronos/docs/UNIFIED_TERMINAL_GUIDE.md)** | Web UI Operations (`:7070`) | Single-Page Application (SPA), Dashboard Telemetry, Forecaster Navigation, Bot & Arbiter Cockpit, Multi-Asset Switching. |
 | **[6. Binance Futures Bot Engineering Guide](file:///F:/012D_TRADE/Kronos/docs/KRONOS_BINANCE_FUTURES_BOT_GUIDE.md)** | Quantitative Execution Core | Binance USDⓈ-M Futures REST/WS Gateway, Precision Quantization, Atomic State Machine, Stale-Trade Mitigation. |
+| **[7. Incident Post-Mortem: Ground Truth & Anti-Lookahead](file:///F:/012D_TRADE/Kronos/docs/INCIDENT_POSTMORTEM_TIME_MACHINE_AND_GROUND_TRUTH.md)** | Quant Flaw Post-Mortem & Lessons | $200 -> $949k Lookahead Analysis, Stale CSV Elimination, Almgren-Chriss Sizing Bounds, Vibe-Trading Swarm Assessment, Active Lesson #11. |
 
 ---
 
@@ -48,11 +49,14 @@ python -X utf8 webui/app.py
 Open your browser to:
 👉 **`http://localhost:7070`**
 
-### Running Empirical Verification
+### Running Empirical Verification & Quant Sanity Audits
 ```bash
 # Fast Smoke Check (<4 seconds)
 python -m pytest tests/test_smoke.py -q
 
-# Full Regression Suite (58 unit & integration tests)
+# Run Quant Flaw & Sanity Auditor (Vibe-Trading Enhanced)
+python scripts/audit_quant_flaws.py
+
+# Full Regression Suite
 python -m pytest tests/ -q
 ```
