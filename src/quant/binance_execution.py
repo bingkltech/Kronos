@@ -79,7 +79,7 @@ class BinanceAtomicExecutor:
         self,
         api_key: Optional[str] = None,
         secret_key: Optional[str] = None,
-        testnet: bool = True,
+        testnet: Optional[bool] = None,
         dry_run: bool = True,
         session: Optional[requests.Session] = None,
         initial_equity: Decimal = Decimal("200.00"),
@@ -87,11 +87,25 @@ class BinanceAtomicExecutor:
         symbols_config: Optional[Dict[str, FuturesSymbolConfig]] = None,
         realistic_friction: bool = False
     ):
-        self.api_key = api_key or os.getenv("BINANCE_FUTURES_API_KEY", "")
-        self.secret_key = secret_key or os.getenv("BINANCE_FUTURES_SECRET_KEY", "")
-        self.testnet = testnet
+        self.api_key = (
+            api_key
+            or os.getenv("BINANCE_FUTURES_API_KEY")
+            or os.getenv("BINANCE_API_KEY", "")
+        )
+        self.secret_key = (
+            secret_key
+            or os.getenv("BINANCE_FUTURES_SECRET_KEY")
+            or os.getenv("BINANCE_API_SECRET")
+            or os.getenv("BINANCE_SECRET_KEY", "")
+        )
+        # Testnet detection: Respect explicit argument, or check BINANCE_TESTNET (defaults to False for live production)
+        if testnet is not None:
+            self.testnet = testnet
+        else:
+            self.testnet = os.getenv("BINANCE_TESTNET", "false").lower() in ("true", "1", "yes")
+
         self.dry_run = dry_run
-        self.base_url = self.TESTNET_URL if testnet else self.BASE_URL
+        self.base_url = self.TESTNET_URL if self.testnet else self.BASE_URL
         self.session = session or requests.Session()
         self.active_positions: Dict[str, ActiveBracketPosition] = {}
         self.paper_initial_equity: Decimal = initial_equity
