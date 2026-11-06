@@ -2251,6 +2251,16 @@
                     <span id="live-margin-ratio-badge" class="badge-regime regime-bull" style="font-size: 10px;">SAFE (&lt; 20%)</span>
                 </div>
             </div>
+
+            <div class="panel" style="margin-bottom: 0;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">BNB Fee Buffer</span>
+                <div style="font-size: 22px; font-weight: 800; font-family: var(--font-mono); color: #f0b90b; margin-top: 4px;" id="live-bnb-balance-val">
+                    0.0000 BNB
+                </div>
+                <div style="font-size: 11px; margin-top: 4px;">
+                    <span id="live-bnb-fee-badge" class="badge-regime" style="background: rgba(240, 185, 11, 0.15); color: #f0b90b; font-size: 10px;">⚡ 10% DISCOUNT ACTIVE</span>
+                </div>
+            </div>
         </div>
 
         <!-- KEV.ai 6-Point Supreme Veto Gate Visual Audit (Live Capital Guard) -->
@@ -3068,6 +3078,22 @@
                     }
                 }
 
+                // Update BNB Fee Buffer
+                const bnbBal = Number(acct.bnb_balance || 0);
+                const bnbActive = Boolean(acct.bnb_fee_discount_active);
+                const elBnb = document.getElementById('live-bnb-balance-val');
+                const elBnbBadge = document.getElementById('live-bnb-fee-badge');
+                if (elBnb) elBnb.textContent = `${bnbBal.toFixed(4)} BNB`;
+                if (elBnbBadge) {
+                    if (bnbActive) {
+                        elBnbBadge.textContent = '⚡ 10% DISCOUNT ACTIVE';
+                        elBnbBadge.className = 'badge-regime regime-bull';
+                    } else {
+                        elBnbBadge.textContent = 'INACTIVE (USDT DEDUCTION)';
+                        elBnbBadge.className = 'badge-regime regime-chop';
+                    }
+                }
+
                 // If live autopilot is active, dynamically dedicate the main dashboard to Live Trading!
                 if (liveAutopilotActive) {
                     const dTitle = document.getElementById('dash-portfolio-title');
@@ -3168,6 +3194,10 @@
                             const pnl = Number(t.realized_pnl_usd || 0);
                             const pnlColor = pnl > 0 ? '#3fb950' : (pnl < 0 ? '#f85149' : 'var(--text-muted)');
                             const sideColor = t.side === 'BUY' ? '#3fb950' : '#f85149';
+                            const feeAsset = t.fee_asset || 'USDT';
+                            const feeText = feeAsset === 'BNB' 
+                                ? `${t.fee_amount || '0'} BNB (~$${Number(t.fee_usd || 0).toFixed(4)})` 
+                                : `$${Number(t.fee_usd || 0).toFixed(4)} USDT`;
                             tr.innerHTML = `
                                 <td style="color: var(--text-muted); font-size: 11px;">${t.time.replace('T', ' ').slice(0, 19)}</td>
                                 <td><code style="color: #58a6ff;">${t.order_id || t.trade_id}</code></td>
@@ -3175,7 +3205,7 @@
                                 <td><strong style="color: ${sideColor};">${t.side}</strong></td>
                                 <td>$${Number(t.price || 0).toFixed(2)}</td>
                                 <td>${t.quantity}</td>
-                                <td style="color: var(--text-muted); font-size: 11px;">$${Number(t.fee_usd || 0).toFixed(4)} ${t.fee_asset || 'USDT'}</td>
+                                <td style="color: var(--text-muted); font-size: 11px;">${feeText}</td>
                                 <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
                             `;
                             tradesTbody.appendChild(tr);

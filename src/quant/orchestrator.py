@@ -101,6 +101,7 @@ class QuantBotOrchestrator:
                     account_equity = self.risk_config.small_account_threshold
             active_symbols = [p["symbol"] for p in live_summary.get("positions", [])]
             free_margin = live_summary.get("available_balance_usd", account_equity)
+            self.kev_arbiter.use_bnb_fee_discount = live_summary.get("bnb_fee_discount_active", False)
         else:
             if account_equity is None:
                 account_equity = self.executor.get_current_equity()

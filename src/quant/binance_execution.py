@@ -557,8 +557,29 @@ class BinanceAtomicExecutor:
             
         return resp.json()
 
+    def get_bnb_price(self) -> Decimal:
+        """Fetch current BNB mark price for fee valuation (cached for 60s, Zero Float Math)."""
+        now = time.time()
+        cached = getattr(self, "_bnb_price_cache", None)
+        cached_time = getattr(self, "_bnb_price_cache_time", 0)
+        if cached is not None and (now - cached_time) < 60:
+            return cached
+        try:
+            r = self.session.get(f"{self.base_url}/fapi/v1/ticker/price?symbol=BNBUSDT", timeout=5)
+            if r.status_code == 200:
+                px = Decimal(str(r.json().get("price", "640.0")))
+                self._bnb_price_cache = px
+                self._bnb_price_cache_time = now
+                return px
+        except Exception:
+            pass
+        fallback = cached or Decimal("640.0")
+        self._bnb_price_cache = fallback
+        self._bnb_price_cache_time = now
+        return fallback
+
     def get_live_account_summary(self) -> Dict[str, Any]:
-        """Query real USD(S)-M Futures balance, margin ratio, and position risk from Binance."""
+        """Query real USD(S)-M Futures balance, BNB fee buffer, margin ratio, and position risk from Binance."""
         if not self.api_key or not self.secret_key:
             self._refresh_credentials()
         if not self.api_key or not self.secret_key:
@@ -569,6 +590,8 @@ class BinanceAtomicExecutor:
                 "available_balance_usd": Decimal("0.00"),
                 "unrealized_pnl_usd": Decimal("0.00"),
                 "margin_ratio_pct": Decimal("0.00"),
+                "bnb_balance": Decimal("0.00"),
+                "bnb_fee_discount_active": False,
                 "active_positions_count": 0,
                 "positions": [],
                 "open_orders": []
@@ -584,6 +607,14 @@ class BinanceAtomicExecutor:
             total_margin = Decimal(str(account_data.get("totalMaintMargin", "0.00")))
             margin_ratio = (total_margin / total_wallet * Decimal("100")).quantize(Decimal("0.01")) if total_wallet > Decimal("0") else Decimal("0.00")
             
+            # Inspect Multi-Asset balances for BNB fee deduction buffer
+            bnb_balance = Decimal("0.00")
+            for a in account_data.get("assets", []):
+                if a.get("asset") == "BNB":
+                    bnb_balance = Decimal(str(a.get("walletBalance", "0.00")))
+                    break
+            bnb_fee_discount_active = bnb_balance >= Decimal("0.001")
+
             active_live_positions = []
             for p in pos_data:
                 amt = Decimal(str(p.get("positionAmt", "0.00")))
@@ -609,6 +640,8 @@ class BinanceAtomicExecutor:
                 "available_balance_usd": available_balance,
                 "unrealized_pnl_usd": total_unrealized,
                 "margin_ratio_pct": margin_ratio,
+                "bnb_balance": bnb_balance,
+                "bnb_fee_discount_active": bnb_fee_discount_active,
                 "active_positions_count": len(active_live_positions),
                 "positions": active_live_positions
             }
@@ -621,6 +654,8 @@ class BinanceAtomicExecutor:
                 "available_balance_usd": Decimal("0.00"),
                 "unrealized_pnl_usd": Decimal("0.00"),
                 "margin_ratio_pct": Decimal("0.00"),
+                "bnb_balance": Decimal("0.00"),
+                "bnb_fee_discount_active": False,
                 "active_positions_count": 0,
                 "positions": [],
                 "open_orders": []
@@ -782,12 +817,23 @@ class BinanceAtomicExecutor:
             return {"success": False, "error": str(e)}
 
     def get_live_trade_history(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Fetch real executed trades with realized PnL and commissions from Binance."""
+        """Fetch real executed trades with realized PnL and commissions from Binance (handles BNB fee asset)."""
         trades = []
+        bnb_price = None
         for sym in list(self.symbols_config.keys())[:5]:
             try:
                 user_trades = self._signed_request("GET", "/fapi/v1/userTrades", {"symbol": sym, "limit": limit})
                 for t in user_trades:
+                    fee_raw = Decimal(str(t.get("commission", "0")))
+                    fee_asset = t.get("commissionAsset", "USDT")
+                    
+                    if fee_asset == "BNB":
+                        if bnb_price is None:
+                            bnb_price = self.get_bnb_price()
+                        fee_usd = (fee_raw * bnb_price).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+                    else:
+                        fee_usd = fee_raw.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
                     trades.append({
                         "trade_id": str(t.get("id")),
                         "order_id": str(t.get("orderId")),
@@ -796,8 +842,9 @@ class BinanceAtomicExecutor:
                         "price": str(Decimal(str(t.get("price", "0")))),
                         "quantity": str(Decimal(str(t.get("qty", "0")))),
                         "realized_pnl_usd": str(Decimal(str(t.get("realizedPnl", "0")))),
-                        "fee_usd": str(Decimal(str(t.get("commission", "0")))),
-                        "fee_asset": t.get("commissionAsset", "USDT"),
+                        "fee_amount": str(fee_raw),
+                        "fee_usd": str(fee_usd),
+                        "fee_asset": fee_asset,
                         "time": datetime.datetime.fromtimestamp(t.get("time", 0) / 1000, tz=datetime.timezone.utc).isoformat()
                     })
             except Exception:

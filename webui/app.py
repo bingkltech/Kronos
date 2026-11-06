@@ -1804,6 +1804,8 @@ def get_live_status():
                 "available_balance_usd": float(live_account.get("available_balance_usd", Decimal("0.00"))),
                 "unrealized_pnl_usd": float(live_account.get("unrealized_pnl_usd", Decimal("0.00"))),
                 "margin_ratio_pct": float(live_account.get("margin_ratio_pct", Decimal("0.00"))),
+                "bnb_balance": float(live_account.get("bnb_balance", Decimal("0.00"))),
+                "bnb_fee_discount_active": bool(live_account.get("bnb_fee_discount_active", False)),
                 "active_positions_count": len(live_account.get("positions", [])),
                 "positions": live_account.get("positions", [])
             },

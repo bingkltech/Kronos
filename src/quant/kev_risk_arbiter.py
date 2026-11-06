@@ -70,6 +70,7 @@ class KEVSupremeArbiter:
     ):
         self.risk_config = risk_config or DEFAULT_RISK_CONFIG
         self.symbols_config = symbols_config or ALL_SUPPORTED_SYMBOLS
+        self.use_bnb_fee_discount: bool = False
 
     def update_sweetspot(
         self,
@@ -173,7 +174,11 @@ class KEVSupremeArbiter:
         # ----------------------------------------------------------------------
         # Gate 3: Net Fee Hurdle Gate (Lesson #10)
         # ----------------------------------------------------------------------
-        friction = cfg.round_trip_maker_friction() if is_maker_sniper else cfg.round_trip_taker_friction()
+        friction = (
+            cfg.round_trip_maker_friction(bnb_discount=self.use_bnb_fee_discount)
+            if is_maker_sniper
+            else cfg.round_trip_taker_friction(bnb_discount=self.use_bnb_fee_discount)
+        )
         net_drift = abs(trajectory.raw_drift) - friction
         min_hurdle = self.risk_config.min_net_fee_hurdle
 

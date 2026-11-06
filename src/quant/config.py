@@ -37,13 +37,16 @@ class FuturesSymbolConfig:
         fmt = Decimal("10") ** -self.quantity_precision
         return quantity.quantize(fmt, rounding=ROUND_DOWN)
 
-    def round_trip_taker_friction(self) -> Decimal:
-        """Round-trip taker friction: 2x taker fee + 2x estimated slippage."""
-        return (self.taker_fee_rate * Decimal("2")) + (self.est_slippage_rate * Decimal("2"))
+    def round_trip_taker_friction(self, bnb_discount: bool = False) -> Decimal:
+        """Round-trip taker friction: 2x taker fee (10% discount if BNB active) + 2x estimated slippage."""
+        taker = self.taker_fee_rate * Decimal("0.90") if bnb_discount else self.taker_fee_rate
+        return (taker * Decimal("2")) + (self.est_slippage_rate * Decimal("2"))
 
-    def round_trip_maker_friction(self) -> Decimal:
-        """Round-trip sniper friction: 1x maker entry + 1x taker exit + 1x slippage."""
-        return self.maker_fee_rate + self.taker_fee_rate + self.est_slippage_rate
+    def round_trip_maker_friction(self, bnb_discount: bool = False) -> Decimal:
+        """Round-trip sniper friction: 1x maker entry + 1x taker exit + 1x slippage (with 10% BNB discount)."""
+        maker = self.maker_fee_rate * Decimal("0.90") if bnb_discount else self.maker_fee_rate
+        taker = self.taker_fee_rate * Decimal("0.90") if bnb_discount else self.taker_fee_rate
+        return maker + taker + self.est_slippage_rate
 
 
 # ==============================================================================
