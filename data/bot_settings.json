@@ -6,7 +6,7 @@
   "live_last_cycle_summary": null,
   "last_cycle_summary": {
     "success": true,
-    "timestamp": "2026-11-05T20:33:29.130247+00:00",
+    "timestamp": "2026-11-05T21:44:03.709837+00:00",
     "macro_regime": "BEAR_DISTRIBUTION",
     "breadth_pct": "0.0%",
     "evaluated_count": 8,
@@ -287,5 +287,5 @@
   },
   "gemini_auto_apply": true,
   "latest_gemini_assessment": null,
-  "updated_at": "2026-11-05T20:33:49.109269+00:00"
+  "updated_at": "2026-11-05T21:44:22.842825+00:00"
 }

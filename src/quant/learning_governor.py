@@ -53,15 +53,26 @@ class LearningGovernor:
     def __init__(self, db_path: Optional[str] = None):
         workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         self.db_path = db_path or os.path.join(workspace_root, "data", "lessons.db")
+        self._is_mem = (self.db_path == ":memory:")
+        self._mem_conn = sqlite3.connect(":memory:") if self._is_mem else None
         self._init_calibration_tables()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        if self._is_mem:
+            return self._mem_conn
+        return sqlite3.connect(self.db_path)
+
+    def _close_connection(self, conn: sqlite3.Connection) -> None:
+        if not self._is_mem and conn:
+            conn.close()
 
     def _init_calibration_tables(self) -> None:
         """Ensure calibration and trade history tables exist."""
-        if self.db_path != ":memory:":
+        if not self._is_mem:
             dir_name = os.path.dirname(self.db_path)
             if dir_name:
                 os.makedirs(dir_name, exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_connection()
         try:
             with conn:
                 cursor = conn.cursor()
@@ -84,11 +95,11 @@ class LearningGovernor:
                 except sqlite3.OperationalError:
                     pass
         finally:
-            conn.close()
+            self._close_connection(conn)
 
     def record_outcome(self, outcome: TradeOutcome) -> None:
         """Log a trade post-mortem into SQLite institutional memory."""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_connection()
         try:
             with conn:
                 cursor = conn.cursor()
@@ -107,7 +118,7 @@ class LearningGovernor:
                     outcome.execution_mode
                 ))
         finally:
-            conn.close()
+            self._close_connection(conn)
 
     def calculate_brier_calibration(
         self,
@@ -186,7 +197,7 @@ class LearningGovernor:
             return []
 
         outcomes: List[TradeOutcome] = []
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
@@ -217,5 +228,5 @@ class LearningGovernor:
                     execution_mode=mode
                 ))
         finally:
-            conn.close()
+            self._close_connection(conn)
         return outcomes

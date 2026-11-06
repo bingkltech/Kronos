@@ -16,6 +16,7 @@ Welcome to the institutional documentation repository for **Kronos**, an autonom
 | **[6. Binance Futures Bot Engineering Guide](file:///F:/012D_TRADE/Kronos/docs/KRONOS_BINANCE_FUTURES_BOT_GUIDE.md)** | Quantitative Execution Core | Binance USDⓈ-M Futures REST/WS Gateway, Precision Quantization, Atomic State Machine, Stale-Trade Mitigation. |
 | **[7. Incident Post-Mortem: Ground Truth & Anti-Lookahead](file:///F:/012D_TRADE/Kronos/docs/INCIDENT_POSTMORTEM_TIME_MACHINE_AND_GROUND_TRUTH.md)** | Quant Flaw Post-Mortem & Lessons | $200 -> $949k Lookahead Analysis, Stale CSV Elimination, Almgren-Chriss Sizing Bounds, Vibe-Trading Swarm Assessment, Active Lesson #11. |
 | **[8. Real Live Trading & Mutual Exclusion Guide](file:///F:/012D_TRADE/Kronos/docs/REAL_LIVE_TRADING_AND_MUTUAL_EXCLUSION_GUIDE.md)** | Production Live Execution | Binance USD(S)-M Live Workstation, Strict Mutual Exclusion Loop, Real Telemetry, Shared ONNX Brain, 2.5x Live Bayesian Weighting. |
+| **[9. Quant-Grade Deployment Checklist & Operational Audit](file:///F:/012D_TRADE/Kronos/docs/QUANT_GRADE_DEPLOYMENT_CHECKLIST_AND_AUDIT.md)** | Institutional Deployment Standard | 6 Pillars, 18 Deployment Gates, Zero Ruin Risk, Automated CLI Verification Suite (`verify_deployment_readiness.py`). |
 
 ---
 
