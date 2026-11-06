@@ -1,4 +1,9 @@
 import os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 import pandas as pd
 import numpy as np
 import json

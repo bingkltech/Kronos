@@ -215,8 +215,12 @@ class QuantBotOrchestrator:
                     pos = self.executor.submit_live_bracket_order(decision.ticket)
                 else:
                     pos = self.executor.submit_bracket_order(decision.ticket, fill_time_utc=current_time_utc)
-                dispatched_trades.append(pos)
-                active_symbols.append(symbol)
+                if pos.state != PositionState.REJECTED:
+                    dispatched_trades.append(pos)
+                    active_symbols.append(symbol)
+                else:
+                    decision.approved = False
+                    decision.veto_reason = f"ORDER_REJECTED: {pos.close_reason}"
 
                 # Stop scanning if max concurrent positions reached
                 if len(active_symbols) >= self.risk_config.max_concurrent_positions:

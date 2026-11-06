@@ -26,6 +26,12 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional, Tuple, Any
 import requests
 
+try:
+    import dotenv
+    dotenv.load_dotenv()
+except Exception:
+    pass
+
 logger = logging.getLogger("Kronos.BinanceExecution")
 
 from src.quant.config import TOP_10_SYMBOLS, FuturesSymbolConfig, DEFAULT_RISK_CONFIG
@@ -87,17 +93,10 @@ class BinanceAtomicExecutor:
         symbols_config: Optional[Dict[str, FuturesSymbolConfig]] = None,
         realistic_friction: bool = False
     ):
-        self.api_key = (
-            api_key
-            or os.getenv("BINANCE_FUTURES_API_KEY")
-            or os.getenv("BINANCE_API_KEY", "")
-        )
-        self.secret_key = (
-            secret_key
-            or os.getenv("BINANCE_FUTURES_SECRET_KEY")
-            or os.getenv("BINANCE_API_SECRET")
-            or os.getenv("BINANCE_SECRET_KEY", "")
-        )
+        self.api_key = ""
+        self.secret_key = ""
+        self._refresh_credentials(api_key, secret_key)
+
         # Testnet detection: Respect explicit argument, or check BINANCE_TESTNET (defaults to False for live production)
         if testnet is not None:
             self.testnet = testnet
@@ -126,6 +125,34 @@ class BinanceAtomicExecutor:
             self.state_file = state_file
 
         self._load_paper_state()
+
+    def _refresh_credentials(self, api_key: Optional[str] = None, secret_key: Optional[str] = None):
+        """Dynamically resolve Binance API credentials from arguments or environment (.env)."""
+        try:
+            import dotenv
+            dotenv.load_dotenv(override=False)
+        except Exception:
+            pass
+
+        self.api_key = (
+            api_key
+            or os.getenv("BINANCE_FUTURES_API_KEY")
+            or os.getenv("BINANCE_API_KEY")
+            or os.getenv("Binance_API_Future_Krono")
+            or os.getenv("BINANCE_API_KEY_READONLY")
+            or self.api_key
+            or ""
+        ).strip()
+
+        self.secret_key = (
+            secret_key
+            or os.getenv("BINANCE_FUTURES_SECRET_KEY")
+            or os.getenv("BINANCE_API_SECRET")
+            or os.getenv("BINANCE_SECRET_KEY")
+            or os.getenv("Binance_secretKey_Future_Krono")
+            or self.secret_key
+            or ""
+        ).strip()
 
     def _pos_to_dict(self, pos: ActiveBracketPosition) -> Dict[str, Any]:
         """Serialize an ActiveBracketPosition to a JSON-compatible dictionary."""
@@ -492,6 +519,8 @@ class BinanceAtomicExecutor:
     ) -> Dict[str, Any]:
         """Send an authenticated signed request to Binance USD(S)-M Futures REST API."""
         if not self.api_key or not self.secret_key:
+            self._refresh_credentials()
+        if not self.api_key or not self.secret_key:
             raise ValueError("BINANCE_FUTURES_API_KEY and BINANCE_FUTURES_SECRET_KEY are required for live execution.")
         
         url = f"{self.base_url}{path}"
@@ -530,6 +559,8 @@ class BinanceAtomicExecutor:
 
     def get_live_account_summary(self) -> Dict[str, Any]:
         """Query real USD(S)-M Futures balance, margin ratio, and position risk from Binance."""
+        if not self.api_key or not self.secret_key:
+            self._refresh_credentials()
         if not self.api_key or not self.secret_key:
             return {
                 "connected": False,
@@ -612,27 +643,49 @@ class BinanceAtomicExecutor:
         Execute real capital atomic bracket order on Binance Futures REST API.
         1. Pre-flight isolated margin & leverage.
         2. Market entry order dispatch.
-        3. Simultaneous Stop-Loss & Take-Profit dispatch with reduceOnly.
+        3. Simultaneous Stop-Loss & Take-Profit dispatch via Algo Order API (/fapi/v1/algoOrder).
         4. Anti-naked-position: If SL fails to confirm in 1,000ms, emergency market flatten.
         """
         sym_cfg = self.symbols_config.get(ticket.symbol)
         price_prec = sym_cfg.price_precision if sym_cfg else 2
         qty_prec = sym_cfg.quantity_precision if sym_cfg else 3
+        fmt_price = Decimal("10") ** -price_prec
+        fmt_qty = Decimal("10") ** -qty_prec
         
         self.ensure_isolated_margin(ticket.symbol, leverage=min(5, ticket.effective_leverage))
         
         side = "BUY" if ticket.side in ("BUY", "LONG") else "SELL"
         opp_side = "SELL" if side == "BUY" else "BUY"
         
+        qty_str = str(ticket.quantity.quantize(fmt_qty, rounding=ROUND_HALF_UP))
+        sl_price_str = str(ticket.stop_loss.quantize(fmt_price, rounding=ROUND_HALF_UP))
+        tp_price_str = str(ticket.take_profit.quantize(fmt_price, rounding=ROUND_HALF_UP))
+        
         # 1. Entry Market Order
         entry_params = {
             "symbol": ticket.symbol,
             "side": side,
             "type": "MARKET",
-            "quantity": str(ticket.quantity),
-            "newClientOrderId": f"LIVE_ENTRY_{ticket.symbol}_{int(time.time()*1000)}"
+            "quantity": qty_str,
+            "newClientOrderId": f"LIVE_{ticket.symbol}_{int(time.time()*1000)}"[:32]
         }
-        entry_resp = self._signed_request("POST", "/fapi/v1/order", entry_params)
+        try:
+            entry_resp = self._signed_request("POST", "/fapi/v1/order", entry_params)
+        except Exception as e:
+            logger.warning("Live entry rejected for %s: %s", ticket.symbol, e)
+            pos_id = f"REJECTED_{ticket.symbol}-{int(time.time()*1000)}"
+            return ActiveBracketPosition(
+                position_id=pos_id,
+                symbol=ticket.symbol,
+                side=ticket.side,
+                entry_price=ticket.entry_price,
+                stop_loss=ticket.stop_loss,
+                take_profit=ticket.take_profit,
+                quantity=ticket.quantity,
+                state=PositionState.REJECTED,
+                close_reason=str(e)
+            )
+
         fill_price = Decimal(str(entry_resp.get("avgPrice", ticket.entry_price)))
         if fill_price <= Decimal("0"):
             fill_price = ticket.entry_price
@@ -651,29 +704,31 @@ class BinanceAtomicExecutor:
             entry_fill_time_utc=datetime.datetime.now(datetime.timezone.utc)
         )
         
-        # 2. Dispatch Stop-Loss & Take-Profit Brackets
+        # 2. Dispatch Stop-Loss & Take-Profit Brackets via Binance Algo Order Service
         try:
             sl_params = {
+                "algoType": "CONDITIONAL",
                 "symbol": ticket.symbol,
                 "side": opp_side,
                 "type": "STOP_MARKET",
-                "stopPrice": str(ticket.stop_loss),
+                "triggerPrice": sl_price_str,
                 "closePosition": "true",
-                "newClientOrderId": f"LIVE_SL_{ticket.symbol}_{int(time.time()*1000)}"
+                "clientAlgoId": f"SL_{ticket.symbol}_{int(time.time()*1000)}"[:32]
             }
-            sl_resp = self._signed_request("POST", "/fapi/v1/order", sl_params)
-            pos.sl_order_id = str(sl_resp.get("orderId"))
+            sl_resp = self._signed_request("POST", "/fapi/v1/algoOrder", sl_params)
+            pos.sl_order_id = str(sl_resp.get("algoId") or sl_resp.get("orderId"))
             
             tp_params = {
+                "algoType": "CONDITIONAL",
                 "symbol": ticket.symbol,
                 "side": opp_side,
                 "type": "TAKE_PROFIT_MARKET",
-                "stopPrice": str(ticket.take_profit),
+                "triggerPrice": tp_price_str,
                 "closePosition": "true",
-                "newClientOrderId": f"LIVE_TP_{ticket.symbol}_{int(time.time()*1000)}"
+                "clientAlgoId": f"TP_{ticket.symbol}_{int(time.time()*1000)}"[:32]
             }
-            tp_resp = self._signed_request("POST", "/fapi/v1/order", tp_params)
-            pos.tp_order_id = str(tp_resp.get("orderId"))
+            tp_resp = self._signed_request("POST", "/fapi/v1/algoOrder", tp_params)
+            pos.tp_order_id = str(tp_resp.get("algoId") or tp_resp.get("orderId"))
             pos.state = PositionState.BRACKETS_ACTIVE
             
         except Exception as e:
@@ -683,7 +738,7 @@ class BinanceAtomicExecutor:
                     "symbol": ticket.symbol,
                     "side": opp_side,
                     "type": "MARKET",
-                    "quantity": str(ticket.quantity),
+                    "quantity": qty_str,
                     "reduceOnly": "true"
                 }
                 self._signed_request("POST", "/fapi/v1/order", flatten_params)
@@ -695,7 +750,7 @@ class BinanceAtomicExecutor:
         return pos
 
     def flatten_all_live_positions(self) -> Dict[str, Any]:
-        """Cancel all live open orders and market flatten all active open positions."""
+        """Cancel all live open orders, cancel open algo orders, and market flatten all active open positions."""
         results = []
         try:
             pos_data = self._signed_request("GET", "/fapi/v2/positionRisk")
@@ -705,6 +760,10 @@ class BinanceAtomicExecutor:
                 if abs(amt) > Decimal("0"):
                     try:
                         self._signed_request("DELETE", "/fapi/v1/allOpenOrders", {"symbol": sym})
+                    except Exception:
+                        pass
+                    try:
+                        self._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": sym})
                     except Exception:
                         pass
                     side = "SELL" if amt > Decimal("0") else "BUY"
