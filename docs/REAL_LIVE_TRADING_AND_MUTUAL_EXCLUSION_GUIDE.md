@@ -37,9 +37,11 @@ The Live Trading page queries Binance in real time and renders:
    - `< 20%`: **SAFE** (Green badge)
    - `20% - 50%`: **MODERATE** (Amber badge)
    - `> 50%`: **CRITICAL RISK** (Red badge)
-5. **Active Live Positions Table (`/fapi/v2/positionRisk`):** Symbol, side, position size, notional value, entry price, live mark price, liquidation price, margin mode (`ISOLATED`), leverage, and individual one-click `[Close]` button.
-6. **Live Fill & Trade History (`/fapi/v1/userTrades`):** Real exchange fills, timestamps, order IDs, realized PnL, and exchange commission fees (USDT/BNB).
-7. **Emergency Market Flatten (`🛑 EMERGENCY FLATTEN ALL LIVE`):** One-click fail-safe that cancels all active open orders (`DELETE /fapi/v1/allOpenOrders`) and executes market closures (`reduceOnly=true`) across all held positions.
+5. **BNB Fee Deduction Buffer:** Live audit of BNB balance in the Futures wallet. When balance $\ge 0.001\text{ BNB}$, the system displays `⚡ 10% DISCOUNT ACTIVE`, cutting taker fees by 10%.
+6. **Active Live Positions Table (`/fapi/v2/positionRisk`):** Symbol, side, position size, notional value, entry price, live mark price, liquidation price, margin mode (`ISOLATED`), leverage, and individual one-click `[Close]` button.
+7. **Live Fill & Trade History (`/fapi/v1/userTrades`):** Real exchange fills, timestamps, order IDs, realized PnL, and exchange commission fees (USDT/BNB).
+8. **Anti-Flicker Telemetry & DOM Diffing:** Backend TTL caching (15s trade cache, 3s account cache) combined with frontend signature diffing (`tradesSig`, `posSig`), eliminating browser table flicker and reducing Binance API weight by ~90%.
+9. **Emergency Market Flatten (`🛑 EMERGENCY FLATTEN ALL LIVE`):** One-click fail-safe that cancels all active open orders (`DELETE /fapi/v1/allOpenOrders`) and executes market closures (`reduceOnly=true`) across all held positions.
 
 ---
 

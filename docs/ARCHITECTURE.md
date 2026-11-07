@@ -1,11 +1,12 @@
 # Kronos Institutional Quant Architecture & Multi-Agent Engine
 
-> **Document Version:** 2.4.0  
+> **Document Version:** 2.5.0  
 > **Target Framework:** Binance USDⓈ-M Perpetual Futures & Spot Universe  
 > **Core Alpha Engine:** `NeoQuasar/Kronos-base` (102.3M parameters, 512 context length)  
-> **Risk Arbiter:** KEV.ai 6-Point Supreme Veto Gate & Bayesian Brier Learning Engine  
+> **Risk Arbiter:** KEV.ai 7-Point Supreme Veto Gate & Bayesian Brier Learning Engine  
 > **Strategy Copilot:** Gemini Free Tier Meta-Strategy Arbiter (`gemini-3.8-flash`)  
-> **Execution Baseline:** Small-Account Micro-Trading Engine ($200.00 USDT Paper Equity)  
+> **Execution Modes:** Real Live Trading (Binance Futures) & Realistic Paper Trading ($200.00 USDT Baseline)  
+> **Daemon Supervisor:** Standalone 24/7 Watchdog (`scripts/standalone_daemon.py`) & Windows Task Scheduler  
 > **Terminal:** Unified 3-in-1 Bloomberg/Terminal-Grade Front-End (`http://localhost:7070`)
 
 ---
@@ -15,15 +16,17 @@
 Kronos is an institutional-grade quantitative trading and forecasting platform. Rather than relying on simple technical indicators or uncalibrated language model sentiment, Kronos synergizes:
 1. **The Kronos Foundation Model:** Autoregressive time-series transformer for 12-hour candlestick trajectory generation and dynamic volatility envelopes.
 2. **Decoupled Asynchronous Macro Specialists:** Continuous surveillance of macroeconomic catalysts (CPI/FOMC blackout shield), perpetual funding carry economics, and 24h market breadth.
-3. **KEV.ai Risk Arbiter & Supreme Veto Gate:** A 6-point mathematical veto gate that audits every proposed ticket for trend alignment, funding drag, exchange fee hurdles ($\ge 0.50\%$), minimum 1.60:1 reward/risk, and adversarial Bull/Bear contradictions.
+3. **KEV.ai Risk Arbiter & Supreme Veto Gate:** A 7-point mathematical veto gate that audits every proposed ticket for trend alignment, funding drag, exchange fee hurdles ($\ge 0.50\%$), minimum 1.50:1 reward/risk, volatility envelopes, and adversarial Bull/Bear contradictions.
 4. **The Learning Governor:** An empirical calibration engine that scores rolling 48-hour forecasts using Brier probability loss, throttles risk capital ($0.0\text{x}-1.0\text{x}$), and logs post-mortems into an SQLite institutional database (`data/lessons.db`).
-5. **Small-Account Micro-Trading & State Persistence Engine:** $200.00 USDT starting equity baseline with 1.5% max risk budgeting, full position and trade history persistence in `data/paper_trading_state.json`, and bot settings memory in `data/bot_settings.json`.
+5. **Real Live Trading & Small-Account Micro-Trading Engine:** Real Binance Futures execution with ISOLATED margin, BNB fee discount deduction buffer (10% off), small-account risk budgeting, and state persistence in `data/bot_settings.json`.
 6. **Atomic Execution State Machine:** Failsafe bracket order execution with an Anti-Naked-Position Guard (1,000ms SL timeout emergency flatten) and a 12-Hour Temporal Stale-Trade Expiry.
-7. **Institutional Dynamic Chart & Multi-Pane Workstation:** A dynamic front-end replicating institutional prop execution suites, featuring:
+7. **Standalone 24/7 Service Daemon:** Decoupled process supervisor (`scripts/standalone_daemon.py`) with automatic restarts, circuit breakers, 10MB capped log rotation, and one-click controls (`start_standalone.bat`, `stop_standalone.bat`, `status.bat`).
+8. **Anti-Flicker Telemetry & DOM Diffing:** Backend TTL caching (15s trade cache, 3s account cache) and frontend signature diffing (`tradesSig`, `posSig`) eliminating browser reflows and reducing Binance API weight by ~90%.
+9. **Institutional Dynamic Chart & Multi-Pane Workstation:** A dynamic front-end replicating institutional prop execution suites, featuring:
    - Dynamic Drag-to-Pan & Zoom across time and price axes.
-   - Radiant Golden Monte Carlo Trajectory Fan (1,000 futures paths) radiating from current candle close with P(up)=0.275 and P(down)=0.725 conviction tags.
-   - Real-time countdown timer (T-50:04) and floating price beacon (NOW $77,859).
-   - Three modular draggable sub-panes: 01 Heat Map (depth ladder), 02 Flow (dual CVD mountain area chart), and 03 Agent Sim Log (Monte Carlo execution stream with one-click `> place the paper order` automated dispatch).
+   - Radiant Golden Monte Carlo Trajectory Fan (1,000 futures paths) radiating from current candle close with P(up) and P(down) conviction tags.
+   - Real-time countdown timer and floating price beacon.
+   - Three modular draggable sub-panes: 01 Heat Map, 02 Flow (dual CVD mountain area chart), and 03 Agent Sim Log.
    - Resizable horizontal and vertical splitters for fluid layout adjustment.
 
 ---
@@ -194,6 +197,7 @@ Acts as the **Supervisory Chief Investment Officer (CIO)** operating on an async
 | **3. Base Checkpoint Immutability** | Foundation checkpoints on HuggingFace are read-only. Never mutate live weights. | Fine-tunes saved exclusively in `finetune/checkpoints/`; learning updates only the Bayesian capital multiplier. |
 | **4. ASVL & Rule-of-2** | Never deploy unverified code. Stop if identical test failure occurs twice in a row. | Comprehensive automated pytest suite running on every modification. |
 | **5. Token Bloat Hygiene** | Minimize token burn and API costs. | Targeted diffs, concise logging, sub-50ms local ONNX inference. |
+| **6. Agentic Memory Policy** | Active lean memories only (Working, Semantic, Procedural, Prospective). Reject high-latency vector DBs and live weight mutation. | Documented in `docs/AGENTIC_MEMORY_ARCHITECTURE.md`. |
 
 ---
 
@@ -206,13 +210,15 @@ python -m pytest tests/ -q
 ```
 
 **Results:**
-* `tests/test_quant_config.py`: Precision quantization, fee tables, symbol configs, $200 USDT baseline.
+* `tests/test_quant_config.py`: Precision quantization, fee tables, symbol configs, small-account risk baseline.
 * `tests/test_macro_specialists.py`: Economic calendar blackout, funding carry radar.
 * `tests/test_crypto_index_engine.py`: Multi-threaded VWAP calculation, breadth classifier.
 * `tests/test_kronos_trajectory_engine.py`: 12h autoregressive predictions, dynamic brackets, positive expectancy.
-* `tests/test_kev_risk_arbiter.py`: 6-point veto gates, Kelly sizing, Devil's advocate.
+* `tests/test_kev_risk_arbiter.py`: 7-point veto gates, Kelly sizing, Devil's advocate.
 * `tests/test_learning_governor.py`: Rolling Brier score, capital throttle, SQLite DB.
-* `tests/test_binance_execution.py`: Atomic bracket orders, anti-naked guard, 12h temporal exit, state persistence.
+* `tests/test_binance_execution.py`: Real live Binance atomic bracket orders, BNB fee deduction, isolated margin, anti-naked guard.
 * `tests/test_pepe_asset_scaling.py`: Sub-penny PEPE vs BTC precision and envelope scaling.
 * `tests/test_quant_pipeline.py`: Full end-to-end multi-agent pipeline integration.
-* **Status:** 52 passed in 41.6s (100% pass rate).
+* `tests/test_gemini_strategy_arbiter.py`: Strategic digest generation, bounded parameter adaptation.
+* `tests/test_smoke.py`: Ultra-fast (<4s) full pipeline smoke verification.
+* **Status:** 58 passed in 52.89s (100% pass rate).
