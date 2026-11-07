@@ -1058,7 +1058,7 @@ def get_macro_overview():
 # Autonomous Quant Bot & KEV.ai Auto-Pilot Daemon
 # ==============================================================================
 
-bot_autopilot_enabled = True   # Automatically active on start
+bot_autopilot_enabled = False  # Paper trading paused by default; Live is persistent system default per user directive
 bot_autopilot_interval = 60    # Default: 60s autonomous scan interval
 bot_autopilot_last_scan = None
 bot_autopilot_next_scan_time = None
@@ -1066,7 +1066,7 @@ bot_last_cycle_summary = None
 bot_autopilot_lock = threading.Lock()
 
 # Live Real Capital Trading Configuration & Mutual Exclusion
-live_trading_enabled = False          # False by default for strict safety
+live_trading_enabled = True           # True by default per user directive
 live_trading_interval = 60           # 60s autonomous live scan interval
 live_trading_last_scan = None
 live_trading_next_scan_time = None
@@ -1093,14 +1093,24 @@ def _load_bot_settings():
     try:
         with open(BOT_SETTINGS_FILE, "r", encoding="utf-8") as f:
             cfg = json.load(f)
+            if "live_trading_enabled" in cfg:
+                live_trading_enabled = bool(cfg["live_trading_enabled"])
+            else:
+                live_trading_enabled = True
+
             if "enabled" in cfg:
                 bot_autopilot_enabled = bool(cfg["enabled"])
+            else:
+                bot_autopilot_enabled = False
+
+            # Strict mutual exclusion enforcement on startup:
+            if live_trading_enabled:
+                bot_autopilot_enabled = False
+
             if "interval_seconds" in cfg:
                 bot_autopilot_interval = max(10, int(cfg["interval_seconds"]))
             if "last_cycle_summary" in cfg and cfg["last_cycle_summary"]:
                 bot_last_cycle_summary = cfg["last_cycle_summary"]
-            if "live_trading_enabled" in cfg:
-                live_trading_enabled = bool(cfg["live_trading_enabled"])
             if "live_trading_interval" in cfg:
                 live_trading_interval = max(10, int(cfg["live_trading_interval"]))
             if "live_last_cycle_summary" in cfg and cfg["live_last_cycle_summary"]:

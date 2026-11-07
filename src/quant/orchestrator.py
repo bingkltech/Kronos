@@ -197,7 +197,8 @@ class QuantBotOrchestrator:
             )
 
             # 7. KEV.ai Supreme Veto Gate & Kelly Sizing
-            free_margin = self.executor.get_free_margin()
+            if execution_mode != "LIVE":
+                free_margin = self.executor.get_free_margin()
             decision = self.risk_arbiter.evaluate_candidate(
                 trajectory=trajectory,
                 news_verdict=news_verdict,
@@ -219,6 +220,10 @@ class QuantBotOrchestrator:
                 if pos.state != PositionState.REJECTED:
                     dispatched_trades.append(pos)
                     active_symbols.append(symbol)
+                    if execution_mode == "LIVE" and decision.ticket:
+                        lev = Decimal(str(decision.ticket.effective_leverage or 2))
+                        used = (pos.quantity * pos.entry_price) / lev
+                        free_margin = max(Decimal("0.00"), free_margin - used)
                 else:
                     decision.approved = False
                     decision.veto_reason = f"ORDER_REJECTED: {pos.close_reason}"

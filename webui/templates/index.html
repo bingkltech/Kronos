@@ -2577,6 +2577,7 @@
         // Global App Router & State
         // =====================================================================
         let currentActiveView = 'dashboard';
+        let liveAutopilotActive = true;
         let currentDataFile = null;
         let currentDataInfo = null;
         let availableModels = [];
@@ -2828,7 +2829,7 @@
                             btnAuto.innerHTML = '⏸️ Auto-Pilot: PAUSED';
                             btnAuto.style.background = '#30363d';
                         }
-                        if (topPill) {
+                        if (topPill && !liveAutopilotActive) {
                             topPill.innerHTML = 'BOT & KEV.AI: PAUSED';
                             topPill.classList.remove('status-online');
                         }
@@ -3098,7 +3099,7 @@
         // =====================================================================
         // VIEW 4: REAL LIVE TRADING JAVASCRIPT API & TELEMETRY ENGINE
         // =====================================================================
-        let liveAutopilotActive = false;
+        // liveAutopilotActive hoisted to global state
 
         async function loadLiveDashboard() {
             try {

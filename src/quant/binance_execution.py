@@ -111,6 +111,8 @@ class BinanceAtomicExecutor:
         self.closed_trades: List[Dict[str, Any]] = []
         self.symbols_config = symbols_config or TOP_10_SYMBOLS
         self.realistic_friction = realistic_friction
+        self._time_offset_ms: int = 0
+        self._last_time_sync: float = 0.0
 
         # Test isolation: When running under pytest without explicit state_file,
         # avoid touching disk so unit tests never pollute live paper trading ledger!
@@ -511,6 +513,22 @@ class BinanceAtomicExecutor:
             hashlib.sha256
         ).hexdigest()
 
+    def _sync_server_time(self) -> int:
+        """Synchronize local system clock with Binance Futures server time to eliminate recvWindow errors."""
+        try:
+            t0 = int(time.time() * 1000)
+            resp = self.session.get(f"{self.base_url}/fapi/v1/time", timeout=5)
+            if resp.status_code == 200:
+                server_time = resp.json().get("serverTime", t0)
+                t1 = int(time.time() * 1000)
+                latency = max(0, (t1 - t0) // 2)
+                self._time_offset_ms = (server_time - t1) + latency
+                self._last_time_sync = time.time()
+                return self._time_offset_ms
+        except Exception as e:
+            logger.debug("Failed to synchronize Binance server time: %s", e)
+        return self._time_offset_ms
+
     def _signed_request(
         self,
         method: str,
@@ -525,7 +543,16 @@ class BinanceAtomicExecutor:
         
         url = f"{self.base_url}{path}"
         payload = params.copy() if params else {}
-        payload["timestamp"] = int(time.time() * 1000)
+        is_retry = bool(payload.pop("_is_retry", False))
+        
+        # Periodic server time sync every 15 minutes or if never synced
+        if time.time() - getattr(self, "_last_time_sync", 0.0) > 900:
+            self._sync_server_time()
+            
+        current_time_ms = int(time.time() * 1000) + getattr(self, "_time_offset_ms", 0)
+        payload["timestamp"] = current_time_ms
+        if "recvWindow" not in payload:
+            payload["recvWindow"] = 10000
         
         query_str = urllib.parse.urlencode(payload)
         signature = self._generate_signature(query_str)
@@ -550,7 +577,16 @@ class BinanceAtomicExecutor:
             error_msg = resp.text
             try:
                 error_data = resp.json()
+                code = error_data.get("code")
                 error_msg = error_data.get("msg", resp.text)
+                # Code -1021: Timestamp for this request is outside of the recvWindow.
+                if code == -1021 and not is_retry:
+                    logger.warning("Timestamp outside recvWindow (-1021). Resyncing clock and retrying...")
+                    self._sync_server_time()
+                    retry_params = params.copy() if params else {}
+                    retry_params["_is_retry"] = True
+                    retry_params["recvWindow"] = 15000
+                    return self._signed_request(method, path, retry_params)
             except Exception:
                 pass
             raise RuntimeError(f"Binance Futures API Error ({resp.status_code}): {error_msg}")
