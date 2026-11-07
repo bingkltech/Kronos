@@ -1035,6 +1035,17 @@ def get_macro_overview():
                 "carry_verdict": carry.verdict
             })
             
+        # Live Binance Account & Recent Trades
+        live_account = None
+        live_trades = []
+        if live_trading_enabled:
+            try:
+                live_account = quant_bot.executor.get_live_account_summary()
+                if live_account and live_account.get("connected"):
+                    live_trades = quant_bot.executor.get_live_trade_history(limit=15)
+            except Exception as err:
+                logger.debug("Live account overview error: %s", err)
+
         return jsonify({
             "success": True,
             "macro_regime": macro_verdict.macro_regime,
@@ -1049,6 +1060,18 @@ def get_macro_overview():
                 "reason": news_verdict.reason
             },
             "symbols": symbols_data,
+            "live_trading_enabled": live_trading_enabled,
+            "live_account": {
+                "connected": live_account.get("connected", False) if live_account else False,
+                "total_wallet_balance_usd": float(live_account.get("total_wallet_balance_usd", Decimal("0.00"))) if live_account else 0.0,
+                "available_balance_usd": float(live_account.get("available_balance_usd", Decimal("0.00"))) if live_account else 0.0,
+                "unrealized_pnl_usd": float(live_account.get("unrealized_pnl_usd", Decimal("0.00"))) if live_account else 0.0,
+                "margin_ratio_pct": float(live_account.get("margin_ratio_pct", Decimal("0.00"))) if live_account else 0.0,
+                "bnb_balance": float(live_account.get("bnb_balance", Decimal("0.00"))) if live_account else 0.0,
+                "bnb_fee_discount_active": bool(live_account.get("bnb_fee_discount_active", False)) if live_account else False,
+                "positions": live_account.get("positions", []) if live_account else []
+            } if live_account else None,
+            "live_trades": live_trades,
             "paper_report": quant_bot.executor.get_paper_summary()
         })
     except Exception as e:

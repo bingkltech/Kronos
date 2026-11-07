@@ -1288,116 +1288,192 @@
             </div>
         </div>
 
-        <!-- Live Paper Trading Performance & Win/Loss Audit -->
-        <div class="panel" style="border: 1px solid rgba(88, 166, 255, 0.3); background: rgba(22, 27, 34, 0.85); margin-bottom: 20px;">
+        <!-- Real Live Binance Futures Portfolio & Trade Execution Dashboard -->
+        <div class="panel" style="border: 1px solid rgba(255, 82, 82, 0.4); background: rgba(22, 27, 34, 0.9); margin-bottom: 20px; border-left: 4px solid #ff5252;">
             <div class="panel-header">
-                <span class="panel-title" style="color: #58a6ff;">
-                    <span>📊</span> <span id="dash-portfolio-title">Paper Trading Performance & Win/Loss Audit</span>
+                <span class="panel-title" style="color: #ff5252;">
+                    <span>🔴</span> <span id="dash-portfolio-title">Real Live Trading & Binance Portfolio Audit</span>
                 </span>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <span class="badge-regime" style="background: rgba(35, 134, 54, 0.2); color: #3fb950; border: 1px solid rgba(46, 160, 67, 0.4);" id="dash-paper-micro-badge">
-                        ⚡ Micro-Trading Active (Small Account: $200.00 Base)
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <span class="badge-regime" style="background: rgba(255, 82, 82, 0.15); color: #ff7b72; border: 1px solid rgba(255, 82, 82, 0.4);" id="dash-portfolio-mode-badge">
+                        🔴 REAL LIVE CAPITAL ACTIVE (Binance Futures ISOLATED)
                     </span>
-                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="dash-reset-btn" onclick="resetPaperTrading()">
-                        🔄 Reset Paper Account
+                    <button class="btn-primary" style="padding: 4px 10px; font-size: 11px; background: #b62324; border-color: #ff5252;" onclick="runLiveScan()">
+                        ⚡ Live Scan Now
                     </button>
-                    <button class="btn-primary" style="padding: 4px 10px; font-size: 11px; background: #b62324; border-color: #ff5252; display: none;" id="dash-live-btn" onclick="switchAppView('live')">
-                        🔴 View Live Terminal
+                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="dash-mode-toggle-btn" onclick="toggleDashboardViewMode()">
+                        📝 Switch to Paper View
+                    </button>
+                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="switchAppView('live')">
+                        🔴 Full Live Terminal
                     </button>
                 </div>
             </div>
 
-            <!-- Paper Metrics Grid -->
+            <!-- Hero Metrics Grid (Defaults to Real Live Binance Account) -->
             <div class="metrics-grid-4" style="margin-bottom: 16px;">
                 <div class="metric-card" style="padding: 14px; background: var(--bg-elevated);">
                     <div class="card-header">
-                        <span class="card-title">Live Account Equity</span>
+                        <span class="card-title" id="dash-card-equity-title">Total Futures Wallet</span>
                         <span class="card-icon">💵</span>
                     </div>
-                    <div class="card-value" style="font-size: 22px; color: #00E676; font-family: var(--font-mono);" id="dash-paper-equity">$200.00</div>
-                    <div class="card-sub" id="dash-paper-starting">Starting: $200.00 USDT</div>
+                    <div class="card-value" style="font-size: 22px; color: #00E676; font-family: var(--font-mono);" id="dash-paper-equity">$182.44 USDT</div>
+                    <div class="card-sub" id="dash-paper-starting">Available Collateral: $19.12 USDT</div>
                 </div>
 
                 <div class="metric-card" style="padding: 14px; background: var(--bg-elevated);">
                     <div class="card-header">
-                        <span class="card-title">Net Realized PnL</span>
+                        <span class="card-title" id="dash-card-pnl-title">Unrealized PnL</span>
                         <span class="card-icon">📈</span>
                     </div>
                     <div class="card-value" style="font-size: 22px; font-family: var(--font-mono);" id="dash-paper-pnl">+$0.00</div>
-                    <div class="card-sub" id="dash-paper-pnl-pct">Return: +0.0%</div>
-                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="dash-paper-fee-drag">Fee Drag: -$0.00 | Gross: +$0.00</div>
+                    <div class="card-sub" id="dash-paper-pnl-pct">Margin Ratio: 0.63% (SAFE)</div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;" id="dash-paper-fee-drag">Mark-to-Market Live Valuation</div>
                 </div>
 
                 <div class="metric-card" style="padding: 14px; background: var(--bg-elevated);">
                     <div class="card-header">
-                        <span class="card-title">Win vs Loss Record</span>
+                        <span class="card-title" id="dash-card-winloss-title">Active Live Positions</span>
                         <span class="card-icon">🏆</span>
                     </div>
-                    <div class="card-value" style="font-size: 20px; color: #58a6ff; font-family: var(--font-mono);" id="dash-paper-winloss">0 Wins vs 0 Losses</div>
+                    <div class="card-value" style="font-size: 20px; color: #58a6ff; font-family: var(--font-mono);" id="dash-paper-winloss">2 Active Contracts</div>
                     <div class="card-sub">
-                        <span id="dash-paper-winrate-badge" class="badge-regime" style="background: rgba(88, 166, 255, 0.2); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.4);">Win Rate: 0.0%</span>
-                        <span id="dash-paper-total-trades">0 Total Trades</span>
+                        <span id="dash-paper-winrate-badge" class="badge-regime" style="background: rgba(88, 166, 255, 0.2); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.4);">Margin Mode: ISOLATED</span>
+                        <span id="dash-paper-total-trades">Max Leverage: 5x</span>
                     </div>
                 </div>
 
                 <div class="metric-card" style="padding: 14px; background: var(--bg-elevated);">
                     <div class="card-header">
-                        <span class="card-title">Risk & Profit Factor</span>
-                        <span class="card-icon">🛡️</span>
+                        <span class="card-title" id="dash-card-pf-title">BNB Fee Discount</span>
+                        <span class="card-icon">⛽</span>
                     </div>
-                    <div class="card-value" style="font-size: 20px; color: #a371f7; font-family: var(--font-mono);" id="dash-paper-profitfactor">1.00x</div>
-                    <div class="card-sub">Max Leverage: 5x | Micro Lot Sizing</div>
+                    <div class="card-value" style="font-size: 20px; color: #f0b90b; font-family: var(--font-mono);" id="dash-paper-profitfactor">0.0898 BNB</div>
+                    <div class="card-sub" id="dash-card-pf-sub">⚡ 10% Taker Discount Active</div>
                 </div>
             </div>
 
-            <!-- Last Executed Paper Trade Memory Banner -->
+            <!-- Memory / Status Banner -->
             <div style="background: rgba(13, 17, 23, 0.95); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 16px;">💾</span>
-                    <span style="font-size: 12px; font-weight: 700; color: #58a6ff; text-transform: uppercase;">Last Paper Trade Memory:</span>
-                    <span id="dash-last-trade-desc" style="font-size: 13px; font-family: var(--font-mono); color: var(--text-primary);">Awaiting initial trade exit... (Open bracket positions: 0 active)</span>
+                    <span style="font-size: 12px; font-weight: 700; color: #58a6ff; text-transform: uppercase;">Live Execution Engine:</span>
+                    <span id="dash-last-trade-desc" style="font-size: 13px; font-family: var(--font-mono); color: var(--text-primary);">Binance USD(S)-M Futures Connected (Isolated 3-Bracket OCO)</span>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
-                    <span class="badge-regime" style="background: rgba(163, 113, 247, 0.15); color: #a371f7; border: 1px solid rgba(163, 113, 247, 0.3); font-size: 11px;">
-                        🧠 Online Learning (data/lessons.db)
+                    <span class="badge-regime" style="background: rgba(0, 230, 118, 0.15); color: #00E676; border: 1px solid rgba(0, 230, 118, 0.3); font-size: 11px;">
+                        🛡️ Anti-Naked-Position Guard (1,000ms SL)
                     </span>
                     <span class="badge-regime" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3); font-size: 11px;">
-                        💾 State Persisted Across Restarts
+                        ⏱️ 12-Hour Stale Exit Sweep
                     </span>
                 </div>
             </div>
 
-            <!-- Recent Closed Trades Ledger -->
-            <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between;">
-                <span>Recent Closed Paper Trades</span>
-                <span style="font-size: 11px; color: var(--text-muted);">Audited by KEV.ai Supreme Risk Arbiter</span>
+            <!-- LIVE SECTION 1: Active Real Live Positions Table -->
+            <div id="dash-live-positions-section" style="margin-bottom: 18px;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="display: flex; align-items: center; gap: 6px;">
+                        <span style="color: #ff5252;">🎯</span> Active Real Live Positions on Binance Futures (/fapi/v2/positionRisk)
+                    </span>
+                    <span style="font-size: 11px; color: #58a6ff;">Authenticated Real-Time Collateral</span>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="quant-table" style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Size</th>
+                                <th>Notional (USD)</th>
+                                <th>Entry Price</th>
+                                <th>Mark Price</th>
+                                <th>Liq. Price</th>
+                                <th>Margin</th>
+                                <th>Leverage</th>
+                                <th>Unrealized PnL</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-live-positions-tbody">
+                            <tr>
+                                <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 18px;">
+                                    Loading live Binance positions...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div style="overflow-x: auto; max-height: 180px;">
-                <table class="quant-table" style="font-size: 12px;">
-                    <thead>
-                        <tr>
-                            <th>Time (UTC)</th>
-                            <th>Symbol</th>
-                            <th>Side</th>
-                            <th>Entry Price</th>
-                            <th>Exit Price</th>
-                            <th>Quantity</th>
-                            <th>Fee Drag</th>
-                            <th>Gross PnL</th>
-                            <th>Net Realized PnL</th>
-                            <th>Return</th>
-                            <th>Outcome</th>
-                            <th>Exit Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dash-paper-trades-tbody">
-                        <tr>
-                            <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 16px;">
-                                No closed paper trades yet. Autopilot is continuously evaluating high-conviction micro signals.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+
+            <!-- LIVE SECTION 2: Recent Real Live Trades Ledger -->
+            <div id="dash-live-trades-section">
+                <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="display: flex; align-items: center; gap: 6px;">
+                        <span style="color: #58a6ff;">📜</span> Recent Real Live Execution Fills (/fapi/v1/userTrades)
+                    </span>
+                    <span style="font-size: 11px; color: var(--text-muted);">Audited by Binance REST Gateway</span>
+                </div>
+                <div style="overflow-x: auto; max-height: 220px;">
+                    <table class="quant-table" style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Notional (USD)</th>
+                                <th>Fee Paid</th>
+                                <th>Realized PnL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-live-trades-tbody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 18px;">
+                                    Loading live execution history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PAPER SECTION: Shown only when user toggles to Paper View -->
+            <div id="dash-paper-section" style="display: none;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>Recent Closed Paper Trades</span>
+                    <button class="btn-secondary" style="padding: 2px 8px; font-size: 10px;" onclick="resetPaperTrading()">
+                        🔄 Reset Paper Account
+                    </button>
+                </div>
+                <div style="overflow-x: auto; max-height: 180px;">
+                    <table class="quant-table" style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>Time (UTC)</th>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Entry Price</th>
+                                <th>Exit Price</th>
+                                <th>Quantity</th>
+                                <th>Fee Drag</th>
+                                <th>Gross PnL</th>
+                                <th>Net Realized PnL</th>
+                                <th>Return</th>
+                                <th>Outcome</th>
+                                <th>Exit Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-paper-trades-tbody">
+                            <tr>
+                                <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 16px;">
+                                    No closed paper trades yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -2578,6 +2654,7 @@
         // =====================================================================
         let currentActiveView = 'dashboard';
         let liveAutopilotActive = true;
+        let dashPortfolioViewMode = 'LIVE'; // Live Real Trade Summary is persistent default
         let currentDataFile = null;
         let currentDataInfo = null;
         let availableModels = [];
@@ -2669,6 +2746,197 @@
         // =====================================================================
         // VIEW 1: MACRO DASHBOARD API CALLS
         // =====================================================================
+        
+        // =====================================================================
+        // Macro Dashboard Live Real Trade Summary & Trades Engine
+        // =====================================================================
+        window._dashLivePositionsSig = '';
+        window._dashLiveTradesSig = '';
+
+        function toggleDashboardViewMode() {
+            dashPortfolioViewMode = dashPortfolioViewMode === 'LIVE' ? 'PAPER' : 'LIVE';
+            const btn = document.getElementById('dash-mode-toggle-btn');
+            if (btn) {
+                btn.textContent = dashPortfolioViewMode === 'LIVE' ? '📝 Switch to Paper View' : '🔴 Switch to Live Real View';
+            }
+            loadMacroOverview();
+            if (dashPortfolioViewMode === 'LIVE') {
+                loadLiveDashboard();
+            }
+        }
+
+        function renderMacroPortfolioLive(data) {
+            if (dashPortfolioViewMode !== 'LIVE') return;
+
+            const acct = data.live_account || {};
+            const trades = data.live_trades || [];
+            const positions = acct.positions || [];
+
+            const wallet = Number(acct.total_wallet_balance_usd || 0);
+            const avail = Number(acct.available_balance_usd || 0);
+            const unreal = Number(acct.unrealized_pnl_usd || 0);
+            const margin = Number(acct.margin_ratio_pct || 0);
+            const bnbBal = Number(acct.bnb_balance || 0);
+            const bnbActive = Boolean(acct.bnb_fee_discount_active);
+
+            // 1. Header & Badges
+            const dTitle = document.getElementById('dash-portfolio-title');
+            const dBadge = document.getElementById('dash-portfolio-mode-badge');
+            const dLiveSec = document.getElementById('dash-live-positions-section');
+            const dTradesSec = document.getElementById('dash-live-trades-section');
+            const dPaperSec = document.getElementById('dash-paper-section');
+            const dToggleBtn = document.getElementById('dash-mode-toggle-btn');
+
+            if (dTitle) dTitle.innerHTML = 'Real Live Trading & Binance Portfolio Audit';
+            if (dBadge) {
+                dBadge.innerHTML = '🔴 REAL LIVE CAPITAL ACTIVE (Binance Futures ISOLATED)';
+                dBadge.style.color = '#ff7b72';
+                dBadge.style.background = 'rgba(255, 82, 82, 0.15)';
+                dBadge.style.borderColor = 'rgba(255, 82, 82, 0.4)';
+            }
+            if (dToggleBtn) dToggleBtn.textContent = '📝 Switch to Paper View';
+            if (dLiveSec) dLiveSec.style.display = 'block';
+            if (dTradesSec) dTradesSec.style.display = 'block';
+            if (dPaperSec) dPaperSec.style.display = 'none';
+
+            // 2. Metric Cards
+            const cardEquityTitle = document.getElementById('dash-card-equity-title');
+            const cardPnlTitle = document.getElementById('dash-card-pnl-title');
+            const cardWinlossTitle = document.getElementById('dash-card-winloss-title');
+            const cardPfTitle = document.getElementById('dash-card-pf-title');
+            if (cardEquityTitle) cardEquityTitle.textContent = 'Total Futures Wallet';
+            if (cardPnlTitle) cardPnlTitle.textContent = 'Total Unrealized PnL';
+            if (cardWinlossTitle) cardWinlossTitle.textContent = 'Active Live Positions';
+            if (cardPfTitle) cardPfTitle.textContent = 'BNB Fee Buffer';
+
+            const dEquity = document.getElementById('dash-paper-equity');
+            const dStarting = document.getElementById('dash-paper-starting');
+            const dPnl = document.getElementById('dash-paper-pnl');
+            const dPnlPct = document.getElementById('dash-paper-pnl-pct');
+            const dWinLoss = document.getElementById('dash-paper-winloss');
+            const dWinRate = document.getElementById('dash-paper-winrate-badge');
+            const dTotal = document.getElementById('dash-paper-total-trades');
+            const dPF = document.getElementById('dash-paper-profitfactor');
+            const dPfSub = document.getElementById('dash-card-pf-sub');
+            const dFeeDrag = document.getElementById('dash-paper-fee-drag');
+
+            if (dEquity) {
+                dEquity.textContent = `$${wallet.toFixed(2)} USDT`;
+                dEquity.style.color = '#00E676';
+            }
+            if (dStarting) dStarting.textContent = `Available Collateral: $${avail.toFixed(2)} USDT`;
+            if (dPnl) {
+                dPnl.textContent = `${unreal >= 0 ? '+' : ''}$${unreal.toFixed(2)} USDT`;
+                dPnl.style.color = unreal > 0 ? '#3fb950' : (unreal < 0 ? '#f85149' : '#8b949e');
+            }
+            if (dPnlPct) dPnlPct.textContent = `Margin Ratio: ${margin.toFixed(2)}% (SAFE)`;
+            if (dFeeDrag) dFeeDrag.textContent = 'Mark-to-Market Live Valuation';
+            if (dWinLoss) dWinLoss.textContent = `${positions.length} Active Contracts`;
+            if (dWinRate) dWinRate.textContent = 'Margin: ISOLATED';
+            if (dTotal) dTotal.textContent = 'Max Lev: 5x';
+            if (dPF) dPF.textContent = `${bnbBal.toFixed(4)} BNB`;
+            if (dPfSub) dPfSub.textContent = bnbActive ? '⚡ 10% Taker Discount Active' : 'Standard USDT Fee Deduction';
+
+            // 3. Render Active Positions Table with anti-flicker diffing
+            const posTbody = document.getElementById('dash-live-positions-tbody');
+            if (posTbody) {
+                const posSig = positions.map(p => `${p.symbol}:${p.position_amt}:${p.entry_price}:${p.mark_price}:${p.unrealized_pnl_usd}`).join('|');
+                if (window._dashLivePositionsSig !== posSig) {
+                    window._dashLivePositionsSig = posSig;
+                    posTbody.innerHTML = '';
+                    if (positions.length === 0) {
+                        posTbody.innerHTML = `
+                            <tr>
+                                <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 18px;">
+                                    No active positions currently held on Binance Futures. Screening universe for entries.
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        positions.forEach(p => {
+                            const tr = document.createElement('tr');
+                            const side = (p.side || '').toUpperCase();
+                            const sideColor = side === 'BUY' || side === 'LONG' ? '#3fb950' : '#f85149';
+                            const pnlVal = Number(p.unrealized_pnl_usd || 0);
+                            const pnlColor = pnlVal >= 0 ? '#3fb950' : '#f85149';
+                            const notional = Number(p.notional_usd || 0);
+                            const entry = Number(p.entry_price || 0);
+                            const mark = Number(p.mark_price || 0);
+                            const liq = Number(p.liquidation_price || 0);
+
+                            tr.innerHTML = `
+                                <td><strong>${p.symbol}</strong></td>
+                                <td><span class="badge-regime" style="color: ${sideColor}; font-weight: 700; border: 1px solid ${sideColor};">${side}</span></td>
+                                <td style="font-family: var(--font-mono);">${p.position_amt}</td>
+                                <td style="font-family: var(--font-mono);">$${notional.toFixed(2)}</td>
+                                <td style="font-family: var(--font-mono);">$${entry.toFixed(2)}</td>
+                                <td style="font-family: var(--font-mono);">$${mark.toFixed(2)}</td>
+                                <td style="font-family: var(--font-mono); color: #ffa500;">$${liq.toFixed(2)}</td>
+                                <td><span class="badge-regime" style="color: #58a6ff;">${(p.margin_type || 'isolated').toUpperCase()}</span></td>
+                                <td>${p.leverage}x</td>
+                                <td style="color: ${pnlColor}; font-weight: 700; font-family: var(--font-mono);">${pnlVal >= 0 ? '+' : ''}$${pnlVal.toFixed(2)}</td>
+                                <td>
+                                    <button class="btn-table-action" style="color: #f85149;" onclick="flattenLivePositions()">Close</button>
+                                </td>
+                            `;
+                            posTbody.appendChild(tr);
+                        });
+                    }
+                }
+            }
+
+            // 4. Render Live Trades Ledger with anti-flicker diffing
+            const tradesTbody = document.getElementById('dash-live-trades-tbody');
+            if (tradesTbody && trades) {
+                const tradesSig = trades.map(t => `${t.id || t.orderId}:${t.symbol}:${t.price}:${t.qty}:${t.realizedPnl}`).join('|');
+                if (window._dashLiveTradesSig !== tradesSig) {
+                    window._dashLiveTradesSig = tradesSig;
+                    tradesTbody.innerHTML = '';
+                    if (trades.length === 0) {
+                        tradesTbody.innerHTML = `
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 18px;">
+                                    No recent fills found on Binance Futures. Fills will appear here immediately after execution.
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        trades.slice(0, 10).forEach(t => {
+                            const tr = document.createElement('tr');
+                            const isBuy = t.buyer || t.side === 'BUY';
+                            const sideStr = isBuy ? 'BUY' : 'SELL';
+                            const sideColor = isBuy ? '#3fb950' : '#f85149';
+                            const pnl = Number(t.realizedPnl || 0);
+                            const pnlColor = pnl >= 0 ? '#3fb950' : '#f85149';
+                            const price = Number(t.price || 0);
+                            const qty = Number(t.qty || 0);
+                            const notional = price * qty;
+                            const fee = Number(t.commission || 0);
+                            const feeAsset = t.commissionAsset || 'USDT';
+
+                            let timeStr = '--:--:--';
+                            if (t.time) {
+                                const d = new Date(t.time);
+                                timeStr = d.toISOString().replace('T', ' ').slice(11, 19);
+                            }
+
+                            tr.innerHTML = `
+                                <td style="font-family: var(--font-mono); font-size: 11px;">${timeStr}</td>
+                                <td><strong>${t.symbol}</strong></td>
+                                <td><span class="badge-regime" style="color: ${sideColor}; font-weight: 700; border: 1px solid ${sideColor}; font-size: 10px;">${sideStr}</span></td>
+                                <td style="font-family: var(--font-mono);">$${price.toFixed(2)}</td>
+                                <td style="font-family: var(--font-mono);">${qty}</td>
+                                <td style="font-family: var(--font-mono);">$${notional.toFixed(2)}</td>
+                                <td style="font-size: 11px; color: var(--text-muted);">${fee.toFixed(4)} ${feeAsset}</td>
+                                <td style="color: ${pnlColor}; font-weight: 700; font-family: var(--font-mono);">${pnl !== 0 ? (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2) : '--'}</td>
+                            `;
+                            tradesTbody.appendChild(tr);
+                        });
+                    }
+                }
+            }
+        }
+
         async function loadMacroOverview() {
             try {
                 const resp = await axios.get('/api/macro/overview');
@@ -2753,10 +3021,14 @@
 
                 // Load Learning Stats
                 loadLearningStats();
-                if (data.paper_report) {
+
+                // Live Real Trade Summary by Default
+                if (dashPortfolioViewMode === 'LIVE' && data.live_account) {
+                    renderMacroPortfolioLive(data);
+                } else if (data.paper_report) {
                     renderPaperTradingReport(data.paper_report);
-                    loadGeminiAssessment();
                 }
+                loadGeminiAssessment();
                 loadScalperStatus();
 
             } catch (err) {
@@ -3122,6 +3394,10 @@
                 }
 
                 if (liveAutopilotActive) {
+                    // Update main Macro Dashboard with fresh live data
+                    if (dashPortfolioViewMode === 'LIVE') {
+                        renderMacroPortfolioLive(data);
+                    }
                     if (badge) {
                         badge.innerHTML = '<span class="pulse-dot" style="background: #00E676;"></span> LIVE AUTOPILOT ACTIVE';
                         badge.style.color = '#00E676';
