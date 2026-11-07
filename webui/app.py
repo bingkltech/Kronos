@@ -1242,9 +1242,65 @@ def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
     _save_bot_settings()
     return summary
 
+def _check_remote_cloud_instance() -> Tuple[bool, str]:
+    """
+    Checks if a remote AWS cloud instance is active and designated as PRIMARY.
+    If online and active, local PC live trading is suppressed to prevent double-entry / order collision.
+    Configured via AWS_COORDINATOR_URL in .env (e.g. AWS_COORDINATOR_URL=http://<aws_ip>:7070).
+    """
+    aws_url = os.getenv("AWS_COORDINATOR_URL", "").strip().rstrip("/")
+    if not aws_url:
+        return False, ""
+    try:
+        r = requests.get(f"{aws_url}/api/live/status", timeout=2)
+        if r.status_code == 200:
+            data = r.json()
+            is_active = (data.get("bot_state") == "ACTIVE" and 
+                         data.get("mutual_exclusion", {}).get("live_trading_active", False))
+            if is_active:
+                return True, f"Remote AWS Cloud instance at {aws_url} is ONLINE & ACTIVE."
+    except Exception:
+        pass
+    return False, ""
+
 def _execute_live_bot_cycle():
     """Executes a single autonomous live scan cycle with real Binance execution and mutual exclusion."""
     global live_trading_last_scan, live_trading_next_scan_time, live_last_cycle_summary
+
+    # Distributed Multi-Instance Mutual Exclusion Guard:
+    is_remote_active, remote_msg = _check_remote_cloud_instance()
+    if is_remote_active:
+        print(f">> [Distributed Multi-Instance Guard] {remote_msg}")
+        print(">> [Distributed Multi-Instance Guard] Local PC in PASSIVE OBSERVER mode — order dispatch suppressed.")
+        fresh_account = quant_bot.executor.get_live_account_summary()
+        summary = {
+            "success": True,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "macro_regime": "STANDBY_OBSERVER",
+            "breadth_pct": "0.0%",
+            "evaluated_count": 0,
+            "dispatched_count": 0,
+            "decisions": [],
+            "dispatched_trades": [],
+            "live_account": {
+                "total_wallet_balance_usd": float(fresh_account.get("total_wallet_balance_usd", Decimal("0.00"))),
+                "available_balance_usd": float(fresh_account.get("available_balance_usd", Decimal("0.00"))),
+                "unrealized_pnl_usd": float(fresh_account.get("unrealized_pnl_usd", Decimal("0.00"))),
+                "margin_ratio_pct": float(fresh_account.get("margin_ratio_pct", Decimal("0.00"))),
+                "active_positions": fresh_account.get("positions", [])
+            },
+            "distributed_guard": {
+                "cloud_active": True,
+                "message": remote_msg,
+                "mode": "PASSIVE_OBSERVER"
+            }
+        }
+        live_last_cycle_summary = summary
+        live_trading_last_scan = datetime.datetime.now(datetime.timezone.utc)
+        live_trading_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=live_trading_interval)
+        _save_bot_settings()
+        return summary
+
     live_summary = quant_bot.executor.get_live_account_summary()
     if not live_summary.get("connected"):
         summary = {
@@ -1597,6 +1653,11 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
         # Query free cash if in live mode to prevent margin overdraft
         available_cash = None
         if live_trading_enabled:
+            # Distributed Multi-Instance Mutual Exclusion Guard:
+            is_remote_active, _ = _check_remote_cloud_instance()
+            if is_remote_active:
+                return
+
             try:
                 live_acc = quant_bot.executor.get_live_account_summary()
                 available_cash = Decimal(str(live_acc.get("available_balance_usd", "0.00")))
@@ -2053,6 +2114,17 @@ def toggle_gemini_auto_apply_endpoint():
 # Real Live Trading Endpoints & Real-Time Futures API
 # ==============================================================================
 
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Lightweight 1ms ping for cloud coordinator health checks."""
+    return jsonify({
+        "status": "ok",
+        "instance_tag": os.getenv("KRONOS_INSTANCE_TAG", "PC").strip().upper(),
+        "live_trading_enabled": live_trading_enabled,
+        "bot_state": "ACTIVE" if live_trading_enabled else "STANDBY_PAUSED",
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    })
+
 @app.route('/api/live/status', methods=['GET'])
 def get_live_status():
     """Return real Binance Futures account summary, positions, and live autopilot state."""
@@ -2060,6 +2132,7 @@ def get_live_status():
         live_account = quant_bot.executor.get_live_account_summary()
         trade_history = quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else getattr(quant_bot.executor, "_cached_live_trades", [])[:25]
         calib = quant_bot.learning_governor.calculate_brier_calibration()
+        is_remote_active, remote_msg = _check_remote_cloud_instance()
 
         next_sec = 0
         if live_trading_enabled and live_trading_next_scan_time:
@@ -2072,9 +2145,17 @@ def get_live_status():
             "error": live_account.get("error"),
             "bot_state": "ACTIVE" if live_trading_enabled else "STANDBY_PAUSED",
             "execution_mode": "REAL LIVE TRADING (BINANCE FUTURES)",
+            "distributed_guard": {
+                "instance_tag": os.getenv("KRONOS_INSTANCE_TAG", "PC").strip().upper(),
+                "coordinator_url": os.getenv("AWS_COORDINATOR_URL", "").strip(),
+                "remote_cloud_active": is_remote_active,
+                "role": "PASSIVE_OBSERVER" if is_remote_active else "ACTIVE_PRIMARY",
+                "message": remote_msg if is_remote_active else ("Active Primary Instance" if not os.getenv("AWS_COORDINATOR_URL") else "AWS instance unreachable; Local instance is ACTIVE")
+            },
             "mutual_exclusion": {
-                "live_trading_active": live_trading_enabled,
-                "paper_trading_paused": live_trading_enabled or not bot_autopilot_enabled
+                "live_trading_active": live_trading_enabled and not is_remote_active,
+                "paper_trading_paused": live_trading_enabled or not bot_autopilot_enabled,
+                "passive_observer": is_remote_active
             },
             "live_account": {
                 "total_wallet_balance_usd": float(live_account.get("total_wallet_balance_usd", Decimal("0.00"))),

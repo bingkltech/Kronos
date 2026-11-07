@@ -746,12 +746,13 @@ class BinanceAtomicExecutor:
         tp_price_str = str(ticket.take_profit.quantize(fmt_price, rounding=ROUND_HALF_UP))
         
         # 1. Entry Market Order
+        instance_tag = os.getenv("KRONOS_INSTANCE_TAG", "PC").strip().upper()
         entry_params = {
             "symbol": ticket.symbol,
             "side": side,
             "type": "MARKET",
             "quantity": qty_str,
-            "newClientOrderId": f"LIVE_{ticket.symbol}_{int(time.time()*1000)}"[:32]
+            "newClientOrderId": f"LIVE_{instance_tag}_{ticket.symbol}_{int(time.time()*1000)}"[:32]
         }
         try:
             entry_resp = self._signed_request("POST", "/fapi/v1/order", entry_params)

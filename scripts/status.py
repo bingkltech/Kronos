@@ -7,18 +7,19 @@ import requests
 from decimal import Decimal
 
 def main():
+    target_url = sys.argv[1].rstrip("/") if len(sys.argv) > 1 and sys.argv[1].startswith("http") else "http://localhost:7070"
     print("=" * 76)
-    print(" [Kronos] 24/7 Standalone Trading Engine - Operational Status")
+    print(f" [Kronos] 24/7 Standalone Trading Engine - Operational Status ({target_url})")
     print("=" * 76)
 
     try:
-        r = requests.get("http://localhost:7070/api/live/status", timeout=5)
+        r = requests.get(f"{target_url}/api/live/status", timeout=5)
         if r.status_code != 200:
             print(f"Server returned HTTP {r.status_code}")
             return
         data = r.json()
     except Exception as e:
-        print(f"OFFLINE: Cannot connect to http://localhost:7070 ({e})")
+        print(f"OFFLINE: Cannot connect to {target_url} ({e})")
         print("Run 'start_standalone.bat' to launch the engine.")
         print("=" * 76)
         return
@@ -28,6 +29,10 @@ def main():
     acct = data.get("live_account", {})
     error_msg = data.get("error") or acct.get("error")
     exec_mode = data.get("execution_mode", "UNKNOWN")
+    dist_guard = data.get("distributed_guard", {})
+    inst_tag = dist_guard.get("instance_tag", "PC")
+    role = dist_guard.get("role", "ACTIVE_PRIMARY")
+    guard_msg = dist_guard.get("message", "")
 
     wallet = acct.get("total_wallet_balance_usd", 0.0)
     avail = acct.get("available_balance_usd", 0.0)
@@ -38,6 +43,9 @@ def main():
     positions = acct.get("positions", [])
 
     print(f" Engine State    : {bot_state}")
+    print(f" Instance Role   : {inst_tag} [{role}]")
+    if guard_msg and role == "PASSIVE_OBSERVER":
+        print(f" Cloud Guard     : [!] {guard_msg}")
     print(f" Execution Mode  : {exec_mode}")
     print(f" Binance Futures : {'CONNECTED (HTTP 200)' if connected else 'DISCONNECTED'}")
     if error_msg:

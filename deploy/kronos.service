@@ -1,0 +1,18 @@
+[Unit]
+Description=Kronos Autonomous Headless Quant Trading Engine
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Kronos
+Environment=PYTHONUNBUFFERED=1
+Environment=KRONOS_INSTANCE_TAG=AWS
+ExecStart=/home/ubuntu/kronos-env/bin/python scripts/headless_worker.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/Kronos/logs/kronos_headless.log
+StandardError=append:/home/ubuntu/Kronos/logs/kronos_headless.log
+
+[Install]
+WantedBy=multi-user.target
