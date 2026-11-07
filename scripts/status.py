@@ -8,7 +8,7 @@ from decimal import Decimal
 
 def main():
     print("=" * 76)
-    print(" [Kronos] 24/7 Standalone Trading Engine — Operational Status")
+    print(" [Kronos] 24/7 Standalone Trading Engine - Operational Status")
     print("=" * 76)
 
     try:
@@ -25,9 +25,9 @@ def main():
 
     bot_state = data.get("bot_state", "UNKNOWN")
     connected = data.get("connected", False)
+    acct = data.get("live_account", {})
     error_msg = data.get("error") or acct.get("error")
     exec_mode = data.get("execution_mode", "UNKNOWN")
-    acct = data.get("live_account", {})
 
     wallet = acct.get("total_wallet_balance_usd", 0.0)
     avail = acct.get("available_balance_usd", 0.0)
