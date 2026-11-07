@@ -999,7 +999,8 @@ quant_bot = QuantBotOrchestrator(
 # Global singleton apex scalper engine (Single-slot N=1 sequential scalper)
 apex_scalper = ApexScalperEngine(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
-    risk_config=DEFAULT_RISK_CONFIG
+    risk_config=DEFAULT_RISK_CONFIG,
+    min_score_threshold=Decimal("0.10")  # Scalper activation threshold for real-time responsiveness
 )
 
 @app.route('/api/macro/overview', methods=['GET'])
@@ -1359,6 +1360,7 @@ def _autopilot_daemon_loop():
             if live_trading_enabled:
                 try:
                     _execute_live_bot_cycle()
+                    _execute_apex_scalp_step()
                 except Exception as e:
                     print(f">> [Live Trading Autopilot Error] {e}")
 
@@ -1371,6 +1373,7 @@ def _autopilot_daemon_loop():
             if bot_autopilot_enabled and not live_trading_enabled:
                 try:
                     _execute_quant_bot_cycle()
+                    _execute_apex_scalp_step()
                 except Exception as e:
                     print(f">> [Quant Bot Autopilot Error] {e}")
         else:
@@ -1470,17 +1473,56 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 curr_price = klines[-1]["close"]
                 apex_scalper.update_in_trade_path(curr_price)
                 
-                # Check TP / SL hit
+                # Check TP / SL hit or Fast Profit Snatch
                 duration_sec = int((now_utc - pos.entry_time_utc).total_seconds())
+                
+                # Calculate current net unrealized return
+                if pos.side == "BUY":
+                    unrealized_return_pct = ((curr_price - pos.entry_price) / pos.entry_price) * Decimal("100")
+                else:
+                    unrealized_return_pct = ((pos.entry_price - curr_price) / pos.entry_price) * Decimal("100")
+
+                cfg = ALL_SUPPORTED_SYMBOLS.get(pos.symbol)
+                friction_pct = (cfg.round_trip_taker_friction() * Decimal("100")) if cfg else Decimal("0.10")
+                net_unrealized_pct = unrealized_return_pct - friction_pct
+
                 hit_tp = (pos.side == "BUY" and curr_price >= pos.take_profit) or (pos.side == "SELL" and curr_price <= pos.take_profit)
                 hit_sl = (pos.side == "BUY" and curr_price <= pos.stop_loss) or (pos.side == "SELL" and curr_price >= pos.stop_loss)
+                # Fast Green Exit: Sell immediately once green (+0.25% net profit achieved)
+                fast_profit_snatch = net_unrealized_pct >= Decimal("0.25")
                 timed_out = duration_sec >= pos.max_duration_seconds
 
-                if hit_tp or hit_sl or timed_out:
-                    reason = "TAKE_PROFIT_HIT" if hit_tp else ("STOP_LOSS_HIT" if hit_sl else "TIME_EXPIRATION")
-                    cfg = ALL_SUPPORTED_SYMBOLS.get(pos.symbol)
-                    friction = cfg.round_trip_taker_friction() if cfg else Decimal("0.001")
-                    fee_usd = pos.notional_usd * friction
+                if hit_tp or hit_sl or fast_profit_snatch or timed_out:
+                    if hit_tp:
+                        reason = "TAKE_PROFIT_HIT"
+                    elif fast_profit_snatch:
+                        reason = "FAST_PROFIT_SNATCH"
+                    elif hit_sl:
+                        reason = "STOP_LOSS_HIT"
+                    else:
+                        reason = "TIME_EXPIRATION"
+
+                    fee_usd = pos.notional_usd * (friction_pct / Decimal("100"))
+                    
+                    # If this was a real live scalp on Binance, cancel open algo orders and flatten if necessary
+                    if live_trading_enabled:
+                        try:
+                            quant_bot.executor._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": pos.symbol})
+                        except Exception:
+                            pass
+                        if reason in ("FAST_PROFIT_SNATCH", "TIME_EXPIRATION"):
+                            try:
+                                flat_side = "SELL" if pos.side == "BUY" else "BUY"
+                                quant_bot.executor._signed_request("POST", "/fapi/v1/order", {
+                                    "symbol": pos.symbol,
+                                    "side": flat_side,
+                                    "type": "MARKET",
+                                    "quantity": str(pos.quantity),
+                                    "reduceOnly": "true"
+                                })
+                            except Exception as e:
+                                print(f">> [Live Scalp Flatten Error] {e}")
+
                     telemetry = apex_scalper.close_scalp(
                         exit_price=curr_price,
                         close_reason=reason,
@@ -1488,37 +1530,50 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                         exchange_fees_usd=fee_usd,
                         trade_mode="LIVE" if live_trading_enabled else "PAPER"
                     )
-                    print(f">> [Apex Scalper Closed] {pos.symbol} ({reason}) PnL: ${float(telemetry.net_pnl_usd):.2f} | Diagnosis: {telemetry.root_cause_diagnosis}")
+                    print(f">> [Fast Apex Scalp Closed] {pos.symbol} ({reason}) Return: {float(net_unrealized_pct):.2f}% PnL: ${float(telemetry.net_pnl_usd):.2f} | Diagnosis: {telemetry.root_cause_diagnosis}")
         except Exception as err:
             print(f">> [Apex Scalper Position Monitor Error] {err}")
         return
 
-    # 2. Slot is Free: Screen candidates and select Apex #1 across all universe assets
+    # 2. Slot is Free: Institutional Microstructure & Order Flow Screening
     candidates = []
-    # Evaluate full supported universe including meme assets with active intraday volatility
+    
+    # Symbol Mutual Exclusion: Get all symbols currently held in macro/swing positions
+    active_macro_symbols = set()
+    for p in quant_bot.executor.active_positions.values():
+        if p.state == PositionState.BRACKETS_ACTIVE:
+            active_macro_symbols.add(p.symbol)
+    if live_trading_enabled:
+        try:
+            live_acc = quant_bot.executor.get_live_account_summary()
+            for lp in live_acc.get("positions", []):
+                active_macro_symbols.add(lp.get("symbol"))
+        except Exception:
+            pass
+
+    # Evaluate full supported universe using live order book depth and volume surge detection
     for sym in list(ALL_SUPPORTED_SYMBOLS.keys()):
+        # Conflict Shield: Never scalp a symbol that already has an active macro position!
+        if sym in active_macro_symbols:
+            continue
+
         try:
             klines = quant_bot.index_engine.fetch_recent_klines(sym, interval="5m", limit=24)
             if not klines or len(klines) < 12:
                 continue
             curr_p = klines[-1]["close"]
-            # 5m ATR calculation
-            highs = [k["high"] for k in klines]
-            lows = [k["low"] for k in klines]
-            atr_5m = max(highs[-3:]) - min(lows[-3:])
-            atr_base = max(highs) - min(lows)
             
-            # Momentum direction from 6-bar (30 min) slope
-            drift_pct = ((curr_p - klines[-6]["close"]) / klines[-6]["close"]) * Decimal("100")
-            
-            cand = apex_scalper.evaluate_candidate(
+            # Fetch real-time Top-5 Order Book Imbalance (OBI) and Best Bid/Ask
+            obi, best_bid, best_ask = quant_bot.index_engine.fetch_order_book_imbalance(sym, depth_limit=5)
+
+            cand = apex_scalper.evaluate_microstructure_candidate(
                 symbol=sym,
                 current_price=curr_p,
-                predicted_drift_pct=drift_pct,
-                atr_5m=atr_5m,
-                atr_baseline=atr_base,
-                order_book_imbalance=Decimal("0.25") if drift_pct > Decimal("0") else Decimal("-0.25"),
-                spread_bps=Decimal("1.5")
+                best_bid=best_bid,
+                best_ask=best_ask,
+                order_book_imbalance=obi,
+                recent_klines=klines,
+                bnb_discount=True
             )
             if cand:
                 candidates.append(cand)
@@ -1528,9 +1583,56 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     apex = apex_scalper.select_apex_candidate(candidates)
     if apex:
         pos_id = f"SCALP-{now_utc.strftime('%H%M%S')}"
-        new_pos = apex_scalper.open_scalp(apex, account_equity=account_equity, position_id=pos_id, current_time_utc=now_utc)
+        
+        # Query free cash if in live mode to prevent margin overdraft
+        available_cash = None
+        if live_trading_enabled:
+            try:
+                live_acc = quant_bot.executor.get_live_account_summary()
+                available_cash = Decimal(str(live_acc.get("available_balance_usd", "0.00")))
+                if available_cash < Decimal("10.00"):
+                    print(f">> [Apex Live Scalp Skipped] Available margin ${available_cash:.2f} below $10.00 safety buffer.")
+                    return
+            except Exception:
+                available_cash = Decimal("19.00")
+
+        new_pos = apex_scalper.open_scalp(
+            apex,
+            account_equity=account_equity,
+            position_id=pos_id,
+            current_time_utc=now_utc,
+            available_balance_usd=available_cash
+        )
         if new_pos:
-            print(f">> [Apex Scalper Dispatched] {apex.symbol} ({apex.side}) Score={float(apex.score):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
+            if live_trading_enabled:
+                ticket = TradeTicket(
+                    symbol=apex.symbol,
+                    side="BUY" if apex.side in ("BUY", "LONG") else "SELL",
+                    entry_price=apex.entry_price,
+                    stop_loss=apex.stop_loss,
+                    take_profit=apex.take_profit,
+                    quantity=new_pos.quantity,
+                    notional_usd=new_pos.notional_usd,
+                    effective_leverage=new_pos.leverage,
+                    risk_budget_usd=new_pos.initial_margin_usd,
+                    reward_risk_ratio=apex.reward_risk_ratio,
+                    net_expected_gain_pct=apex.predicted_drift_pct
+                )
+                live_res = quant_bot.executor.submit_live_bracket_order(ticket)
+                if live_res.state == PositionState.REJECTED:
+                    print(f">> [Apex Scalper Live Dispatch Rejected] {live_res.close_reason}")
+                    apex_scalper.active_scalp = None
+                    return
+                print(f">> [REAL LIVE APEX SCALP DISPATCHED TO BINANCE] {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} OrderID={live_res.entry_order_id}")
+            else:
+                print(f">> [Paper Apex Scalper Dispatched] {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
+
+
+@app.route('/api/scalper/reset-slot', methods=['POST'])
+def reset_scalper_slot():
+    """Reset the scalper slot so it can immediately evaluate and dispatch a fresh live trade."""
+    apex_scalper.active_scalp = None
+    return jsonify({"success": True, "message": "Apex scalper slot reset successfully."})
 
 
 @app.route('/api/scalper/status', methods=['GET'])
@@ -1551,6 +1653,8 @@ def get_scalper_status():
                 "stop_loss": float(pos.stop_loss),
                 "quantity": float(pos.quantity),
                 "notional_usd": float(pos.notional_usd),
+                "leverage": pos.leverage,
+                "initial_margin_usd": float(pos.initial_margin_usd),
                 "duration_minutes": duration_min,
                 "max_duration_minutes": int(pos.max_duration_seconds / 60),
                 "highest_price": float(pos.highest_favorable_price) if pos.highest_favorable_price else None,

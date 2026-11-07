@@ -34,14 +34,14 @@ def test_apex_candidate_evaluation_and_ranking():
     assert sol_cand.side == "BUY"
     assert sol_cand.score > Decimal("0.35")
 
-    # Candidate 2: BTC with small drift that fails fee hurdle
+    # Candidate 2: BTC with neutral/chop OBI and low volume that fails microstructure gates
     btc_cand = engine.evaluate_candidate(
         symbol="BTCUSDT",
         current_price=Decimal("60000.00"),
-        predicted_drift_pct=Decimal("0.30"), # Too small: fails Lesson #10 hurdle
+        predicted_drift_pct=Decimal("0.10"),
         atr_5m=Decimal("50.00"),
         atr_baseline=Decimal("50.00"),
-        order_book_imbalance=Decimal("0.10"),
+        order_book_imbalance=Decimal("0.05"), # Fails OBI squeeze (>0.35) and flush (>0.10)
         spread_bps=Decimal("0.5")
     )
     assert btc_cand is None
@@ -127,9 +127,10 @@ def test_ten_trade_batch_learning_audit():
         
         # 7 stop inside noise losses, 3 wins
         if i < 7:
-            # Simulate target reached (151.80) while adverse excursion is small (within 1 ATR)
+            # Simulate adverse noise excursion (149.20) and target reached (153.65 >= tp 153.59)
+            # but stopped out prematurely inside noise
             engine.update_in_trade_path(Decimal("149.20"))
-            engine.update_in_trade_path(Decimal("151.80"))
+            engine.update_in_trade_path(Decimal("153.65"))
             engine.close_scalp(
                 exit_price=Decimal("149.20"),
                 close_reason="STOP_LOSS_HIT",
@@ -138,9 +139,9 @@ def test_ten_trade_batch_learning_audit():
                 trade_mode="LIVE"
             )
         else:
-            engine.update_in_trade_path(Decimal("151.80"))
+            engine.update_in_trade_path(Decimal("153.65"))
             engine.close_scalp(
-                exit_price=Decimal("151.80"),
+                exit_price=Decimal("153.65"),
                 close_reason="TAKE_PROFIT_HIT",
                 current_time_utc=t0 + datetime.timedelta(minutes=12),
                 exchange_fees_usd=Decimal("0.10"),

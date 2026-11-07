@@ -94,6 +94,39 @@ class CryptoIndexEngine:
         except Exception:
             return []
 
+    def fetch_order_book_imbalance(self, symbol: str, depth_limit: int = 20) -> Tuple[Decimal, Decimal, Decimal]:
+        """
+        Fetch top-N order book depth and compute exact Volume-Weighted Order Book Imbalance (OBI):
+        OBI = (sum_bids - sum_asks) / (sum_bids + sum_asks) in [-1.0, +1.0]
+        Using depth_limit=20 to defeat spoofing and fake single-level walls.
+        Returns: (obi_score, best_bid, best_ask)
+        """
+        endpoint = f"{self.BASE_URL}/fapi/v1/depth"
+        params = {"symbol": symbol, "limit": min(max(depth_limit, 5), 50)}
+        try:
+            resp = self.session.get(endpoint, params=params, timeout=3)
+            resp.raise_for_status()
+            data = resp.json()
+
+            bids = [Decimal(b[1]) for b in data.get("bids", [])]
+            asks = [Decimal(a[1]) for a in data.get("asks", [])]
+
+            best_bid = Decimal(str(data["bids"][0][0])) if data.get("bids") else Decimal("0")
+            best_ask = Decimal(str(data["asks"][0][0])) if data.get("asks") else Decimal("0")
+
+            total_bids = sum(bids)
+            total_asks = sum(asks)
+            denom = total_bids + total_asks
+
+            if denom > Decimal("0"):
+                obi = (total_bids - total_asks) / denom
+            else:
+                obi = Decimal("0.0")
+
+            return obi, best_bid, best_ask
+        except Exception:
+            return Decimal("0.0"), Decimal("0"), Decimal("0")
+
     def fetch_lookback_dataframe(self, symbol: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """
         Fetch historical 1h klines and return a clean DataFrame for Kronos lookback.

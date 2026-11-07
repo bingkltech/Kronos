@@ -1995,6 +1995,62 @@
             </div>
         </div>
 
+        <!-- Apex Opportunity-Ranked Medium Scalper Monitor -->
+        <div class="panel" style="border: 1px solid rgba(240, 136, 62, 0.4); background: linear-gradient(180deg, rgba(240, 136, 62, 0.04) 0%, rgba(13, 17, 23, 0.95) 100%); margin-bottom: 20px;">
+            <div class="panel-header">
+                <span class="panel-title" style="color: #f0883e;">
+                    <span>⚡</span> Apex Sequential Scalper (Single-Slot N=1 & Online Learning)
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span id="scalper-status-badge" class="badge-regime" style="background: rgba(240, 136, 62, 0.15); color: #f0883e; border: 1px solid rgba(240, 136, 62, 0.4);">
+                        SEARCHING FOR APEX SETUP
+                    </span>
+                    <span id="scalper-batch-badge" class="badge-regime" style="background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3);">
+                        Batch Learning: 0/10 Trades
+                    </span>
+                </div>
+            </div>
+            <div id="scalper-card-container" style="padding: 12px 14px;">
+                <div id="scalper-empty-state" style="text-align: center; color: var(--text-muted); padding: 18px 0; font-size: 13px;">
+                    Slot is free. Autonomous scanner is screening 5m momentum, volume, and order book pressure across universe.
+                </div>
+                <div id="scalper-active-state" style="display: none; background: rgba(22, 27, 34, 0.85); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="scalper-symbol" style="font-size: 16px; font-weight: 700; color: #fff;">--</span>
+                            <span id="scalper-side" class="badge-regime" style="font-weight: 700;">--</span>
+                            <span id="scalper-pos-id" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">--</span>
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted);">
+                            Holding Time: <span id="scalper-duration" style="color: #f0883e; font-weight: bold;">--</span> / 45m max
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Entry Price</div>
+                            <div id="scalper-entry" style="font-size: 14px; font-weight: 600; font-family: monospace;">--</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Take-Profit (Target)</div>
+                            <div id="scalper-tp" style="font-size: 14px; font-weight: 600; color: #3fb950; font-family: monospace;">--</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Stop-Loss (Risk)</div>
+                            <div id="scalper-sl" style="font-size: 14px; font-weight: 600; color: #f85149; font-family: monospace;">--</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Micro Notional Size</div>
+                            <div id="scalper-notional" style="font-size: 14px; font-weight: 600; color: #58a6ff; font-family: monospace;">--</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                        <span>In-Trade Excursion: Peak: <b id="scalper-mfe" style="color: #3fb950;">--</b> | Drawdown: <b id="scalper-mae" style="color: #f85149;">--</b></span>
+                        <span style="color: #58a6ff;">Autonomous Forensics (46 Items)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Paper Trading Performance & Win/Loss History -->
         <div class="panel">
             <div class="panel-header">
@@ -2315,6 +2371,62 @@
                     <span class="gate-num">Gate 6</span>
                     <span class="gate-name">Risk / Reward</span>
                     <span class="gate-status-badge gate-pass" id="live-gate-6-badge">PASS: &gt;=1.50</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real Live Apex Scalper Monitor -->
+        <div class="panel" style="border: 1px solid rgba(255, 82, 82, 0.4); background: linear-gradient(180deg, rgba(255, 82, 82, 0.05) 0%, rgba(13, 17, 23, 0.95) 100%); margin-bottom: 20px;">
+            <div class="panel-header">
+                <span class="panel-title" style="color: #ff5252;">
+                    <span>⚡</span> Live Apex Sequential Scalper (Real Binance Execution)
+                </span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span id="live-scalper-status-badge" class="badge-regime" style="background: rgba(255, 82, 82, 0.15); color: #ff7b72; border: 1px solid rgba(255, 82, 82, 0.4);">
+                        LIVE SCALPER: STANDBY / PAPER
+                    </span>
+                    <span class="badge-regime" style="background: rgba(0, 230, 118, 0.15); color: #00E676; border: 1px solid rgba(0, 230, 118, 0.3);">
+                        Max Risk: 0.5% Account Equity
+                    </span>
+                </div>
+            </div>
+            <div style="padding: 12px 14px;">
+                <div id="live-scalper-empty-state" style="text-align: center; color: var(--text-muted); padding: 18px 0; font-size: 13px;">
+                    No active live real capital scalp. When Live Trading is enabled, the #1 Apex candidate will be dispatched here with strict Isolated margin.
+                </div>
+                <div id="live-scalper-active-state" style="display: none; background: rgba(22, 27, 34, 0.85); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span id="live-scalper-symbol" style="font-size: 16px; font-weight: 700; color: #fff;">--</span>
+                            <span id="live-scalper-side" class="badge-regime" style="font-weight: 700;">--</span>
+                            <span id="live-scalper-pos-id" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">--</span>
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted);">
+                            Duration: <span id="live-scalper-duration" style="color: #ff5252; font-weight: bold;">--</span> / 45m max
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Real Fill Price</div>
+                            <div id="live-scalper-entry" style="font-size: 14px; font-weight: 600; font-family: monospace;">--</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Take-Profit Target</div>
+                            <div id="live-scalper-tp" style="font-size: 14px; font-weight: 600; color: #3fb950; font-family: monospace;">--</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Stop-Loss Floor</div>
+                            <div id="live-scalper-sl" style="font-size: 14px; font-weight: 600; color: #f85149; font-family: monospace;">--</div>
+                        </div>
+                        <div style="background: rgba(13, 17, 23, 0.6); padding: 8px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="font-size: 11px; color: var(--text-muted);">Live Notional (USDT)</div>
+                            <div id="live-scalper-notional" style="font-size: 14px; font-weight: 600; color: #58a6ff; font-family: monospace;">--</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <span>Peak MFE: <b id="live-scalper-mfe" style="color: #3fb950;">--</b> | Max Drawdown MAE: <b id="live-scalper-mae" style="color: #f85149;">--</b></span>
+                        <span style="color: #ff7b72; font-weight: 600;">🔒 Isolated Margin Guard Active</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2642,8 +2754,9 @@
                 loadLearningStats();
                 if (data.paper_report) {
                     renderPaperTradingReport(data.paper_report);
-            loadGeminiAssessment();
+                    loadGeminiAssessment();
                 }
+                loadScalperStatus();
 
             } catch (err) {
                 console.error('Failed to load macro overview:', err);
@@ -5441,5 +5554,6 @@
         }
 
     </script>
+    <script src="/static/scalper.js"></script>
 </body>
 </html>
