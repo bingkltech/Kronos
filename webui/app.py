@@ -987,12 +987,19 @@ from src.quant.config import ALL_SUPPORTED_SYMBOLS, DEFAULT_RISK_CONFIG
 from src.quant.binance_execution import BinanceAtomicExecutor, PositionState
 from src.quant.kev_risk_arbiter import TradeTicket
 from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
+from src.quant.apex_scalper import ApexScalperEngine
 
 # Global singleton quant orchestrator
 quant_bot = QuantBotOrchestrator(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
     risk_config=DEFAULT_RISK_CONFIG,
     executor=BinanceAtomicExecutor(dry_run=True, realistic_friction=True, symbols_config=ALL_SUPPORTED_SYMBOLS)
+)
+
+# Global singleton apex scalper engine (Single-slot N=1 sequential scalper)
+apex_scalper = ApexScalperEngine(
+    symbols_config=ALL_SUPPORTED_SYMBOLS,
+    risk_config=DEFAULT_RISK_CONFIG
 )
 
 @app.route('/api/macro/overview', methods=['GET'])
@@ -1213,6 +1220,13 @@ def _execute_quant_bot_cycle(account_equity: Optional[Decimal] = None):
         "dispatched_trades": dispatched,
         "paper_report": quant_bot.executor.get_paper_summary()
     }
+
+    # Autonomous Scalper Micro-Cycle (Single-Slot N=1 Sequential Scalper)
+    try:
+        _execute_apex_scalp_step(account_equity=account_equity)
+    except Exception as e:
+        print(f">> [Apex Scalper Step Error] {e}")
+
     bot_last_cycle_summary = summary
     _save_bot_settings()
     return summary
@@ -1434,6 +1448,155 @@ def get_bot_status():
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
+    """
+    Executes a single autonomous step for the Apex Sequential Scalper:
+    1. If slot occupied: fetches current price, updates MAE/MFE, checks TP/SL or 45m timeout.
+    2. If slot free: scores Top-10 coins, picks #1 apex candidate, and opens bracket.
+    """
+    if account_equity is None:
+        account_equity = quant_bot.executor.get_current_equity()
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+    # 1. Active Scalp In-Trade Management
+    if not apex_scalper.is_slot_available and apex_scalper.active_scalp:
+        pos = apex_scalper.active_scalp
+        # Fetch fresh tick/current price
+        try:
+            klines = quant_bot.index_engine.fetch_recent_klines(pos.symbol, limit=2)
+            if klines:
+                curr_price = klines[-1]["close"]
+                apex_scalper.update_in_trade_path(curr_price)
+                
+                # Check TP / SL hit
+                duration_sec = int((now_utc - pos.entry_time_utc).total_seconds())
+                hit_tp = (pos.side == "BUY" and curr_price >= pos.take_profit) or (pos.side == "SELL" and curr_price <= pos.take_profit)
+                hit_sl = (pos.side == "BUY" and curr_price <= pos.stop_loss) or (pos.side == "SELL" and curr_price >= pos.stop_loss)
+                timed_out = duration_sec >= pos.max_duration_seconds
+
+                if hit_tp or hit_sl or timed_out:
+                    reason = "TAKE_PROFIT_HIT" if hit_tp else ("STOP_LOSS_HIT" if hit_sl else "TIME_EXPIRATION")
+                    cfg = ALL_SUPPORTED_SYMBOLS.get(pos.symbol)
+                    friction = cfg.round_trip_taker_friction() if cfg else Decimal("0.001")
+                    fee_usd = pos.notional_usd * friction
+                    telemetry = apex_scalper.close_scalp(
+                        exit_price=curr_price,
+                        close_reason=reason,
+                        current_time_utc=now_utc,
+                        exchange_fees_usd=fee_usd,
+                        trade_mode="LIVE" if live_trading_enabled else "PAPER"
+                    )
+                    print(f">> [Apex Scalper Closed] {pos.symbol} ({reason}) PnL: ${float(telemetry.net_pnl_usd):.2f} | Diagnosis: {telemetry.root_cause_diagnosis}")
+        except Exception as err:
+            print(f">> [Apex Scalper Position Monitor Error] {err}")
+        return
+
+    # 2. Slot is Free: Screen candidates and select Apex #1 across all universe assets
+    candidates = []
+    # Evaluate full supported universe including meme assets with active intraday volatility
+    for sym in list(ALL_SUPPORTED_SYMBOLS.keys()):
+        try:
+            klines = quant_bot.index_engine.fetch_recent_klines(sym, interval="5m", limit=24)
+            if not klines or len(klines) < 12:
+                continue
+            curr_p = klines[-1]["close"]
+            # 5m ATR calculation
+            highs = [k["high"] for k in klines]
+            lows = [k["low"] for k in klines]
+            atr_5m = max(highs[-3:]) - min(lows[-3:])
+            atr_base = max(highs) - min(lows)
+            
+            # Momentum direction from 6-bar (30 min) slope
+            drift_pct = ((curr_p - klines[-6]["close"]) / klines[-6]["close"]) * Decimal("100")
+            
+            cand = apex_scalper.evaluate_candidate(
+                symbol=sym,
+                current_price=curr_p,
+                predicted_drift_pct=drift_pct,
+                atr_5m=atr_5m,
+                atr_baseline=atr_base,
+                order_book_imbalance=Decimal("0.25") if drift_pct > Decimal("0") else Decimal("-0.25"),
+                spread_bps=Decimal("1.5")
+            )
+            if cand:
+                candidates.append(cand)
+        except Exception as e:
+            continue
+
+    apex = apex_scalper.select_apex_candidate(candidates)
+    if apex:
+        pos_id = f"SCALP-{now_utc.strftime('%H%M%S')}"
+        new_pos = apex_scalper.open_scalp(apex, account_equity=account_equity, position_id=pos_id, current_time_utc=now_utc)
+        if new_pos:
+            print(f">> [Apex Scalper Dispatched] {apex.symbol} ({apex.side}) Score={float(apex.score):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
+
+
+@app.route('/api/scalper/status', methods=['GET'])
+def get_scalper_status():
+    """Return live status of the Apex Sequential Scalper and batch learning audits."""
+    try:
+        active = None
+        if apex_scalper.active_scalp:
+            pos = apex_scalper.active_scalp
+            now_u = datetime.datetime.now(datetime.timezone.utc)
+            duration_min = int((now_u - pos.entry_time_utc).total_seconds() / 60)
+            active = {
+                "position_id": pos.position_id,
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "entry_price": float(pos.entry_price),
+                "take_profit": float(pos.take_profit),
+                "stop_loss": float(pos.stop_loss),
+                "quantity": float(pos.quantity),
+                "notional_usd": float(pos.notional_usd),
+                "duration_minutes": duration_min,
+                "max_duration_minutes": int(pos.max_duration_seconds / 60),
+                "highest_price": float(pos.highest_favorable_price) if pos.highest_favorable_price else None,
+                "lowest_price": float(pos.lowest_adverse_price) if pos.lowest_adverse_price else None
+            }
+
+        recent_telemetry = [
+            {
+                "trade_id": r.trade_id,
+                "symbol": r.symbol,
+                "direction": r.direction,
+                "net_pnl_usd": float(r.net_pnl_usd),
+                "return_pct": float(r.return_pct),
+                "mfe_pct": float(r.mfe_pct),
+                "mae_pct": float(r.mae_pct),
+                "root_cause": r.root_cause_diagnosis,
+                "remedy": r.actionable_remedy
+            }
+            for r in apex_scalper.closed_scalp_records[-10:]
+        ]
+
+        audits = [
+            {
+                "batch_size": a.batch_size,
+                "win_rate_pct": float(a.win_rate_pct),
+                "total_pnl_usd": float(a.total_realized_pnl_usd),
+                "dominant_root_cause": a.dominant_root_cause,
+                "recommended_remedy": a.recommended_remedy,
+                "recalibrated_atr_mult": float(a.recalibrated_atr_mult),
+                "recalibrated_fee_hurdle_pct": float(a.recalibrated_fee_hurdle_pct)
+            }
+            for a in apex_scalper.learning_audits
+        ]
+
+        return jsonify({
+            "success": True,
+            "is_slot_available": apex_scalper.is_slot_available,
+            "active_scalp": active,
+            "total_closed_scalps": len(apex_scalper.closed_scalp_records),
+            "recent_trades": recent_telemetry,
+            "learning_audits_count": len(audits),
+            "latest_audit": audits[-1] if audits else None
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/api/bot/paper-report', methods=['GET'])
 def get_paper_report():

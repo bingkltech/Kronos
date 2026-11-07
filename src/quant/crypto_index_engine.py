@@ -63,29 +63,36 @@ class CryptoIndexEngine:
         Fetch the last 24 1-hour candles for a symbol.
         Returns parsed list with Open, High, Low, Close, Volume in Decimal.
         """
+        return self.fetch_recent_klines(symbol=symbol, interval="1h", limit=24)
+
+    def fetch_recent_klines(self, symbol: str, interval: str = "5m", limit: int = 24) -> List[Dict[str, Decimal]]:
+        """
+        Fetch recent candles for any symbol and timeframe (e.g. 5m for scalping, 1h for macro).
+        """
         endpoint = f"{self.BASE_URL}/fapi/v1/klines"
         params = {
             "symbol": symbol,
-            "interval": "1h",
-            "limit": 24,
+            "interval": interval,
+            "limit": min(limit, 500),
         }
-        resp = self.session.get(endpoint, params=params, timeout=5)
-        resp.raise_for_status()
-        raw_klines = resp.json()
+        try:
+            resp = self.session.get(endpoint, params=params, timeout=5)
+            resp.raise_for_status()
+            raw_klines = resp.json()
 
-        parsed: List[Dict[str, Decimal]] = []
-        for k in raw_klines:
-            # Binance kline format:
-            # 0: Open time, 1: Open, 2: High, 3: Low, 4: Close, 5: Volume, 7: Quote asset volume
-            parsed.append({
-                "open": Decimal(str(k[1])),
-                "high": Decimal(str(k[2])),
-                "low": Decimal(str(k[3])),
-                "close": Decimal(str(k[4])),
-                "volume": Decimal(str(k[5])),
-                "quote_volume": Decimal(str(k[7])),
-            })
-        return parsed
+            parsed: List[Dict[str, Decimal]] = []
+            for k in raw_klines:
+                parsed.append({
+                    "open": Decimal(str(k[1])),
+                    "high": Decimal(str(k[2])),
+                    "low": Decimal(str(k[3])),
+                    "close": Decimal(str(k[4])),
+                    "volume": Decimal(str(k[5])),
+                    "quote_volume": Decimal(str(k[7])),
+                })
+            return parsed
+        except Exception:
+            return []
 
     def fetch_lookback_dataframe(self, symbol: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """

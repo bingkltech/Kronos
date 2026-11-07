@@ -19,6 +19,7 @@ Welcome to the institutional documentation repository for **Kronos**, an autonom
 | **[9. Quant-Grade Deployment Checklist & Operational Audit](file:///F:/012D_TRADE/Kronos/docs/QUANT_GRADE_DEPLOYMENT_CHECKLIST_AND_AUDIT.md)** | Institutional Deployment Standard | 6 Pillars, 18 Deployment Gates, Zero Ruin Risk, Automated CLI Verification Suite (`verify_deployment_readiness.py`). |
 | **[10. Standalone 24/7 Deployment & Service Guide](file:///F:/012D_TRADE/Kronos/docs/STANDALONE_24_7_DEPLOYMENT_GUIDE.md)** | Production 24/7 Daemon & Service | Decoupled Background Supervisor, Auto-Restart Watchdog, Scheduled Task Auto-Start, One-Click Controls, Multi-IP Whitelisting. |
 | **[11. Agentic Memory Architecture & Evaluation](file:///F:/012D_TRADE/Kronos/docs/AGENTIC_MEMORY_ARCHITECTURE.md)** | 7 Types of Agent Memory | Working, Semantic, Episodic, Procedural, Retrieval, Parametric, Prospective. Active Lean Production Memories vs. Deferred Bloat Analysis. |
+| **[12. Unified Trade Forensics Framework](file:///F:/012D_TRADE/Kronos/docs/TRADE_FORENSICS.md)** | Trade Post-Mortems & Telemetry | 46-Item Assessment Framework, MAE/MFE Excursion Tracking, 6 Deterministic Failure Modes, Predictive Alpha vs. Execution Drag. |
 
 ---
 
