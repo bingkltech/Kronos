@@ -3137,79 +3137,94 @@
                     if (dFeeDrag) dFeeDrag.textContent = `Live Telemetry via Binance API /fapi/v2/account`;
                 }
 
-                // Update Active Live Positions Table
+                // Update Active Live Positions Table with Anti-Flicker Diffing
                 const posTbody = document.getElementById('live-active-positions-tbody');
                 if (posTbody) {
-                    posTbody.innerHTML = '';
                     const positions = acct.positions || [];
-                    if (positions.length === 0) {
-                        posTbody.innerHTML = `
-                            <tr>
-                                <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 30px;">
-                                    No active real live positions on Binance Futures. Real positions will appear here when filled.
-                                </td>
-                            </tr>
-                        `;
-                    } else {
-                        positions.forEach(p => {
-                            const tr = document.createElement('tr');
-                            const sideColor = p.side === 'BUY' || p.side === 'LONG' ? '#3fb950' : '#f85149';
-                            const pnl = Number(p.unrealized_pnl_usd || 0);
-                            const pnlColor = pnl >= 0 ? '#3fb950' : '#f85149';
-                            tr.innerHTML = `
-                                <td><strong>${p.symbol}</strong></td>
-                                <td><strong style="color: ${sideColor};">${p.side}</strong></td>
-                                <td>${p.position_amt}</td>
-                                <td>$${Number(p.notional_usd || 0).toFixed(2)}</td>
-                                <td>$${Number(p.entry_price || 0).toFixed(2)}</td>
-                                <td>$${Number(p.mark_price || 0).toFixed(2)}</td>
-                                <td style="color: #ffa500;">$${Number(p.liquidation_price || 0).toFixed(2)}</td>
-                                <td><span class="badge-regime" style="color: #58a6ff;">${p.margin_type.toUpperCase()}</span></td>
-                                <td>${p.leverage}x</td>
-                                <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
-                                <td>
-                                    <button class="btn-table-action" style="color: #f85149;" onclick="flattenLivePositions()">Close</button>
-                                </td>
+                    const posSig = positions.map(p => `${p.symbol}:${p.position_amt}:${p.entry_price}:${p.mark_price}:${p.unrealized_pnl_usd}`).join('|');
+                    if (window._lastLivePositionsSig !== posSig) {
+                        window._lastLivePositionsSig = posSig;
+                        posTbody.innerHTML = '';
+                        if (positions.length === 0) {
+                            posTbody.innerHTML = `
+                                <tr>
+                                    <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                                        No active real live positions on Binance Futures. Real positions will appear here when filled.
+                                    </td>
+                                </tr>
                             `;
-                            posTbody.appendChild(tr);
-                        });
+                        } else {
+                            positions.forEach(p => {
+                                const tr = document.createElement('tr');
+                                const sideColor = p.side === 'BUY' || p.side === 'LONG' ? '#3fb950' : '#f85149';
+                                const pnl = Number(p.unrealized_pnl_usd || 0);
+                                const pnlColor = pnl >= 0 ? '#3fb950' : '#f85149';
+                                tr.innerHTML = `
+                                    <td><strong>${p.symbol}</strong></td>
+                                    <td><strong style="color: ${sideColor};">${p.side}</strong></td>
+                                    <td>${p.position_amt}</td>
+                                    <td>$${Number(p.notional_usd || 0).toFixed(2)}</td>
+                                    <td>$${Number(p.entry_price || 0).toFixed(2)}</td>
+                                    <td>$${Number(p.mark_price || 0).toFixed(2)}</td>
+                                    <td style="color: #ffa500;">$${Number(p.liquidation_price || 0).toFixed(2)}</td>
+                                    <td><span class="badge-regime" style="color: #58a6ff;">${p.margin_type.toUpperCase()}</span></td>
+                                    <td>${p.leverage}x</td>
+                                    <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                                    <td>
+                                        <button class="btn-table-action" style="color: #f85149;" onclick="flattenLivePositions()">Close</button>
+                                    </td>
+                                `;
+                                posTbody.appendChild(tr);
+                            });
+                        }
                     }
                 }
 
-                // Update Live Trade History Table
+                // Update Live Trade History Table with Anti-Flicker Diffing & Stale Protection
                 const tradesTbody = document.getElementById('live-trades-tbody');
                 if (tradesTbody && data.trade_history) {
-                    tradesTbody.innerHTML = '';
-                    if (data.trade_history.length === 0) {
-                        tradesTbody.innerHTML = `
-                            <tr>
-                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 25px;">
-                                    Awaiting real executed live trades...
-                                </td>
-                            </tr>
-                        `;
+                    const trades = data.trade_history;
+                    // Prevent transient network blips from wiping populated trades
+                    if (trades.length === 0 && (window._lastLiveTradesCount || 0) > 0) {
+                        // Keep previous trades visible instead of flickering
                     } else {
-                        data.trade_history.forEach(t => {
-                            const tr = document.createElement('tr');
-                            const pnl = Number(t.realized_pnl_usd || 0);
-                            const pnlColor = pnl > 0 ? '#3fb950' : (pnl < 0 ? '#f85149' : 'var(--text-muted)');
-                            const sideColor = t.side === 'BUY' ? '#3fb950' : '#f85149';
-                            const feeAsset = t.fee_asset || 'USDT';
-                            const feeText = feeAsset === 'BNB' 
-                                ? `${t.fee_amount || '0'} BNB (~$${Number(t.fee_usd || 0).toFixed(4)})` 
-                                : `$${Number(t.fee_usd || 0).toFixed(4)} USDT`;
-                            tr.innerHTML = `
-                                <td style="color: var(--text-muted); font-size: 11px;">${t.time.replace('T', ' ').slice(0, 19)}</td>
-                                <td><code style="color: #58a6ff;">${t.order_id || t.trade_id}</code></td>
-                                <td><strong>${t.symbol}</strong></td>
-                                <td><strong style="color: ${sideColor};">${t.side}</strong></td>
-                                <td>$${Number(t.price || 0).toFixed(2)}</td>
-                                <td>${t.quantity}</td>
-                                <td style="color: var(--text-muted); font-size: 11px;">${feeText}</td>
-                                <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
-                            `;
-                            tradesTbody.appendChild(tr);
-                        });
+                        const tradesSig = trades.map(t => `${t.order_id || t.trade_id}:${t.price}:${t.quantity}:${t.realized_pnl_usd}:${t.time}`).join('|');
+                        if (window._lastLiveTradesSig !== tradesSig) {
+                            window._lastLiveTradesSig = tradesSig;
+                            window._lastLiveTradesCount = trades.length;
+                            tradesTbody.innerHTML = '';
+                            if (trades.length === 0) {
+                                tradesTbody.innerHTML = `
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 25px;">
+                                            Awaiting real executed live trades...
+                                        </td>
+                                    </tr>
+                                `;
+                            } else {
+                                trades.forEach(t => {
+                                    const tr = document.createElement('tr');
+                                    const pnl = Number(t.realized_pnl_usd || 0);
+                                    const pnlColor = pnl > 0 ? '#3fb950' : (pnl < 0 ? '#f85149' : 'var(--text-muted)');
+                                    const sideColor = t.side === 'BUY' ? '#3fb950' : '#f85149';
+                                    const feeAsset = t.fee_asset || 'USDT';
+                                    const feeText = feeAsset === 'BNB' 
+                                        ? `${t.fee_amount || '0'} BNB (~$${Number(t.fee_usd || 0).toFixed(4)})` 
+                                        : `$${Number(t.fee_usd || 0).toFixed(4)} USDT`;
+                                    tr.innerHTML = `
+                                        <td style="color: var(--text-muted); font-size: 11px;">${t.time.replace('T', ' ').slice(0, 19)}</td>
+                                        <td><code style="color: #58a6ff;">${t.order_id || t.trade_id}</code></td>
+                                        <td><strong>${t.symbol}</strong></td>
+                                        <td><strong style="color: ${sideColor};">${t.side}</strong></td>
+                                        <td>$${Number(t.price || 0).toFixed(2)}</td>
+                                        <td>${t.quantity}</td>
+                                        <td style="color: var(--text-muted); font-size: 11px;">${feeText}</td>
+                                        <td style="color: ${pnlColor}; font-weight: 700;">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                                    `;
+                                    tradesTbody.appendChild(tr);
+                                });
+                            }
+                        }
                     }
                 }
 
@@ -3226,6 +3241,9 @@
         function renderLiveScanDecisions(cycleData) {
             const tbody = document.getElementById('live-scan-decisions-tbody');
             if (!tbody) return;
+            const cycleSig = `${cycleData.timestamp || ''}_${(cycleData.decisions || []).length}`;
+            if (window._lastLiveCycleSig === cycleSig) return;
+            window._lastLiveCycleSig = cycleSig;
             tbody.innerHTML = '';
 
             const timeBadge = document.getElementById('live-scan-time-badge');
@@ -3373,7 +3391,7 @@
                     // Update pill in background
                     if (liveAutopilotActive) loadLiveDashboard();
                 }
-            }, 3000);
+            }, 5000);
             setInterval(() => {
                 loadMacroOverview();
             }, 15000);

@@ -1781,7 +1781,7 @@ def get_live_status():
     """Return real Binance Futures account summary, positions, and live autopilot state."""
     try:
         live_account = quant_bot.executor.get_live_account_summary()
-        trade_history = quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else []
+        trade_history = quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else getattr(quant_bot.executor, "_cached_live_trades", [])[:25]
         calib = quant_bot.learning_governor.calculate_brier_calibration()
 
         next_sec = 0

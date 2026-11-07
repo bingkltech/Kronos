@@ -578,8 +578,14 @@ class BinanceAtomicExecutor:
         self._bnb_price_cache_time = now
         return fallback
 
-    def get_live_account_summary(self) -> Dict[str, Any]:
-        """Query real USD(S)-M Futures balance, BNB fee buffer, margin ratio, and position risk from Binance."""
+    def get_live_account_summary(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Query real USD(S)-M Futures balance, BNB fee buffer, margin ratio, and position risk from Binance (cached 3s)."""
+        now = time.time()
+        cached = getattr(self, "_cached_account_summary", None)
+        cached_time = getattr(self, "_cached_account_summary_time", 0)
+        if not force_refresh and cached is not None and (now - cached_time) < 3:
+            return cached
+
         if not self.api_key or not self.secret_key:
             self._refresh_credentials()
         if not self.api_key or not self.secret_key:
@@ -634,7 +640,7 @@ class BinanceAtomicExecutor:
                         "margin_type": p.get("marginType", "isolated")
                     })
                     
-            return {
+            summary = {
                 "connected": True,
                 "total_wallet_balance_usd": total_wallet,
                 "available_balance_usd": available_balance,
@@ -645,8 +651,15 @@ class BinanceAtomicExecutor:
                 "active_positions_count": len(active_live_positions),
                 "positions": active_live_positions
             }
+            self._cached_account_summary = summary
+            self._cached_account_summary_time = now
+            return summary
         except Exception as e:
             logger.error("Live Binance account query error: %s", e)
+            if cached is not None and (now - cached_time) < 30:
+                stale = dict(cached)
+                stale["warning"] = f"Using cached telemetry due to transient error: {e}"
+                return stale
             return {
                 "connected": False,
                 "error": str(e),
@@ -816,8 +829,14 @@ class BinanceAtomicExecutor:
             logger.error("Live flatten error: %s", e)
             return {"success": False, "error": str(e)}
 
-    def get_live_trade_history(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Fetch real executed trades with realized PnL and commissions from Binance (handles BNB fee asset)."""
+    def get_live_trade_history(self, limit: int = 50, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """Fetch real executed trades with realized PnL and commissions from Binance (handles BNB fee asset, cached 15s)."""
+        now = time.time()
+        cached = getattr(self, "_cached_live_trades", None)
+        cached_time = getattr(self, "_cached_live_trades_time", 0)
+        if not force_refresh and cached is not None and (now - cached_time) < 15:
+            return cached[:limit]
+
         trades = []
         bnb_price = None
         for sym in list(self.symbols_config.keys())[:5]:
@@ -847,10 +866,17 @@ class BinanceAtomicExecutor:
                         "fee_asset": fee_asset,
                         "time": datetime.datetime.fromtimestamp(t.get("time", 0) / 1000, tz=datetime.timezone.utc).isoformat()
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to fetch live trades for %s: %s", sym, e)
+                
         trades.sort(key=lambda x: x["time"], reverse=True)
-        return trades[:limit]
+        if trades:
+            self._cached_live_trades = trades
+            self._cached_live_trades_time = now
+            return trades[:limit]
+        elif cached is not None:
+            return cached[:limit]
+        return []
 
     def submit_bracket_order(
         self,
