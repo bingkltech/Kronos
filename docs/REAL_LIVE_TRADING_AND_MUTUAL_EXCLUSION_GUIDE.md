@@ -143,3 +143,13 @@ Before toggling Real Live Trading to `ON`:
 3. [x] **Margin Mode Check:** Confirm collateral currency is USDT (USD(S)-M Futures wallet).
 4. [x] **Quant Flaw Audit:** Run `python scripts/audit_quant_flaws.py` to verify zero math flaws or lookahead anomalies.
 5. [x] **ASVL Smoke Verification:** Run `python -m pytest tests/test_smoke.py -q`.
+
+---
+
+## 7. Live Temporal Sweeper & Stale Trade Protection (Lesson #17)
+
+To prevent collateral dead-lock and protect against alpha decay and macro regime inversion:
+- **Automatic 12-Hour Expiry:** The live orchestrator continuously inspects `updateTime` on open Binance positions via `sweep_live_temporal_exits()`.
+- **Market Flattening:** Any position open for $\ge 12\text{ hours}$ without triggering its Take-Profit or Stop-Loss bracket is automatically market-flattened (`reduceOnly=true`).
+- **Collateral Recycling:** Margin is instantly returned to free collateral, enabling the engine to trade active regime-aligned setups.
+- **Post-Mortem Documentation:** See [`docs/INCIDENT_POSTMORTEM_STALE_TRADE_LOCK_AND_TEMPORAL_DECAY.md`](file:///F:/012D_TRADE/Kronos/docs/INCIDENT_POSTMORTEM_STALE_TRADE_LOCK_AND_TEMPORAL_DECAY.md) for complete mathematical proofs and empirical findings.
