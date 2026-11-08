@@ -301,3 +301,54 @@ def test_realistic_temporal_exit_at_market_price(tmp_path):
     # Should reflect market loss (roughly -$5.00 minus fees), NOT artificial $0.00!
     assert pos.realized_pnl_usd < Decimal("-5.00")
     assert executor.closed_trades[-1]["result"] == "LOSS"
+
+
+def test_sweep_live_temporal_exits_mocked():
+    """Verify sweep_live_temporal_exits identifies >12h stale positions on Binance and flattens them."""
+    executor = BinanceAtomicExecutor(
+        api_key="mock_key",
+        secret_key="mock_secret",
+        dry_run=False
+    )
+    # Mock positionRisk with a position opened 14 hours ago (14 * 3600 * 1000 ms)
+    now_utc = datetime.datetime(2026, 11, 8, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    entry_ts_ms = int((now_utc - datetime.timedelta(hours=14)).timestamp() * 1000)
+
+    mock_positions = [
+        {
+            "symbol": "BTCUSDT",
+            "positionAmt": "-0.003",
+            "entryPrice": "75644.00",
+            "markPrice": "76000.00",
+            "unRealizedProfit": "-1.068",
+            "updateTime": entry_ts_ms
+        },
+        {
+            "symbol": "ETHUSDT",
+            "positionAmt": "0.000",
+            "entryPrice": "0.00",
+            "updateTime": 0
+        }
+    ]
+
+    flattened = []
+    def mock_signed_request(method, endpoint, params=None):
+        if endpoint == "/fapi/v2/positionRisk":
+            return mock_positions
+        if endpoint == "/fapi/v1/order" and method == "POST":
+            flattened.append(params)
+            return {"orderId": 99999, "status": "FILLED"}
+        return {}
+
+    executor._signed_request = mock_signed_request
+    expired = executor.sweep_live_temporal_exits(current_time_utc=now_utc, max_duration_hours=12)
+
+    assert len(expired) == 1
+    assert expired[0]["symbol"] == "BTCUSDT"
+    assert expired[0]["duration_hours"] >= Decimal("14")
+    assert expired[0]["unrealized_pnl_usd"] == Decimal("-1.068")
+    assert len(flattened) == 1
+    assert flattened[0]["symbol"] == "BTCUSDT"
+    assert flattened[0]["side"] == "BUY"  # opposite of short -0.003
+    assert flattened[0]["reduceOnly"] == "true"
+

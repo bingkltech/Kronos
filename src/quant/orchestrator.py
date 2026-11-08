@@ -18,6 +18,7 @@ Strictly adheres to:
 
 import os
 import sys
+import time
 import datetime
 from dataclasses import dataclass
 from decimal import Decimal
@@ -145,7 +146,10 @@ class QuantBotOrchestrator:
                     execution_mode="PAPER"
                 ))
 
-            self.sweep_temporal_exits(current_time_utc=current_time_utc, current_prices=current_prices)
+            self.sweep_temporal_exits(current_time_utc=current_time_utc, current_prices=current_prices, execution_mode="PAPER")
+        elif execution_mode == "LIVE":
+            # Active Live Temporal Sweeper (Lesson #17: Hard 12-Hour Stale Expiry)
+            self.sweep_temporal_exits(current_time_utc=current_time_utc, execution_mode="LIVE")
 
         # 5. Check Active Positions & Capacity
         decisions: Dict[str, KEVDecision] = {}
@@ -244,11 +248,35 @@ class QuantBotOrchestrator:
     def sweep_temporal_exits(
         self,
         current_time_utc: Optional[datetime.datetime] = None,
-        current_prices: Optional[Dict[str, Decimal]] = None
+        current_prices: Optional[Dict[str, Decimal]] = None,
+        execution_mode: str = "PAPER"
     ) -> List[str]:
         """Check all active positions for 12h stale expiry, close them at market, and record learning outcome."""
         expired_ids = []
         now_u = current_time_utc or datetime.datetime.now(datetime.timezone.utc)
+
+        if execution_mode == "LIVE":
+            live_expired = self.executor.sweep_live_temporal_exits(
+                current_time_utc=now_u,
+                max_duration_hours=self.risk_config.stale_trade_hours
+            )
+            for item in live_expired:
+                sym = item["symbol"]
+                expired_ids.append(f"LIVE_{sym}")
+                self.learning_governor.record_outcome(TradeOutcome(
+                    trade_id=f"LIVE_EXPIRED_{sym}_{int(time.time())}",
+                    symbol=sym,
+                    side=item["side"],
+                    forecast_confidence=Decimal("0.70"),
+                    realized_hit=1 if item["unrealized_pnl_usd"] > Decimal("0") else 0,
+                    realized_pnl_usd=item["unrealized_pnl_usd"],
+                    exit_reason="TEMPORAL_EXIT_12H_STALE",
+                    timestamp_utc=now_u,
+                    execution_mode="LIVE"
+                ))
+            return expired_ids
+
+        # PAPER execution mode
         prices = current_prices or {}
         for pos_id, pos in list(self.executor.active_positions.items()):
             px = prices.get(pos.symbol)
@@ -262,6 +290,7 @@ class QuantBotOrchestrator:
                     realized_hit=1 if pos.realized_pnl_usd > Decimal("0") else 0,
                     realized_pnl_usd=pos.realized_pnl_usd,
                     exit_reason="TEMPORAL_EXIT_12H_STALE",
-                    timestamp_utc=pos.close_time_utc or now_u
+                    timestamp_utc=pos.close_time_utc or now_u,
+                    execution_mode="PAPER"
                 ))
         return expired_ids

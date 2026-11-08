@@ -866,6 +866,86 @@ class BinanceAtomicExecutor:
             logger.error("Live flatten error: %s", e)
             return {"success": False, "error": str(e)}
 
+    def flatten_live_symbol(self, symbol: str) -> Dict[str, Any]:
+        """Cancel all open orders and algo orders for a single live symbol, and market flatten its position."""
+        try:
+            pos_data = self._signed_request("GET", "/fapi/v2/positionRisk")
+            for p in pos_data:
+                sym = p.get("symbol")
+                if sym != symbol:
+                    continue
+                amt = Decimal(str(p.get("positionAmt", "0.00")))
+                if abs(amt) > Decimal("0"):
+                    try:
+                        self._signed_request("DELETE", "/fapi/v1/allOpenOrders", {"symbol": sym})
+                    except Exception:
+                        pass
+                    try:
+                        self._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": sym})
+                    except Exception:
+                        pass
+                    side = "SELL" if amt > Decimal("0") else "BUY"
+                    flat_params = {
+                        "symbol": sym,
+                        "side": side,
+                        "type": "MARKET",
+                        "quantity": str(abs(amt)),
+                        "reduceOnly": "true"
+                    }
+                    r = self._signed_request("POST", "/fapi/v1/order", flat_params)
+                    return {"success": True, "symbol": sym, "closed_qty": str(amt), "status": "FLATTENED", "order": r}
+            return {"success": True, "symbol": symbol, "status": "NO_OPEN_POSITION"}
+        except Exception as e:
+            logger.error("Failed to flatten live symbol %s: %s", symbol, e)
+            return {"success": False, "symbol": symbol, "error": str(e)}
+
+    def sweep_live_temporal_exits(
+        self,
+        current_time_utc: Optional[datetime.datetime] = None,
+        max_duration_hours: int = 12
+    ) -> List[Dict[str, Any]]:
+        """
+        Inspect all active live positions on Binance USD(S)-M Futures.
+        If any open position's updateTime exceeds max_duration_hours, market-flatten it immediately.
+        """
+        expired = []
+        if not self.api_key or not self.secret_key:
+            return expired
+
+        now_u = current_time_utc or datetime.datetime.now(datetime.timezone.utc)
+        if now_u.tzinfo is None:
+            now_u = now_u.replace(tzinfo=datetime.timezone.utc)
+
+        try:
+            pos_data = self._signed_request("GET", "/fapi/v2/positionRisk")
+            for p in pos_data:
+                amt = Decimal(str(p.get("positionAmt", "0.00")))
+                sym = p.get("symbol")
+                if abs(amt) > Decimal("0"):
+                    update_ts = int(p.get("updateTime", 0))
+                    if update_ts > 0:
+                        pos_time_utc = datetime.datetime.fromtimestamp(update_ts / 1000.0, tz=datetime.timezone.utc)
+                        duration_hours = Decimal(str((now_u - pos_time_utc).total_seconds())) / Decimal("3600")
+                        if duration_hours >= Decimal(str(max_duration_hours)):
+                            logger.warning(
+                                "TEMPORAL EXPIRY (LIVE): %s position held for %s hours (limit=%sh). Flattening at market.",
+                                sym, duration_hours.quantize(Decimal("0.1")), max_duration_hours
+                            )
+                            flat_res = self.flatten_live_symbol(sym)
+                            unrealized = Decimal(str(p.get("unRealizedProfit", "0.00")))
+                            expired.append({
+                                "symbol": sym,
+                                "side": "BUY" if amt > Decimal("0") else "SELL",
+                                "quantity": abs(amt),
+                                "duration_hours": duration_hours,
+                                "unrealized_pnl_usd": unrealized,
+                                "result": flat_res
+                            })
+        except Exception as e:
+            logger.error("Error sweeping live temporal exits: %s", e)
+
+        return expired
+
     def get_live_trade_history(self, limit: int = 50, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Fetch real executed trades with realized PnL and commissions from Binance (handles BNB fee asset, cached 15s)."""
         now = time.time()

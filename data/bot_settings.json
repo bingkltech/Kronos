@@ -5,123 +5,120 @@
   "live_trading_interval": 60,
   "live_last_cycle_summary": {
     "success": true,
-    "timestamp": "2026-11-07T13:59:43.318536+00:00",
-    "macro_regime": "BEAR_DISTRIBUTION",
-    "breadth_pct": "25.0%",
-    "evaluated_count": 9,
+    "timestamp": "2026-11-08T15:09:59.999082+00:00",
+    "macro_regime": "BULL_EXPANSION",
+    "breadth_pct": "66.7%",
+    "evaluated_count": 10,
     "dispatched_count": 0,
     "decisions": [
+      {
+        "symbol": "BTCUSDT",
+        "side": "LONG",
+        "approved": false,
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.22% below hurdle 0.50% (Raw: 0.37%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
+        "ticket": null
+      },
       {
         "symbol": "ETHUSDT",
         "side": "LONG",
         "approved": false,
-        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
-        "reason": "VETO: Cannot Long during systemic Bear Distribution (25.0% breadth).",
-        "adversarial_notes": "Attempting counter-trend long against systemic market dump.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.11% below hurdle 0.50% (Raw: 0.26%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "SOLUSDT",
-        "side": "SHORT",
+        "side": "LONG",
         "approved": false,
         "veto_gate": "GATE_3_FEE_HURDLE",
-        "reason": "VETO: Net expected drift 0.32% below hurdle 0.50% (Raw: -0.47%, Friction: 0.15%).",
+        "reason": "VETO: Net expected drift 0.39% below hurdle 0.50% (Raw: 0.54%, Friction: 0.15%).",
         "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "BNBUSDT",
-        "side": "SHORT",
+        "side": "LONG",
         "approved": false,
         "veto_gate": "GATE_3_FEE_HURDLE",
-        "reason": "VETO: Net expected drift 0.03% below hurdle 0.50% (Raw: -0.18%, Friction: 0.15%).",
+        "reason": "VETO: Net expected drift 0.33% below hurdle 0.50% (Raw: 0.48%, Friction: 0.15%).",
         "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
+        "ticket": null
+      },
+      {
+        "symbol": "XRPUSDT",
+        "side": "SHORT",
+        "approved": false,
+        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
+        "reason": "VETO: Cannot Short during systemic Bull Expansion (66.7% breadth).",
+        "adversarial_notes": "Attempting counter-trend short against systemic market pump.",
         "ticket": null
       },
       {
         "symbol": "DOGEUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_3_FEE_HURDLE",
-        "reason": "VETO: Net expected drift 0.45% below hurdle 0.50% (Raw: -0.60%, Friction: 0.15%).",
-        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
+        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
+        "reason": "VETO: Cannot Short during systemic Bull Expansion (66.7% breadth).",
+        "adversarial_notes": "Attempting counter-trend short against systemic market pump.",
         "ticket": null
       },
       {
         "symbol": "ADAUSDT",
-        "side": "SHORT",
+        "side": "LONG",
         "approved": false,
-        "veto_gate": "GATE_6_RISK_REWARD",
-        "reason": "VETO: Risk/Reward ratio 1.39:1 is below institutional minimum 1.50:1.",
-        "adversarial_notes": "Negative expectancy: potential reward does not compensate downside stop risk.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.18% below hurdle 0.50% (Raw: 0.33%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "AVAXUSDT",
-        "side": "SHORT",
+        "side": "LONG",
         "approved": false,
         "veto_gate": "GATE_3_FEE_HURDLE",
-        "reason": "VETO: Net expected drift 0.21% below hurdle 0.50% (Raw: -0.36%, Friction: 0.15%).",
+        "reason": "VETO: Net expected drift 0.46% below hurdle 0.50% (Raw: 0.61%, Friction: 0.15%).",
         "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "LINKUSDT",
-        "side": "LONG",
+        "side": "SHORT",
         "approved": false,
         "veto_gate": "GATE_2_MACRO_CONFLUENCE",
-        "reason": "VETO: Cannot Long during systemic Bear Distribution (25.0% breadth).",
-        "adversarial_notes": "Attempting counter-trend long against systemic market dump.",
+        "reason": "VETO: Cannot Short during systemic Bull Expansion (66.7% breadth).",
+        "adversarial_notes": "Attempting counter-trend short against systemic market pump.",
         "ticket": null
       },
       {
         "symbol": "SUIUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_3_FEE_HURDLE",
-        "reason": "VETO: Net expected drift 0.42% below hurdle 0.50% (Raw: -0.57%, Friction: 0.15%).",
-        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
-        "ticket": null
-      },
-      {
-        "symbol": "1000PEPEUSDT",
-        "side": "SHORT",
-        "approved": false,
-        "veto_gate": "GATE_6_RISK_REWARD",
-        "reason": "VETO: Risk/Reward ratio 1.06:1 is below institutional minimum 1.50:1.",
-        "adversarial_notes": "Negative expectancy: potential reward does not compensate downside stop risk.",
+        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
+        "reason": "VETO: Cannot Short during systemic Bull Expansion (66.7% breadth).",
+        "adversarial_notes": "Attempting counter-trend short against systemic market pump.",
         "ticket": null
       }
     ],
     "dispatched_trades": [],
     "live_account": {
-      "total_wallet_balance_usd": 182.43349155,
-      "available_balance_usd": 19.12424801,
-      "unrealized_pnl_usd": -0.53935395,
-      "margin_ratio_pct": 0.64,
+      "total_wallet_balance_usd": 181.87107275,
+      "available_balance_usd": 131.89046783,
+      "unrealized_pnl_usd": -0.20487005,
+      "margin_ratio_pct": 0.18,
       "active_positions": [
         {
-          "symbol": "XRPUSDT",
-          "position_amt": "-42.6",
-          "side": "SELL",
-          "entry_price": "1.1717",
-          "mark_price": "1.16611686",
-          "unrealized_pnl_usd": "0.23784176",
-          "liquidation_price": "2.33164633",
-          "notional_usd": "49.91",
+          "symbol": "1000PEPEUSDT",
+          "position_amt": "9779",
+          "side": "BUY",
+          "entry_price": "0.0051122",
+          "mark_price": "0.00509125",
+          "unrealized_pnl_usd": "-0.20487005",
+          "liquidation_price": "0.00000119",
+          "notional_usd": "49.99",
           "leverage": 1,
-          "margin_type": "isolated"
-        },
-        {
-          "symbol": "BTCUSDT",
-          "position_amt": "-0.003",
-          "side": "SELL",
-          "entry_price": "75644.0",
-          "mark_price": "75903.06523988",
-          "unrealized_pnl_usd": "-0.77719571",
-          "liquidation_price": "112991.66313745",
-          "notional_usd": "226.93",
-          "leverage": 2,
           "margin_type": "isolated"
         }
       ]
@@ -530,5 +527,5 @@
   },
   "gemini_auto_apply": true,
   "latest_gemini_assessment": null,
-  "updated_at": "2026-11-07T18:24:36.722497+00:00"
+  "updated_at": "2026-11-08T15:10:23.640297+00:00"
 }
