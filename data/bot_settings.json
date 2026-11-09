@@ -5,125 +5,119 @@
   "live_trading_interval": 60,
   "live_last_cycle_summary": {
     "success": true,
-    "timestamp": "2026-11-09T06:37:17.237402+00:00",
+    "timestamp": "2026-11-09T08:02:00.937474+00:00",
     "macro_regime": "BEAR_DISTRIBUTION",
-    "breadth_pct": "8.3%",
-    "evaluated_count": 8,
+    "breadth_pct": "0.0%",
+    "evaluated_count": 10,
     "dispatched_count": 0,
     "decisions": [
       {
         "symbol": "BTCUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.31% below hurdle 0.50% (Raw: -0.46%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "SOLUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.40% below hurdle 0.50% (Raw: -0.55%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
+        "ticket": null
+      },
+      {
+        "symbol": "BNBUSDT",
+        "side": "SHORT",
+        "approved": false,
+        "veto_gate": "GATE_6_RISK_REWARD",
+        "reason": "VETO: Risk/Reward ratio 0.97:1 is below institutional minimum 1.50:1.",
+        "adversarial_notes": "Negative expectancy: potential reward does not compensate downside stop risk.",
+        "ticket": null
+      },
+      {
+        "symbol": "XRPUSDT",
+        "side": "SHORT",
+        "approved": false,
+        "veto_gate": "GATE_6_RISK_REWARD",
+        "reason": "VETO: Risk/Reward ratio 1.17:1 is below institutional minimum 1.50:1.",
+        "adversarial_notes": "Negative expectancy: potential reward does not compensate downside stop risk.",
         "ticket": null
       },
       {
         "symbol": "DOGEUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.36% below hurdle 0.50% (Raw: -0.51%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "ADAUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.20% below hurdle 0.50% (Raw: -0.35%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "AVAXUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.11% below hurdle 0.50% (Raw: -0.26%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "LINKUSDT",
-        "side": "SHORT",
+        "side": "LONG",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
+        "reason": "VETO: Cannot Long during systemic Bear Distribution (0.0% breadth).",
+        "adversarial_notes": "Attempting counter-trend long against systemic market dump.",
         "ticket": null
       },
       {
         "symbol": "SUIUSDT",
         "side": "SHORT",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_3_FEE_HURDLE",
+        "reason": "VETO: Net expected drift 0.20% below hurdle 0.50% (Raw: -0.35%, Friction: 0.15%).",
+        "adversarial_notes": "Alpha swallowed by exchange taker friction and slippage.",
         "ticket": null
       },
       {
         "symbol": "1000PEPEUSDT",
-        "side": "SHORT",
+        "side": "LONG",
         "approved": false,
-        "veto_gate": "GATE_5_PORTFOLIO_CAPACITY",
-        "reason": "VETO: Max concurrent positions (3) reached.",
-        "adversarial_notes": "Portfolio risk capacity full.",
+        "veto_gate": "GATE_2_MACRO_CONFLUENCE",
+        "reason": "VETO: Cannot Long during systemic Bear Distribution (0.0% breadth).",
+        "adversarial_notes": "Attempting counter-trend long against systemic market dump.",
         "ticket": null
       }
     ],
     "dispatched_trades": [],
     "live_account": {
-      "total_wallet_balance_usd": 181.26990991,
-      "available_balance_usd": 33.72142678,
-      "unrealized_pnl_usd": 2.90889732,
-      "margin_ratio_pct": 0.37,
+      "total_wallet_balance_usd": 183.78353898,
+      "available_balance_usd": 134.5930144,
+      "unrealized_pnl_usd": 1.14471,
+      "margin_ratio_pct": 0.1,
       "active_positions": [
         {
           "symbol": "ETHUSDT",
           "position_amt": "-0.023",
           "side": "SELL",
           "entry_price": "2140.0",
-          "mark_price": "2117.65000000",
-          "unrealized_pnl_usd": "0.51405000",
-          "liquidation_price": "4261.76924952",
+          "mark_price": "2090.23000000",
+          "unrealized_pnl_usd": "1.14471000",
+          "liquidation_price": "4261.67177291",
           "notional_usd": "49.22",
-          "leverage": 1,
-          "margin_type": "isolated"
-        },
-        {
-          "symbol": "XRPUSDT",
-          "position_amt": "-44.3",
-          "side": "SELL",
-          "entry_price": "1.1286",
-          "mark_price": "1.09010000",
-          "unrealized_pnl_usd": "1.70555000",
-          "liquidation_price": "2.24549015",
-          "notional_usd": "50.00",
-          "leverage": 1,
-          "margin_type": "isolated"
-        },
-        {
-          "symbol": "BNBUSDT",
-          "position_amt": "-0.07",
-          "side": "SELL",
-          "entry_price": "691.49",
-          "mark_price": "681.64289529",
-          "unrealized_pnl_usd": "0.68929732",
-          "liquidation_price": "1375.75547761",
-          "notional_usd": "48.40",
           "leverage": 1,
           "margin_type": "isolated"
         }
@@ -533,5 +527,5 @@
   },
   "gemini_auto_apply": true,
   "latest_gemini_assessment": null,
-  "updated_at": "2026-11-09T06:37:35.971963+00:00"
+  "updated_at": "2026-11-09T08:02:24.562001+00:00"
 }
