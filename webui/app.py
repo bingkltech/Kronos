@@ -1561,6 +1561,30 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
             if klines:
                 curr_price = klines[-1]["close"]
                 apex_scalper.update_in_trade_path(curr_price)
+
+                # Automatic Adaptation: Check if trade was already closed/flattened externally on Binance
+                if live_trading_enabled:
+                    try:
+                        live_acc = quant_bot.executor.get_live_account_summary()
+                        if live_acc.get("connected"):
+                            open_syms = [p.get("symbol") for p in live_acc.get("positions", [])]
+                            if pos.symbol not in open_syms:
+                                print(f">> [External Flatten Detected] {pos.symbol} position no longer on Binance. Releasing scalper slot.")
+                                try:
+                                    quant_bot.executor._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": pos.symbol})
+                                    quant_bot.executor._signed_request("DELETE", "/fapi/v1/allOpenOrders", {"symbol": pos.symbol})
+                                except Exception:
+                                    pass
+                                apex_scalper.close_scalp(
+                                    exit_price=curr_price,
+                                    close_reason="MANUAL_OVERRIDE",
+                                    current_time_utc=now_utc,
+                                    exchange_fees_usd=Decimal("0.00"),
+                                    trade_mode="LIVE"
+                                )
+                                return
+                    except Exception as err:
+                        logger.debug("Live sync check error: %s", err)
                 
                 # Check TP / SL hit or Fast Profit Snatch
                 duration_sec = int((now_utc - pos.entry_time_utc).total_seconds())
