@@ -20,6 +20,7 @@ function updateScalperUI(s) {
     }
 
     if (s.active_scalp) {
+        window._currentActiveScalpSymbol = s.active_scalp.symbol;
         const p = s.active_scalp;
 
         // Paper Card Elements
@@ -75,6 +76,7 @@ function updateScalperUI(s) {
             liveSideEl.style.borderColor = p.side === 'BUY' ? 'rgba(63, 185, 80, 0.4)' : 'rgba(248, 81, 73, 0.4)';
         }
     } else {
+        window._currentActiveScalpSymbol = null;
         if (badge) {
             badge.textContent = 'SEARCHING FOR APEX SETUP';
             badge.style.color = '#f0883e';

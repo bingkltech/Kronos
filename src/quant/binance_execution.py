@@ -128,6 +128,36 @@ class BinanceAtomicExecutor:
 
         self._load_paper_state()
 
+        # Scalp order tracking for institutional UI highlighting
+        workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.scalp_orders_file = os.path.join(workspace_root, "data", "scalp_orders.json")
+        self.scalp_order_ids: Set[str] = set()
+        self._load_scalp_orders()
+
+    def _load_scalp_orders(self):
+        """Restore registered scalp order IDs across restarts."""
+        try:
+            if hasattr(self, "scalp_orders_file") and os.path.exists(self.scalp_orders_file):
+                with open(self.scalp_orders_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        self.scalp_order_ids = set(str(x) for x in data)
+        except Exception:
+            self.scalp_order_ids = set()
+
+    def record_scalp_order(self, order_id: Any):
+        """Register an order ID as belonging to an institutional micro-scalp."""
+        if not order_id:
+            return
+        oid = str(order_id)
+        self.scalp_order_ids.add(oid)
+        try:
+            if hasattr(self, "scalp_orders_file"):
+                with open(self.scalp_orders_file, "w", encoding="utf-8") as f:
+                    json.dump(list(self.scalp_order_ids), f, indent=2)
+        except Exception as e:
+            logger.debug("Failed saving scalp orders: %s", e)
+
     def _refresh_credentials(self, api_key: Optional[str] = None, secret_key: Optional[str] = None):
         """Dynamically resolve Binance API credentials from arguments or environment (.env)."""
         try:
@@ -776,6 +806,10 @@ class BinanceAtomicExecutor:
             fill_price = ticket.entry_price
             
         pos_id = f"LIVE_{ticket.symbol}-{int(time.time()*1000)}"
+        entry_order_id_str = str(entry_resp.get("orderId"))
+        if getattr(ticket, "is_scalp", False) and entry_order_id_str:
+            self.record_scalp_order(entry_order_id_str)
+
         pos = ActiveBracketPosition(
             position_id=pos_id,
             symbol=ticket.symbol,
@@ -785,7 +819,7 @@ class BinanceAtomicExecutor:
             take_profit=ticket.take_profit,
             quantity=ticket.quantity,
             state=PositionState.ENTRY_FILLED,
-            entry_order_id=str(entry_resp.get("orderId")),
+            entry_order_id=entry_order_id_str,
             entry_fill_time_utc=datetime.datetime.now(datetime.timezone.utc)
         )
         
@@ -815,6 +849,12 @@ class BinanceAtomicExecutor:
             tp_resp = self._signed_request("POST", "/fapi/v1/algoOrder", tp_params)
             pos.tp_order_id = str(tp_resp.get("algoId") or tp_resp.get("orderId"))
             pos.state = PositionState.BRACKETS_ACTIVE
+            
+            if getattr(ticket, "is_scalp", False):
+                if pos.sl_order_id:
+                    self.record_scalp_order(pos.sl_order_id)
+                if pos.tp_order_id:
+                    self.record_scalp_order(pos.tp_order_id)
             
         except Exception as e:
             logger.critical("CRITICAL: Failed to confirm SL/TP for live position %s: %s", pos_id, e)
@@ -970,9 +1010,13 @@ class BinanceAtomicExecutor:
                     else:
                         fee_usd = fee_raw.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
+                    order_id_str = str(t.get("orderId"))
+                    trade_id_str = str(t.get("id"))
+                    is_scalp = (order_id_str in self.scalp_order_ids) or (trade_id_str in self.scalp_order_ids)
+
                     trades.append({
-                        "trade_id": str(t.get("id")),
-                        "order_id": str(t.get("orderId")),
+                        "trade_id": trade_id_str,
+                        "order_id": order_id_str,
                         "symbol": t.get("symbol"),
                         "side": "BUY" if t.get("buyer") else "SELL",
                         "price": str(Decimal(str(t.get("price", "0")))),
@@ -981,6 +1025,8 @@ class BinanceAtomicExecutor:
                         "fee_amount": str(fee_raw),
                         "fee_usd": str(fee_usd),
                         "fee_asset": fee_asset,
+                        "is_scalp": is_scalp,
+                        "trade_type": "SCALP" if is_scalp else "MACRO",
                         "time": datetime.datetime.fromtimestamp(t.get("time", 0) / 1000, tz=datetime.timezone.utc).isoformat()
                     })
             except Exception as e:

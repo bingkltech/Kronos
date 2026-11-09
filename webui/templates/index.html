@@ -758,6 +758,35 @@
             border-color: #f59e0b;
         }
 
+        /* Institutional Bold Blue Styling for Micro-Scalp Trades & Positions */
+        .trade-row-scalp {
+            background: rgba(56, 139, 253, 0.12) !important;
+            border-left: 4px solid #388bfd !important;
+            box-shadow: inset 0 0 12px rgba(56, 139, 253, 0.08);
+        }
+        .scalp-badge-bold-blue {
+            color: #ffffff !important;
+            background: #1f6feb !important;
+            border: 1px solid #388bfd !important;
+            font-weight: 800 !important;
+            font-size: 10px !important;
+            padding: 2px 7px !important;
+            border-radius: 4px !important;
+            box-shadow: 0 0 8px rgba(56, 139, 253, 0.5) !important;
+            display: inline-block !important;
+            letter-spacing: 0.5px !important;
+            vertical-align: middle !important;
+            margin-left: 6px !important;
+        }
+        .scalp-symbol-bold-blue {
+            color: #388bfd !important;
+            font-weight: 800 !important;
+            font-size: 13px !important;
+            text-shadow: 0 0 10px rgba(56, 139, 253, 0.4) !important;
+            letter-spacing: 0.3px !important;
+        }
+
+
         .ws-btn-tool {
             background: #1e293b;
             border: 1px solid #334155;
@@ -2855,6 +2884,8 @@
                     } else {
                         positions.forEach(p => {
                             const tr = document.createElement('tr');
+                            const isScalp = Boolean(p.is_scalp || p.trade_type === 'SCALP' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                            if (isScalp) tr.className = 'trade-row-scalp';
                             const side = (p.side || '').toUpperCase();
                             const sideColor = side === 'BUY' || side === 'LONG' ? '#3fb950' : '#f85149';
                             const pnlVal = Number(p.unrealized_pnl_usd || 0);
@@ -2864,8 +2895,12 @@
                             const mark = Number(p.mark_price || 0);
                             const liq = Number(p.liquidation_price || 0);
 
+                            const symbolHtml = isScalp
+                                ? `<strong class="scalp-symbol-bold-blue">${p.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
+                                : `<strong>${p.symbol}</strong>`;
+
                             tr.innerHTML = `
-                                <td><strong>${p.symbol}</strong></td>
+                                <td>${symbolHtml}</td>
                                 <td><span class="badge-regime" style="color: ${sideColor}; font-weight: 700; border: 1px solid ${sideColor};">${side}</span></td>
                                 <td style="font-family: var(--font-mono);">${p.position_amt}</td>
                                 <td style="font-family: var(--font-mono);">$${notional.toFixed(2)}</td>
@@ -2903,16 +2938,18 @@
                     } else {
                         trades.slice(0, 10).forEach(t => {
                             const tr = document.createElement('tr');
+                            const isScalp = Boolean(t.is_scalp || t.trade_type === 'SCALP');
+                            if (isScalp) tr.className = 'trade-row-scalp';
                             const isBuy = t.buyer || t.side === 'BUY';
                             const sideStr = isBuy ? 'BUY' : 'SELL';
                             const sideColor = isBuy ? '#3fb950' : '#f85149';
-                            const pnl = Number(t.realizedPnl || 0);
+                            const pnl = Number(t.realizedPnl || t.realized_pnl_usd || 0);
                             const pnlColor = pnl >= 0 ? '#3fb950' : '#f85149';
                             const price = Number(t.price || 0);
-                            const qty = Number(t.qty || 0);
+                            const qty = Number(t.qty || t.quantity || 0);
                             const notional = price * qty;
-                            const fee = Number(t.commission || 0);
-                            const feeAsset = t.commissionAsset || 'USDT';
+                            const fee = Number(t.commission || t.fee_amount || 0);
+                            const feeAsset = t.commissionAsset || t.fee_asset || 'USDT';
 
                             let timeStr = '--:--:--';
                             if (t.time) {
@@ -2920,9 +2957,13 @@
                                 timeStr = d.toISOString().replace('T', ' ').slice(11, 19);
                             }
 
+                            const symbolHtml = isScalp
+                                ? `<strong class="scalp-symbol-bold-blue">${t.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
+                                : `<strong>${t.symbol}</strong>`;
+
                             tr.innerHTML = `
                                 <td style="font-family: var(--font-mono); font-size: 11px;">${timeStr}</td>
-                                <td><strong>${t.symbol}</strong></td>
+                                <td>${symbolHtml}</td>
                                 <td><span class="badge-regime" style="color: ${sideColor}; font-weight: 700; border: 1px solid ${sideColor}; font-size: 10px;">${sideStr}</span></td>
                                 <td style="font-family: var(--font-mono);">$${price.toFixed(2)}</td>
                                 <td style="font-family: var(--font-mono);">${qty}</td>
@@ -3546,11 +3587,16 @@
                         } else {
                             positions.forEach(p => {
                                 const tr = document.createElement('tr');
+                                const isScalp = Boolean(p.is_scalp || p.trade_type === 'SCALP' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                                if (isScalp) tr.className = 'trade-row-scalp';
                                 const sideColor = p.side === 'BUY' || p.side === 'LONG' ? '#3fb950' : '#f85149';
                                 const pnl = Number(p.unrealized_pnl_usd || 0);
                                 const pnlColor = pnl >= 0 ? '#3fb950' : '#f85149';
+                                const symbolHtml = isScalp
+                                    ? `<strong class="scalp-symbol-bold-blue">${p.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
+                                    : `<strong>${p.symbol}</strong>`;
                                 tr.innerHTML = `
-                                    <td><strong>${p.symbol}</strong></td>
+                                    <td>${symbolHtml}</td>
                                     <td><strong style="color: ${sideColor};">${p.side}</strong></td>
                                     <td>${p.position_amt}</td>
                                     <td>$${Number(p.notional_usd || 0).toFixed(2)}</td>
@@ -3594,17 +3640,25 @@
                             } else {
                                 trades.forEach(t => {
                                     const tr = document.createElement('tr');
-                                    const pnl = Number(t.realized_pnl_usd || 0);
+                                    const isScalp = Boolean(t.is_scalp || t.trade_type === 'SCALP');
+                                    if (isScalp) tr.className = 'trade-row-scalp';
+                                    const pnl = Number(t.realized_pnl_usd || t.realizedPnl || 0);
                                     const pnlColor = pnl > 0 ? '#3fb950' : (pnl < 0 ? '#f85149' : 'var(--text-muted)');
                                     const sideColor = t.side === 'BUY' ? '#3fb950' : '#f85149';
-                                    const feeAsset = t.fee_asset || 'USDT';
+                                    const feeAsset = t.fee_asset || t.commissionAsset || 'USDT';
                                     const feeText = feeAsset === 'BNB' 
-                                        ? `${t.fee_amount || '0'} BNB (~$${Number(t.fee_usd || 0).toFixed(4)})` 
-                                        : `$${Number(t.fee_usd || 0).toFixed(4)} USDT`;
+                                        ? `${t.fee_amount || t.commission || '0'} BNB (~$${Number(t.fee_usd || 0).toFixed(4)})` 
+                                        : `$${Number(t.fee_usd || t.commission || 0).toFixed(4)} USDT`;
+                                    const symbolHtml = isScalp
+                                        ? `<strong class="scalp-symbol-bold-blue">${t.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
+                                        : `<strong>${t.symbol}</strong>`;
+                                    const orderIdHtml = isScalp
+                                        ? `<code style="color: #388bfd; font-weight: 800;">${t.order_id || t.trade_id} (SCALP)</code>`
+                                        : `<code style="color: #58a6ff;">${t.order_id || t.trade_id}</code>`;
                                     tr.innerHTML = `
-                                        <td style="color: var(--text-muted); font-size: 11px;">${t.time.replace('T', ' ').slice(0, 19)}</td>
-                                        <td><code style="color: #58a6ff;">${t.order_id || t.trade_id}</code></td>
-                                        <td><strong>${t.symbol}</strong></td>
+                                        <td style="color: var(--text-muted); font-size: 11px;">${(t.time || '').replace('T', ' ').slice(0, 19)}</td>
+                                        <td>${orderIdHtml}</td>
+                                        <td>${symbolHtml}</td>
                                         <td><strong style="color: ${sideColor};">${t.side}</strong></td>
                                         <td>$${Number(t.price || 0).toFixed(2)}</td>
                                         <td>${t.quantity}</td>
@@ -4378,10 +4432,15 @@
                     const grossVal = (t.gross_pnl_usd !== undefined ? t.gross_pnl_usd : t.realized_pnl_usd);
                     const grossColor = grossVal >= 0 ? '#3fb950' : '#f85149';
 
+                    const isScalp = Boolean(t.is_scalp || t.trade_type === 'SCALP' || (t.position_id && String(t.position_id).startsWith('SCALP')));
+                    const rowClass = isScalp ? ' class="trade-row-scalp"' : '';
+                    const symHtml = isScalp
+                        ? `<strong class="scalp-symbol-bold-blue">${t.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
+                        : `<strong>${t.symbol}</strong>`;
                     rowsHtml += `
-                        <tr>
+                        <tr${rowClass}>
                             <td style="font-family: var(--font-mono); color: var(--text-muted);">${timeStr}</td>
-                            <td><strong>${t.symbol}</strong></td>
+                            <td>${symHtml}</td>
                             <td><strong style="color: ${sideColor};">${t.side}</strong></td>
                             <td style="font-family: var(--font-mono);">${t.entry_price}</td>
                             <td style="font-family: var(--font-mono);">${t.exit_price}</td>

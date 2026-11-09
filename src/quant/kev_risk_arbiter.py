@@ -43,6 +43,7 @@ class TradeTicket:
     risk_budget_usd: Decimal
     reward_risk_ratio: Decimal
     net_expected_gain_pct: Decimal
+    is_scalp: bool = False
 
 
 @dataclass(frozen=True)

@@ -1042,7 +1042,27 @@ def get_macro_overview():
             try:
                 live_account = quant_bot.executor.get_live_account_summary()
                 if live_account and live_account.get("connected"):
-                    live_trades = quant_bot.executor.get_live_trade_history(limit=15)
+                    raw_trades = quant_bot.executor.get_live_trade_history(limit=15)
+                    active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
+                    if "positions" in live_account:
+                        enriched_pos = []
+                        for p in live_account.get("positions", []):
+                            pd = dict(p)
+                            is_sc = (active_scalp_sym is not None and pd.get("symbol") == active_scalp_sym)
+                            pd["is_scalp"] = is_sc
+                            pd["trade_type"] = "SCALP" if is_sc else "MACRO"
+                            enriched_pos.append(pd)
+                        live_account["positions"] = enriched_pos
+
+                    scalp_oids = getattr(quant_bot.executor, "scalp_order_ids", set())
+                    for t in raw_trades:
+                        td = dict(t)
+                        oid = str(td.get("order_id") or td.get("orderId") or "")
+                        tid = str(td.get("trade_id") or td.get("id") or "")
+                        is_sc = bool(td.get("is_scalp")) or (oid in scalp_oids) or (tid in scalp_oids)
+                        td["is_scalp"] = is_sc
+                        td["trade_type"] = "SCALP" if is_sc else "MACRO"
+                        live_trades.append(td)
             except Exception as err:
                 logger.debug("Live account overview error: %s", err)
 
@@ -1755,13 +1775,20 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                     effective_leverage=new_pos.leverage,
                     risk_budget_usd=new_pos.initial_margin_usd,
                     reward_risk_ratio=apex.reward_risk_ratio,
-                    net_expected_gain_pct=apex.predicted_drift_pct
+                    net_expected_gain_pct=apex.predicted_drift_pct,
+                    is_scalp=True
                 )
                 live_res = quant_bot.executor.submit_live_bracket_order(ticket)
                 if live_res.state == PositionState.REJECTED:
                     print(f">> [Apex Scalper Live Dispatch Rejected] {live_res.close_reason}")
                     apex_scalper.active_scalp = None
                     return
+                if live_res.entry_order_id:
+                    quant_bot.executor.record_scalp_order(live_res.entry_order_id)
+                if live_res.take_profit_order_id:
+                    quant_bot.executor.record_scalp_order(live_res.take_profit_order_id)
+                if live_res.stop_loss_order_id:
+                    quant_bot.executor.record_scalp_order(live_res.stop_loss_order_id)
                 print(f">> [REAL LIVE APEX SCALP DISPATCHED TO BINANCE] {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} OrderID={live_res.entry_order_id}")
             else:
                 print(f">> [Paper Apex Scalper Dispatched] {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
@@ -2207,6 +2234,27 @@ def get_live_status():
             now_u = datetime.datetime.now(datetime.timezone.utc)
             next_sec = max(0, int((live_trading_next_scan_time - now_u).total_seconds()))
 
+        # Enrich live positions and trade history with is_scalp flag for institutional bold blue styling
+        active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
+        enriched_positions = []
+        for p in live_account.get("positions", []):
+            p_dict = dict(p)
+            is_sc = (active_scalp_sym is not None and p_dict.get("symbol") == active_scalp_sym)
+            p_dict["is_scalp"] = is_sc
+            p_dict["trade_type"] = "SCALP" if is_sc else "MACRO"
+            enriched_positions.append(p_dict)
+
+        enriched_trades = []
+        scalp_oids = getattr(quant_bot.executor, "scalp_order_ids", set())
+        for t in trade_history:
+            t_dict = dict(t)
+            oid = str(t_dict.get("order_id") or t_dict.get("orderId") or "")
+            tid = str(t_dict.get("trade_id") or t_dict.get("id") or "")
+            is_sc = bool(t_dict.get("is_scalp")) or (oid in scalp_oids) or (tid in scalp_oids)
+            t_dict["is_scalp"] = is_sc
+            t_dict["trade_type"] = "SCALP" if is_sc else "MACRO"
+            enriched_trades.append(t_dict)
+
         return jsonify({
             "success": True,
             "connected": live_account.get("connected", False),
@@ -2232,10 +2280,10 @@ def get_live_status():
                 "margin_ratio_pct": float(live_account.get("margin_ratio_pct", Decimal("0.00"))),
                 "bnb_balance": float(live_account.get("bnb_balance", Decimal("0.00"))),
                 "bnb_fee_discount_active": bool(live_account.get("bnb_fee_discount_active", False)),
-                "active_positions_count": len(live_account.get("positions", [])),
-                "positions": live_account.get("positions", [])
+                "active_positions_count": len(enriched_positions),
+                "positions": enriched_positions
             },
-            "trade_history": trade_history,
+            "trade_history": enriched_trades,
             "autopilot": {
                 "enabled": live_trading_enabled,
                 "interval_seconds": live_trading_interval,
