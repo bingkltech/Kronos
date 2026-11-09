@@ -153,3 +153,57 @@ To prevent collateral dead-lock and protect against alpha decay and macro regime
 - **Market Flattening:** Any position open for $\ge 12\text{ hours}$ without triggering its Take-Profit or Stop-Loss bracket is automatically market-flattened (`reduceOnly=true`).
 - **Collateral Recycling:** Margin is instantly returned to free collateral, enabling the engine to trade active regime-aligned setups.
 - **Post-Mortem Documentation:** See [`docs/INCIDENT_POSTMORTEM_STALE_TRADE_LOCK_AND_TEMPORAL_DECAY.md`](file:///F:/012D_TRADE/Kronos/docs/INCIDENT_POSTMORTEM_STALE_TRADE_LOCK_AND_TEMPORAL_DECAY.md) for complete mathematical proofs and empirical findings.
+
+---
+
+## 8. Dual-Engine Production Execution Architecture (Macro + Scalper)
+
+In production live trading, Kronos runs two complementary execution engines side-by-side in real time:
+
+```mermaid
+graph TD
+    subgraph LiveAccount ["Binance USDⓈ-M Futures Account ($183.78)"]
+        Collateral["Free Collateral ($34.96)"]
+        Positions["Active Positions (Max 3 Macro + 1 Scalp)"]
+    end
+
+    subgraph MacroEngine ["1. Macro Trend Engine (60s Scan)"]
+        KEV["KEV.ai 6-Point Supreme Veto Gate"]
+        MacroSweep["12h Temporal Sweeper"]
+        MacroExec["Macro Positions (Max 3, Isolated 1x-3x)"]
+    end
+
+    subgraph ScalpEngine ["2. Apex Micro Scalper (Fast Step)"]
+        Stoikov["Stoikov Micro-Price Skew Veto"]
+        VolExpiry["Volatility-Scaled Expiry (10m - 45m)"]
+        Ratchet["Volatility-Buffered Ratchet (+0.40%)"]
+        ScalpExec["Apex Scalp (Strict N=1, Isolated 3x-5x)"]
+    end
+
+    Collateral --> MacroEngine
+    Collateral --> ScalpEngine
+    KEV --> MacroExec
+    MacroExec --> Positions
+    Stoikov --> ScalpExec
+    ScalpExec --> Positions
+    Positions -.->|"External App Flatten Sync"| ScalpEngine
+```
+
+### Engine 1: Macro Trend & Swarm Sizing (Swing Layer)
+- **Scanning Cadence:** Evaluates full universe every 60 seconds.
+- **Gating:** KEV.ai 6-Point Supreme Veto Gate (Gate 1: News, Gate 2: Macro Breadth $>60\%$, Gate 3: Fee Hurdle $\ge 0.50\%$, Gate 4: Funding Drag $\le 0.03\%$, Gate 5: Portfolio Capacity $\le 3$, Gate 6: $R:R \ge 1.50$).
+- **Lifecycle:** 12-hour maximum temporal holding time via `sweep_live_temporal_exits()`.
+- **Target Assets:** Low/medium volatility assets during directional regimes.
+
+### Engine 2: Apex Sequential Scalper (Microstructure Layer)
+- **Concurrency:** Strictly single-lane ($N=1$) to prevent concurrent margin exhaustion.
+- **Conflict Shield:** Automatically blacklists all symbols currently held by the Macro engine.
+- **Gating:** Sasha Stoikov Level-2 Micro-Price Skew ($D_{\text{micro}} \in [-0.20, +0.20]\text{ bps}$) to defeat false breakouts and spoofed orderbook walls.
+- **Dynamic Expiry:** Volatility-scaled holding periods (10 min for memes $\text{ATR}\% \ge 0.80\%$, 20 min for alts, 45 min for majors).
+- **Profit Protection:** Volatility-Buffered Ratchet (+0.40% expansion locks Stop-Loss to `Entry + Fees`, leaving TP open).
+- **Safety Margin Buffer:** Dispatches only when available account cash $\ge \$10.00$.
+
+### Engine 3: External Flatten Auto-Reconciliation
+- If the user manually closes any trade on the Binance mobile app or desktop terminal, both engines detect the missing contract on the next 60s cycle.
+- The engine instantly cancels all orphaned `STOP_MARKET` and `TAKE_PROFIT_MARKET` algo brackets and frees the scalper slot without desynchronization or manual restarts.
+
