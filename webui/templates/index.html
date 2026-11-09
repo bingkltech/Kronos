@@ -1400,6 +1400,23 @@
             </div>
 
             <!-- LIVE SECTION 1: Active Real Live Positions Table -->
+            
+            <!-- Dashboard Live API Error Banner -->
+            <div id="dash-live-api-error-banner" style="display: none; background: rgba(248, 81, 73, 0.15); border: 1px solid rgba(248, 81, 73, 0.5); border-radius: 6px; padding: 12px 18px; margin-bottom: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 20px;">⚠️</span>
+                    <div>
+                        <strong style="color: #f85149; font-size: 13px;">Binance IP Whitelist Gate (HTTP 401):</strong>
+                        <span style="color: #ff7b72; font-size: 12px; margin-left: 6px;" id="dash-live-api-error-text">Your external IP address rotated. Whitelist this IP in Binance API Management.</span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <code id="dash-live-detected-ip" style="background: #21262d; color: #58a6ff; font-weight: 800; font-size: 13px; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(88, 166, 255, 0.3);">96.0.146.54</code>
+                    <button class="btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="navigator.clipboard.writeText(document.getElementById('dash-live-detected-ip').textContent.trim()); alert('IP copied: ' + document.getElementById('dash-live-detected-ip').textContent.trim());">📋 Copy</button>
+                    <a href="https://www.binance.com/en/my/settings/api-management" target="_blank" class="btn-primary" style="padding: 3px 8px; font-size: 11px; text-decoration: none;">Binance API</a>
+                </div>
+            </div>
+
             <div id="dash-live-positions-section" style="margin-bottom: 18px;">
                 <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                     <span style="display: flex; align-items: center; gap: 6px;">
@@ -2351,6 +2368,26 @@
         </div>
 
         <!-- Mutual Exclusion Warning Banner -->
+        
+        <!-- Binance API Whitelist Alert Banner -->
+        <div id="live-api-error-banner" style="display: none; background: rgba(248, 81, 73, 0.15); border: 1px solid rgba(248, 81, 73, 0.5); border-radius: 6px; padding: 12px 18px; margin-bottom: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">⚠️</span>
+                <div>
+                    <strong style="color: #f85149; font-size: 14px;">Binance IP Whitelist Gate (HTTP 401):</strong>
+                    <div style="color: #ff7b72; font-size: 12px; margin-top: 2px;" id="live-api-error-text">
+                        Invalid API-key, IP, or permissions. Please add your current public IP to your Binance API key whitelist.
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 12px; color: var(--text-muted);">Current Public IP:</span>
+                <code id="live-detected-ip" style="background: #21262d; color: #58a6ff; font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(88, 166, 255, 0.3);">96.0.146.54</code>
+                <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px; background: #30363d; color: #fff;" onclick="navigator.clipboard.writeText(document.getElementById('live-detected-ip').textContent.trim()); alert('IP copied to clipboard: ' + document.getElementById('live-detected-ip').textContent.trim());">📋 Copy IP</button>
+                <a href="https://www.binance.com/en/my/settings/api-management" target="_blank" class="btn-primary" style="padding: 4px 12px; font-size: 11px; text-decoration: none;">⚙️ Binance API Settings</a>
+            </div>
+        </div>
+
         <div id="live-mutual-exclusion-banner" style="background: rgba(255, 82, 82, 0.1); border: 1px solid rgba(255, 82, 82, 0.3); border-radius: 6px; padding: 10px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 18px;">🛡️</span>
@@ -2807,6 +2844,25 @@
             const margin = Number(acct.margin_ratio_pct || 0);
             const bnbBal = Number(acct.bnb_balance || 0);
             const bnbActive = Boolean(acct.bnb_fee_discount_active);
+
+            // Check for Binance API connection / 401 error on Dashboard
+            const dashErrBanner = document.getElementById('dash-live-api-error-banner');
+            const dashErrText = document.getElementById('dash-live-api-error-text');
+            const dashIpCode = document.getElementById('dash-live-detected-ip');
+            const hasError = !acct.connected && (data.error || (data.last_cycle && data.last_cycle.error));
+            if (hasError) {
+                const errMsg = data.error || (data.last_cycle ? data.last_cycle.error : '');
+                if (dashErrBanner) {
+                    dashErrBanner.style.display = 'flex';
+                    if (dashErrText) dashErrText.textContent = errMsg;
+                    const match = errMsg.match(/request ip:\s*([0-9.]+)/i);
+                    if (match && dashIpCode) {
+                        dashIpCode.textContent = match[1];
+                    }
+                }
+            } else {
+                if (dashErrBanner) dashErrBanner.style.display = 'none';
+            }
 
             // 1. Header & Badges
             const dTitle = document.getElementById('dash-portfolio-title');
@@ -3421,6 +3477,23 @@
                 if (!data.success) return;
 
                 liveAutopilotActive = !!(data.autopilot && data.autopilot.enabled);
+
+                // Check for Binance API connection / 401 error
+                const errBanner = document.getElementById('live-api-error-banner');
+                const errText = document.getElementById('live-api-error-text');
+                const ipCode = document.getElementById('live-detected-ip');
+                if (!data.connected && data.error) {
+                    if (errBanner) {
+                        errBanner.style.display = 'flex';
+                        if (errText) errText.textContent = data.error;
+                        const match = data.error.match(/request ip:\s*([0-9.]+)/i);
+                        if (match && ipCode) {
+                            ipCode.textContent = match[1];
+                        }
+                    }
+                } else {
+                    if (errBanner) errBanner.style.display = 'none';
+                }
 
                 // Update Control Bar & Badges
                 const badge = document.getElementById('live-state-badge');
