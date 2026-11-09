@@ -320,7 +320,11 @@ class KEVSupremeArbiter:
                 max_units = (max_micro_notional / entry).quantize(step, rounding=ROUND_DOWN)
                 if max_units >= cfg.min_quantity and (max_units * entry) >= cfg.min_notional:
                     quantized_qty = max_units
-                    notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                else:
+                    # If max_micro_notional is smaller than 1 minimum lot (e.g. BTC @ $76k where min lot 0.001 = $76),
+                    # clamp strictly to the single minimum lot (0.001) rather than letting raw_qty balloon to 0.003 ($228)!
+                    quantized_qty = cfg.min_quantity
+                notional_usd = (quantized_qty * entry).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             # 4. Capital preservation guard: ensure required margin does not exhaust available free margin
             available_margin = free_margin if free_margin is not None else account_equity

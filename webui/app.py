@@ -1599,17 +1599,36 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 friction_pct = (cfg.round_trip_taker_friction() * Decimal("100")) if cfg else Decimal("0.10")
                 net_unrealized_pct = unrealized_return_pct - friction_pct
 
+                # 1. Evaluate Volatility-Buffered Ratchet (Lesson #18)
+                # Once net gain reaches >= +0.40%, ratchet Stop-Loss to Entry + Fees (guaranteed positive exit)
+                ratchet_triggered, new_sl = apex_scalper.evaluate_ratchet(curr_price, friction_pct)
+                if ratchet_triggered and new_sl:
+                    print(f">> [Apex Scalper Ratchet Activated] {pos.symbol} reached +{net_unrealized_pct:.2f}%. Stop-loss locked at green level: ${new_sl:.4f}")
+                    if live_trading_enabled:
+                        try:
+                            quant_bot.executor._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": pos.symbol})
+                            opp_side = "SELL" if pos.side == "BUY" else "BUY"
+                            sl_prec = cfg.price_precision if cfg else 2
+                            fmt_p = Decimal("10") ** -sl_prec
+                            quant_bot.executor._signed_request("POST", "/fapi/v1/algoOrder", {
+                                "algoType": "CONDITIONAL",
+                                "symbol": pos.symbol,
+                                "side": opp_side,
+                                "type": "STOP_MARKET",
+                                "triggerPrice": str(new_sl.quantize(fmt_p)),
+                                "closePosition": "true",
+                                "clientAlgoId": f"RATCHET_SL_{pos.symbol}_{int(time.time()*1000)}"[:32]
+                            })
+                        except Exception as e:
+                            logger.warning("Failed to update Binance live ratchet SL for %s: %s", pos.symbol, e)
+
                 hit_tp = (pos.side == "BUY" and curr_price >= pos.take_profit) or (pos.side == "SELL" and curr_price <= pos.take_profit)
                 hit_sl = (pos.side == "BUY" and curr_price <= pos.stop_loss) or (pos.side == "SELL" and curr_price >= pos.stop_loss)
-                # Fast Green Exit: Sell immediately once green (+0.25% net profit achieved)
-                fast_profit_snatch = net_unrealized_pct >= Decimal("0.25")
                 timed_out = duration_sec >= pos.max_duration_seconds
 
-                if hit_tp or hit_sl or fast_profit_snatch or timed_out:
+                if hit_tp or hit_sl or timed_out:
                     if hit_tp:
                         reason = "TAKE_PROFIT_HIT"
-                    elif fast_profit_snatch:
-                        reason = "FAST_PROFIT_SNATCH"
                     elif hit_sl:
                         reason = "STOP_LOSS_HIT"
                     else:

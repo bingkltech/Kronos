@@ -158,3 +158,44 @@ def test_ten_trade_batch_learning_audit():
     assert audit.dominant_root_cause == "STOP_INSIDE_NOISE"
     assert audit.recalibrated_atr_mult == Decimal("1.25")
     assert "Stop Inside Noise" in audit.recommended_remedy
+
+
+def test_evaluate_ratchet_volatility_buffered():
+    """Verify that evaluate_ratchet moves Stop-Loss to Entry + Fees when price expands >= +0.40%."""
+    engine = ApexScalperEngine()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    cand = ScalpCandidate(
+        symbol="SOLUSDT",
+        side="BUY",
+        score=Decimal("0.80"),
+        expected_net_drift_pct=Decimal("0.015"),
+        atr_5m=Decimal("1.50"),
+        atr_ratio=Decimal("1.2"),
+        order_book_imbalance=Decimal("0.45"),
+        spread_bps=Decimal("1.0"),
+        entry_price=Decimal("100.00"),
+        take_profit=Decimal("102.50"),
+        stop_loss=Decimal("99.50"),
+        reward_risk_ratio=Decimal("5.0")
+    )
+    pos = engine.open_scalp(cand, account_equity=Decimal("200.00"), position_id="TEST-1", current_time_utc=now_utc)
+    assert pos is not None
+    assert pos.stop_loss == Decimal("99.50")
+    assert not pos.ratchet_active
+
+    # 1. Price moves up +0.20% (below +0.40% threshold): ratchet should NOT fire
+    triggered, new_sl = engine.evaluate_ratchet(Decimal("100.20"), fee_friction_pct=Decimal("0.10"))
+    assert not triggered
+    assert new_sl is None
+    assert engine.active_scalp.stop_loss == Decimal("99.50")
+
+    # 2. Price moves up +0.55% (net +0.45%, above +0.40% threshold): ratchet should FIRE!
+    triggered, new_sl = engine.evaluate_ratchet(Decimal("100.55"), fee_friction_pct=Decimal("0.10"))
+    assert triggered
+    assert new_sl == Decimal("100.10")  # Entry + 0.10% fees
+    assert engine.active_scalp.stop_loss == Decimal("100.10")
+    assert engine.active_scalp.ratchet_active
+
+    # 3. Subsequent calls should not re-trigger
+    triggered2, new_sl2 = engine.evaluate_ratchet(Decimal("101.00"), fee_friction_pct=Decimal("0.10"))
+    assert not triggered2

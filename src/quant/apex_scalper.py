@@ -63,6 +63,7 @@ class ActiveScalpState:
     min_profit_lock_pct: Decimal = Decimal("0.25") # Fast green take-profit trigger (+0.25% net)
     highest_favorable_price: Optional[Decimal] = None
     lowest_adverse_price: Optional[Decimal] = None
+    ratchet_active: bool = False
 
 
 @dataclass(frozen=True)
@@ -390,8 +391,81 @@ class ApexScalperEngine:
             initial_margin_usd=self.active_scalp.initial_margin_usd,
             max_duration_seconds=self.active_scalp.max_duration_seconds,
             highest_favorable_price=high,
-            lowest_adverse_price=low
+            lowest_adverse_price=low,
+            ratchet_active=self.active_scalp.ratchet_active
         )
+
+    def evaluate_ratchet(
+        self,
+        current_price: Decimal,
+        fee_friction_pct: Decimal = Decimal("0.10"),
+        expansion_threshold_pct: Decimal = Decimal("0.40")
+    ) -> Tuple[bool, Optional[Decimal]]:
+        """
+        Volatility-Buffered Ratchet (Lesson #18):
+        Once net gain reaches >= expansion_threshold_pct (+0.40%),
+        ratchet Stop-Loss to Entry Price +/- fee_friction_pct (Entry + Fees).
+        Guarantees 100% fees covered and positive net realization while allowing
+        the trade to run toward full dynamic Take-Profit.
+        """
+        if not self.active_scalp or self.active_scalp.ratchet_active:
+            return False, None
+
+        pos = self.active_scalp
+        entry = pos.entry_price
+
+        if pos.side == "BUY":
+            gross_gain_pct = ((current_price - entry) / entry) * Decimal("100")
+            net_gain_pct = gross_gain_pct - fee_friction_pct
+            if net_gain_pct >= expansion_threshold_pct:
+                new_sl = entry * (Decimal("1.0") + (fee_friction_pct / Decimal("100")))
+                if new_sl > pos.stop_loss:
+                    self.active_scalp = ActiveScalpState(
+                        position_id=pos.position_id,
+                        symbol=pos.symbol,
+                        side=pos.side,
+                        entry_price=pos.entry_price,
+                        take_profit=pos.take_profit,
+                        stop_loss=new_sl,
+                        quantity=pos.quantity,
+                        notional_usd=pos.notional_usd,
+                        entry_time_utc=pos.entry_time_utc,
+                        leverage=pos.leverage,
+                        initial_margin_usd=pos.initial_margin_usd,
+                        max_duration_seconds=pos.max_duration_seconds,
+                        min_profit_lock_pct=pos.min_profit_lock_pct,
+                        highest_favorable_price=pos.highest_favorable_price,
+                        lowest_adverse_price=pos.lowest_adverse_price,
+                        ratchet_active=True
+                    )
+                    return True, new_sl
+        else:
+            gross_gain_pct = ((entry - current_price) / entry) * Decimal("100")
+            net_gain_pct = gross_gain_pct - fee_friction_pct
+            if net_gain_pct >= expansion_threshold_pct:
+                new_sl = entry * (Decimal("1.0") - (fee_friction_pct / Decimal("100")))
+                if new_sl < pos.stop_loss:
+                    self.active_scalp = ActiveScalpState(
+                        position_id=pos.position_id,
+                        symbol=pos.symbol,
+                        side=pos.side,
+                        entry_price=pos.entry_price,
+                        take_profit=pos.take_profit,
+                        stop_loss=new_sl,
+                        quantity=pos.quantity,
+                        notional_usd=pos.notional_usd,
+                        entry_time_utc=pos.entry_time_utc,
+                        leverage=pos.leverage,
+                        initial_margin_usd=pos.initial_margin_usd,
+                        max_duration_seconds=pos.max_duration_seconds,
+                        min_profit_lock_pct=pos.min_profit_lock_pct,
+                        highest_favorable_price=pos.highest_favorable_price,
+                        lowest_adverse_price=pos.lowest_adverse_price,
+                        ratchet_active=True
+                    )
+                    return True, new_sl
+
+        return False, None
 
     def close_scalp(
         self,
