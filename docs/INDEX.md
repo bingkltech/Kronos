@@ -22,6 +22,7 @@ Welcome to the institutional documentation repository for **Kronos**, an autonom
 | **[12. Unified Trade Forensics Framework](file:///F:/012D_TRADE/Kronos/docs/TRADE_FORENSICS.md)** | Trade Post-Mortems & Telemetry | 46-Item Assessment Framework, MAE/MFE Excursion Tracking, 6 Deterministic Failure Modes, Predictive Alpha vs. Execution Drag. |
 | **[13. Incident Post-Mortem: Stale Trade Lock & Alpha Decay](file:///F:/012D_TRADE/Kronos/docs/INCIDENT_POSTMORTEM_STALE_TRADE_LOCK_AND_TEMPORAL_DECAY.md)** | Quant Lessons & Temporal Sweeper | 54h Stale Trade Post-Mortem, 5 Quant Laws, Alpha Half-Life Math, Live Binance Sweeper Implementation, Active Lesson #17. |
 | **[14. Volatility-Buffered Ratchet & Universe Governance](file:///F:/012D_TRADE/Kronos/docs/VOLATILITY_BUFFERED_RATCHET_AND_UNIVERSE_GOVERNANCE.md)** | Microstructure & Execution Governance | 72h Real Binance Ledger Audit (139 events), Volatility-Buffered Ratchet (+0.40% expansion), Top 10 vs Top 50 Debate, BTC Micro-Lot Clamping, Active Lesson #18. |
+| **[15. Stoikov Micro-Price & Volatility-Scaled Dynamic Expiry](file:///F:/012D_TRADE/Kronos/docs/STOIKOV_MICRO_PRICE_AND_DYNAMIC_EXPIRY.md)** | Order Book Microstructure & Expiry | Stoikov Volume-Weighted Micro-Price, Basis Point Skew Veto Gates, ATR-Scaled Dynamic Temporal Expiry (10m memes to 45m majors), Active Lesson #19. |
 
 ---
 

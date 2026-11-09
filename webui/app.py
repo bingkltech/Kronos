@@ -1695,17 +1695,19 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 continue
             curr_p = klines[-1]["close"]
             
-            # Fetch real-time Top-5 Order Book Imbalance (OBI) and Best Bid/Ask
-            obi, best_bid, best_ask = quant_bot.index_engine.fetch_order_book_imbalance(sym, depth_limit=5)
+            # Fetch real-time Level-2 Microstructure (OBI, Stoikov Micro-Price & Skew)
+            micro_data = quant_bot.index_engine.fetch_order_book_microstructure(sym, depth_limit=10)
 
             cand = apex_scalper.evaluate_microstructure_candidate(
                 symbol=sym,
                 current_price=curr_p,
-                best_bid=best_bid,
-                best_ask=best_ask,
-                order_book_imbalance=obi,
+                best_bid=micro_data.best_bid,
+                best_ask=micro_data.best_ask,
+                order_book_imbalance=micro_data.obi,
                 recent_klines=klines,
-                bnb_discount=True
+                bnb_discount=True,
+                micro_skew_bps=micro_data.micro_skew_bps,
+                micro_price=micro_data.micro_price
             )
             if cand:
                 candidates.append(cand)

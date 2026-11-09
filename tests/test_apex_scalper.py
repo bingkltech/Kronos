@@ -199,3 +199,135 @@ def test_evaluate_ratchet_volatility_buffered():
     # 3. Subsequent calls should not re-trigger
     triggered2, new_sl2 = engine.evaluate_ratchet(Decimal("101.00"), fee_friction_pct=Decimal("0.10"))
     assert not triggered2
+
+
+def test_stoikov_micro_price_veto_filter():
+    """Verify that Stoikov micro-price skew vetoes false breakouts."""
+    engine = ApexScalperEngine()
+    current_p = Decimal("100.00")
+    
+    # 15 klines with a bullish volume surge at the end
+    mock_klines = []
+    for i in range(15):
+        mock_klines.append({
+            "open": Decimal("99.50"),
+            "high": Decimal("100.50"),
+            "low": Decimal("99.00"),
+            "close": Decimal("100.00"),
+            "volume": Decimal("100.0") if i < 14 else Decimal("300.0"),  # 3x volume surge
+            "quote_volume": Decimal("30000.0")
+        })
+
+    # Test 1: Long candidate with positive OBI (+0.40) but NEGATIVE micro-skew (-0.45 bps)
+    # Opposing skew indicates massive overhead ask wall -> MUST BE VETOED
+    vetoed_long = engine.evaluate_microstructure_candidate(
+        symbol="SOLUSDT",
+        current_price=current_p,
+        best_bid=Decimal("99.98"),
+        best_ask=Decimal("100.02"),
+        order_book_imbalance=Decimal("0.40"),
+        recent_klines=mock_klines,
+        bnb_discount=True,
+        micro_skew_bps=Decimal("-0.45"),
+        micro_price=Decimal("99.995")
+    )
+    assert vetoed_long is None
+
+    # Test 2: Long candidate with positive OBI (+0.40) and POSITIVE micro-skew (+0.35 bps)
+    # Skew confirms true buying pressure -> APPROVED with score bonus
+    approved_long = engine.evaluate_microstructure_candidate(
+        symbol="SOLUSDT",
+        current_price=current_p,
+        best_bid=Decimal("99.98"),
+        best_ask=Decimal("100.02"),
+        order_book_imbalance=Decimal("0.40"),
+        recent_klines=mock_klines,
+        bnb_discount=True,
+        micro_skew_bps=Decimal("0.35"),
+        micro_price=Decimal("100.0035")
+    )
+    assert approved_long is not None
+    assert approved_long.side == "BUY"
+    assert approved_long.micro_skew_bps == Decimal("0.35")
+
+    # Test 3: Short candidate with negative OBI (-0.40) but POSITIVE micro-skew (+0.50 bps)
+    # Hidden bid wall cushion below -> MUST BE VETOED
+    vetoed_short = engine.evaluate_microstructure_candidate(
+        symbol="SOLUSDT",
+        current_price=current_p,
+        best_bid=Decimal("99.98"),
+        best_ask=Decimal("100.02"),
+        order_book_imbalance=Decimal("-0.40"),
+        recent_klines=mock_klines,
+        bnb_discount=True,
+        micro_skew_bps=Decimal("0.50"),
+        micro_price=Decimal("100.005")
+    )
+    assert vetoed_short is None
+
+
+def test_volatility_scaled_dynamic_duration():
+    """Verify that open_scalp sets expiry based on asset volatility (ATR%)."""
+    engine = ApexScalperEngine(max_duration_seconds=2700)
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+    # 1. High Volatility (ATR% = 1.00% >= 0.80%) -> 600 seconds (10 min)
+    cand_high_vol = ScalpCandidate(
+        symbol="1000PEPEUSDT",
+        side="BUY",
+        score=Decimal("0.85"),
+        expected_net_drift_pct=Decimal("0.02"),
+        atr_5m=Decimal("0.00010"),
+        atr_ratio=Decimal("1.5"),
+        order_book_imbalance=Decimal("0.40"),
+        spread_bps=Decimal("1.0"),
+        entry_price=Decimal("0.0100"),  # ATR% = 0.00010 / 0.0100 * 100 = 1.00%
+        take_profit=Decimal("0.0105"),
+        stop_loss=Decimal("0.0098"),
+        reward_risk_ratio=Decimal("2.5")
+    )
+    pos_high = engine.open_scalp(cand_high_vol, account_equity=Decimal("200.00"), position_id="HIGH-VOL", current_time_utc=now_utc)
+    assert pos_high.max_duration_seconds == 600
+
+    # Reset slot
+    engine.active_scalp = None
+
+    # 2. Medium Volatility (ATR% = 0.50% >= 0.40%) -> 1200 seconds (20 min)
+    cand_med_vol = ScalpCandidate(
+        symbol="SOLUSDT",
+        side="BUY",
+        score=Decimal("0.75"),
+        expected_net_drift_pct=Decimal("0.01"),
+        atr_5m=Decimal("1.00"),
+        atr_ratio=Decimal("1.2"),
+        order_book_imbalance=Decimal("0.40"),
+        spread_bps=Decimal("1.0"),
+        entry_price=Decimal("200.00"),  # ATR% = 1.00 / 200.00 * 100 = 0.50%
+        take_profit=Decimal("203.00"),
+        stop_loss=Decimal("199.00"),
+        reward_risk_ratio=Decimal("3.0")
+    )
+    pos_med = engine.open_scalp(cand_med_vol, account_equity=Decimal("200.00"), position_id="MED-VOL", current_time_utc=now_utc)
+    assert pos_med.max_duration_seconds == 1200
+
+    # Reset slot
+    engine.active_scalp = None
+
+    # 3. Low Volatility (ATR% = 0.20% < 0.40%) -> 2700 seconds (45 min)
+    cand_low_vol = ScalpCandidate(
+        symbol="BTCUSDT",
+        side="BUY",
+        score=Decimal("0.70"),
+        expected_net_drift_pct=Decimal("0.008"),
+        atr_5m=Decimal("160.00"),
+        atr_ratio=Decimal("1.1"),
+        order_book_imbalance=Decimal("0.40"),
+        spread_bps=Decimal("0.5"),
+        entry_price=Decimal("80000.00"),  # ATR% = 160 / 80000 * 100 = 0.20%
+        take_profit=Decimal("80500.00"),
+        stop_loss=Decimal("79700.00"),
+        reward_risk_ratio=Decimal("2.0")
+    )
+    pos_low = engine.open_scalp(cand_low_vol, account_equity=Decimal("200.00"), position_id="LOW-VOL", current_time_utc=now_utc)
+    assert pos_low.max_duration_seconds == 2700
+

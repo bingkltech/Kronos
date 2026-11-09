@@ -209,10 +209,22 @@ def execute_apex_scalp_step():
             if sym in active_symbols:
                 continue
             try:
-                klines = quant_bot.index_engine.fetch_recent_klines(sym, limit=5)
-                depth = quant_bot.index_engine.fetch_order_book_depth(sym, limit=10)
-                obi = quant_bot.index_engine.calculate_order_book_imbalance(depth)
-                cand = apex_scalper.evaluate_symbol_microstructure(sym, depth=depth, order_book_imbalance=obi, recent_klines=klines, bnb_discount=True)
+                klines = quant_bot.index_engine.fetch_recent_klines(sym, interval="5m", limit=24)
+                if not klines or len(klines) < 12:
+                    continue
+                curr_p = klines[-1]["close"]
+                micro_data = quant_bot.index_engine.fetch_order_book_microstructure(sym, depth_limit=10)
+                cand = apex_scalper.evaluate_microstructure_candidate(
+                    symbol=sym,
+                    current_price=curr_p,
+                    best_bid=micro_data.best_bid,
+                    best_ask=micro_data.best_ask,
+                    order_book_imbalance=micro_data.obi,
+                    recent_klines=klines,
+                    bnb_discount=True,
+                    micro_skew_bps=micro_data.micro_skew_bps,
+                    micro_price=micro_data.micro_price
+                )
                 if cand:
                     candidates.append(cand)
             except Exception:

@@ -122,3 +122,41 @@ def test_live_binance_klines_fetch():
     stats = engine.compute_symbol_stats("BTCUSDT", klines)
     assert isinstance(stats.vwap_24h, Decimal)
     assert stats.vwap_24h > Decimal("0")
+
+
+def test_order_book_microstructure_calculation(monkeypatch):
+    """Verify Stoikov Micro-Price, Micro-Skew, and OBI calculations."""
+    engine = CryptoIndexEngine()
+
+    mock_depth_response = {
+        "bids": [["100.00", "10.0"], ["99.90", "10.0"]],
+        "asks": [["100.10", "5.0"], ["100.20", "5.0"]]
+    }
+
+    class MockResponse:
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return mock_depth_response
+
+    monkeypatch.setattr(engine.session, "get", lambda *args, **kwargs: MockResponse())
+
+    micro = engine.fetch_order_book_microstructure("SOLUSDT", depth_limit=5)
+    assert isinstance(micro.obi, Decimal)
+    assert isinstance(micro.micro_price, Decimal)
+    assert isinstance(micro.micro_skew_bps, Decimal)
+    assert micro.best_bid == Decimal("100.00")
+    assert micro.best_ask == Decimal("100.10")
+    # Total bids: 20, Total asks: 10 -> OBI = (20 - 10) / 30 = 0.3333...
+    assert micro.obi > Decimal("0.33")
+    # Micro-price should be skewed higher towards ask (100.0667 > mid 100.05)
+    mid = (micro.best_bid + micro.best_ask) / Decimal("2")
+    assert micro.micro_price > mid
+    assert micro.micro_skew_bps > Decimal("0.0")
+
+    # Backward compatible wrapper test
+    obi, b_bid, b_ask = engine.fetch_order_book_imbalance("SOLUSDT", depth_limit=5)
+    assert obi == micro.obi
+    assert b_bid == micro.best_bid
+    assert b_ask == micro.best_ask
+

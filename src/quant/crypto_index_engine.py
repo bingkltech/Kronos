@@ -12,12 +12,22 @@ Strictly adheres to AGENTS.md Invariant 1 (Zero Float Financial Math).
 
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import requests
 
 from src.quant.config import DEFAULT_RISK_CONFIG, TOP_10_SYMBOLS, FuturesSymbolConfig
+
+
+@dataclass(frozen=True)
+class OrderBookMicrostructure:
+    """Detailed Level-2 microstructure metrics including Stoikov Micro-Price."""
+    obi: Decimal
+    best_bid: Decimal
+    best_ask: Decimal
+    micro_price: Decimal
+    micro_skew_bps: Decimal
 
 
 @dataclass(frozen=True)
@@ -94,12 +104,12 @@ class CryptoIndexEngine:
         except Exception:
             return []
 
-    def fetch_order_book_imbalance(self, symbol: str, depth_limit: int = 20) -> Tuple[Decimal, Decimal, Decimal]:
+    def fetch_order_book_microstructure(self, symbol: str, depth_limit: int = 20) -> OrderBookMicrostructure:
         """
-        Fetch top-N order book depth and compute exact Volume-Weighted Order Book Imbalance (OBI):
-        OBI = (sum_bids - sum_asks) / (sum_bids + sum_asks) in [-1.0, +1.0]
-        Using depth_limit=20 to defeat spoofing and fake single-level walls.
-        Returns: (obi_score, best_bid, best_ask)
+        Fetch top-N order book depth and compute:
+        1. Volume-Weighted Order Book Imbalance (OBI)
+        2. Stoikov Volume-Weighted Micro-Price: P_micro = P_bid * (V_ask / (V_bid + V_ask)) + P_ask * (V_bid / (V_bid + V_ask))
+        3. Micro-Price Skew in basis points: ((P_micro - P_mid) / P_mid) * 10,000
         """
         endpoint = f"{self.BASE_URL}/fapi/v1/depth"
         params = {"symbol": symbol, "limit": min(max(depth_limit, 5), 50)}
@@ -123,9 +133,38 @@ class CryptoIndexEngine:
             else:
                 obi = Decimal("0.0")
 
-            return obi, best_bid, best_ask
+            if best_bid > Decimal("0") and best_ask > Decimal("0"):
+                mid = (best_bid + best_ask) / Decimal("2")
+                if denom > Decimal("0"):
+                    # Stoikov Micro-Price
+                    micro_price = (best_bid * (total_asks / denom)) + (best_ask * (total_bids / denom))
+                else:
+                    micro_price = mid
+                micro_skew_bps = ((micro_price - mid) / mid) * Decimal("10000") if mid > Decimal("0") else Decimal("0.0")
+            else:
+                micro_price = Decimal("0.0")
+                micro_skew_bps = Decimal("0.0")
+
+            return OrderBookMicrostructure(
+                obi=obi,
+                best_bid=best_bid,
+                best_ask=best_ask,
+                micro_price=micro_price,
+                micro_skew_bps=micro_skew_bps
+            )
         except Exception:
-            return Decimal("0.0"), Decimal("0"), Decimal("0")
+            return OrderBookMicrostructure(
+                obi=Decimal("0.0"),
+                best_bid=Decimal("0.0"),
+                best_ask=Decimal("0.0"),
+                micro_price=Decimal("0.0"),
+                micro_skew_bps=Decimal("0.0")
+            )
+
+    def fetch_order_book_imbalance(self, symbol: str, depth_limit: int = 20) -> Tuple[Decimal, Decimal, Decimal]:
+        """Backward-compatible wrapper returning (obi, best_bid, best_ask)."""
+        m = self.fetch_order_book_microstructure(symbol=symbol, depth_limit=depth_limit)
+        return m.obi, m.best_bid, m.best_ask
 
     def fetch_lookback_dataframe(self, symbol: str, limit: int = 100) -> Optional[pd.DataFrame]:
         """

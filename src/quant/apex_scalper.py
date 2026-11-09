@@ -43,6 +43,8 @@ class ScalpCandidate:
     take_profit: Decimal
     stop_loss: Decimal
     reward_risk_ratio: Decimal
+    micro_skew_bps: Decimal = Decimal("0.0")
+    micro_price: Optional[Decimal] = None
 
 
 @dataclass(frozen=True)
@@ -156,13 +158,16 @@ class ApexScalperEngine:
         best_ask: Decimal,
         order_book_imbalance: Decimal,  # Live Top-5 OBI in [-1.0, 1.0]
         recent_klines: List[Dict[str, Decimal]],
-        bnb_discount: bool = False
+        bnb_discount: bool = False,
+        micro_skew_bps: Optional[Decimal] = None,
+        micro_price: Optional[Decimal] = None
     ) -> Optional[ScalpCandidate]:
         """
         Institutional Microstructure Evaluator:
         Detects:
         1. Liquidation Flush Exhaustion: Sudden volume spike (>=1.8x avg) with rejection wick.
         2. Order Flow Imbalance (OFI) Squeeze: Real live OBI >= 0.35 (buyers dominate limit book).
+        3. Stoikov Micro-Price Filter: Vetoes false breakouts if micro-price skew opposes direction.
         Employs Maker-First limit pricing at best bid/ask to reduce fee drag by 60%.
         """
         cfg = self.symbols_config.get(symbol)
@@ -199,6 +204,11 @@ class ApexScalperEngine:
         is_short_squeeze = (order_book_imbalance <= Decimal("-0.35"))
 
         if is_long_flush or is_long_squeeze:
+            # Stoikov Micro-Price Filter: If micro-price skew is negative (<-0.20 bps),
+            # it reveals a massive hidden ask wall overhead. Veto to avoid false breakouts!
+            if micro_skew_bps is not None and micro_skew_bps < Decimal("-0.20"):
+                return None
+
             side = "BUY"
             # Maker-First pricing: Place limit bid right at best_bid
             entry_price = best_bid if best_bid > Decimal("0") else current_price
@@ -216,14 +226,22 @@ class ApexScalperEngine:
             sl_price = cfg.quantize_price(entry_price - sl_dist)
             expected_net_drift = ((tp_dist / entry_price) * Decimal("100")) - maker_friction
             
-            # Score weighted heavily on live OBI and volume surge
+            skew_bonus = min(Decimal("0.15"), max(Decimal("0.0"), micro_skew_bps / Decimal("10.0"))) if micro_skew_bps is not None else Decimal("0.0")
+
+            # Score weighted heavily on live OBI, volume surge, and micro-price skew
             score = (
-                (Decimal("0.45") * max(Decimal("0.0"), order_book_imbalance)) +
-                (Decimal("0.35") * min(Decimal("1.0"), vol_surge_ratio / Decimal("3.0"))) +
-                (Decimal("0.20") * min(Decimal("1.0"), expected_net_drift / Decimal("1.50")))
+                (Decimal("0.40") * max(Decimal("0.0"), order_book_imbalance)) +
+                (Decimal("0.30") * min(Decimal("1.0"), vol_surge_ratio / Decimal("3.0"))) +
+                (Decimal("0.15") * min(Decimal("1.0"), expected_net_drift / Decimal("1.50"))) +
+                skew_bonus
             )
 
         elif is_short_flush or is_short_squeeze:
+            # Stoikov Micro-Price Filter: If micro-price skew is positive (>+0.20 bps),
+            # it reveals a massive hidden bid wall cushion below. Veto to avoid selling into support!
+            if micro_skew_bps is not None and micro_skew_bps > Decimal("0.20"):
+                return None
+
             side = "SELL"
             # Maker-First pricing: Place limit ask right at best_ask
             entry_price = best_ask if best_ask > Decimal("0") else current_price
@@ -240,10 +258,13 @@ class ApexScalperEngine:
             sl_price = cfg.quantize_price(entry_price + sl_dist)
             expected_net_drift = ((tp_dist / entry_price) * Decimal("100")) - maker_friction
 
+            skew_bonus = min(Decimal("0.15"), max(Decimal("0.0"), -micro_skew_bps / Decimal("10.0"))) if micro_skew_bps is not None else Decimal("0.0")
+
             score = (
-                (Decimal("0.45") * max(Decimal("0.0"), -order_book_imbalance)) +
-                (Decimal("0.35") * min(Decimal("1.0"), vol_surge_ratio / Decimal("3.0"))) +
-                (Decimal("0.20") * min(Decimal("1.0"), expected_net_drift / Decimal("1.50")))
+                (Decimal("0.40") * max(Decimal("0.0"), -order_book_imbalance)) +
+                (Decimal("0.30") * min(Decimal("1.0"), vol_surge_ratio / Decimal("3.0"))) +
+                (Decimal("0.15") * min(Decimal("1.0"), expected_net_drift / Decimal("1.50"))) +
+                skew_bonus
             )
         else:
             return None
@@ -265,7 +286,9 @@ class ApexScalperEngine:
             entry_price=entry_price,
             take_profit=tp_price,
             stop_loss=sl_price,
-            reward_risk_ratio=rr_ratio
+            reward_risk_ratio=rr_ratio,
+            micro_skew_bps=micro_skew_bps or Decimal("0.0"),
+            micro_price=micro_price
         )
 
     def select_apex_candidate(self, candidates: List[ScalpCandidate]) -> Optional[ScalpCandidate]:
@@ -336,6 +359,20 @@ class ApexScalperEngine:
         notional = qty * candidate.entry_price
         actual_margin = notional / Decimal(dynamic_leverage)
 
+        # Volatility-Scaled Dynamic Temporal Expiry:
+        # High ATR% (>= 0.80%): 600s (10m) - fast meme/high-beta coins
+        # Medium ATR% (>= 0.40%): 1200s (20m) - moderate volatility assets
+        # Low ATR% (< 0.40%): 2700s (45m) - low volatility majors (BTC/ETH)
+        dynamic_duration = self.max_duration_seconds
+        if candidate.entry_price > Decimal("0") and candidate.atr_5m > Decimal("0"):
+            atr_pct = (candidate.atr_5m / candidate.entry_price) * Decimal("100")
+            if atr_pct >= Decimal("0.80"):
+                dynamic_duration = min(self.max_duration_seconds, 600)
+            elif atr_pct >= Decimal("0.40"):
+                dynamic_duration = min(self.max_duration_seconds, 1200)
+            else:
+                dynamic_duration = min(self.max_duration_seconds, 2700)
+
         self.active_scalp = ActiveScalpState(
             position_id=position_id,
             symbol=candidate.symbol,
@@ -348,7 +385,7 @@ class ApexScalperEngine:
             entry_time_utc=current_time_utc,
             leverage=dynamic_leverage,
             initial_margin_usd=actual_margin,
-            max_duration_seconds=self.max_duration_seconds,
+            max_duration_seconds=dynamic_duration,
             highest_favorable_price=candidate.entry_price,
             lowest_adverse_price=candidate.entry_price
         )
