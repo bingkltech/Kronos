@@ -2940,7 +2940,7 @@
                     } else {
                         positions.forEach(p => {
                             const tr = document.createElement('tr');
-                            const isScalp = Boolean(p.is_scalp || p.trade_type === 'SCALP' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                            const isScalp = Boolean(p.is_scalp || p.trade_type === 'SCALP' || Number(p.leverage) >= 3 || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
                             if (isScalp) tr.className = 'trade-row-scalp';
                             const side = (p.side || '').toUpperCase();
                             const sideColor = side === 'BUY' || side === 'LONG' ? '#3fb950' : '#f85149';
@@ -3660,7 +3660,7 @@
                         } else {
                             positions.forEach(p => {
                                 const tr = document.createElement('tr');
-                                const isScalp = Boolean(p.is_scalp || p.trade_type === 'SCALP' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                                const isScalp = Boolean(p.is_scalp || p.trade_type === 'SCALP' || Number(p.leverage) >= 3 || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
                                 if (isScalp) tr.className = 'trade-row-scalp';
                                 const sideColor = p.side === 'BUY' || p.side === 'LONG' ? '#3fb950' : '#f85149';
                                 const pnl = Number(p.unrealized_pnl_usd || 0);

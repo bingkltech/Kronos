@@ -586,7 +586,16 @@ def load_data():
         file_path = data.get('file_path')
         
         if not file_path:
-            return jsonify({'error': 'File path cannot be empty'}), 400
+            sym = data.get('symbol') or data.get('ticker')
+            if sym:
+                data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+                cand = os.path.join(data_dir, f"binance_{sym}_1h.csv")
+                if os.path.exists(cand):
+                    file_path = cand
+                else:
+                    file_path = os.path.join(data_dir, "binance_BTCUSDT_1h.csv")
+            else:
+                return jsonify({'error': 'File path cannot be empty'}), 400
         
         df, error = load_data_file(file_path)
         if error:
@@ -667,7 +676,16 @@ def predict():
         sample_count = int(data.get('sample_count', 1))
         
         if not file_path:
-            return jsonify({'error': 'File path cannot be empty'}), 400
+            sym = data.get('symbol') or data.get('ticker')
+            if sym:
+                data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+                cand = os.path.join(data_dir, f"binance_{sym}_1h.csv")
+                if os.path.exists(cand):
+                    file_path = cand
+                else:
+                    file_path = os.path.join(data_dir, "binance_BTCUSDT_1h.csv")
+            else:
+                return jsonify({'error': 'File path cannot be empty'}), 400
         
         # Load data
         df, error = load_data_file(file_path)
@@ -987,7 +1005,7 @@ from src.quant.config import ALL_SUPPORTED_SYMBOLS, DEFAULT_RISK_CONFIG
 from src.quant.binance_execution import BinanceAtomicExecutor, PositionState
 from src.quant.kev_risk_arbiter import TradeTicket
 from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
-from src.quant.apex_scalper import ApexScalperEngine
+from src.quant.apex_scalper import ApexScalperEngine, ActiveScalpState
 
 # Global singleton quant orchestrator
 quant_bot = QuantBotOrchestrator(
@@ -1000,7 +1018,7 @@ quant_bot = QuantBotOrchestrator(
 apex_scalper = ApexScalperEngine(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
     risk_config=DEFAULT_RISK_CONFIG,
-    min_score_threshold=Decimal("0.10")  # Scalper activation threshold for real-time responsiveness
+    min_score_threshold=Decimal("0.35")  # Institutional high-conviction threshold (prevents fee-bleed noise churn)
 )
 
 @app.route('/api/macro/overview', methods=['GET'])
@@ -1048,7 +1066,7 @@ def get_macro_overview():
                         enriched_pos = []
                         for p in live_account.get("positions", []):
                             pd = dict(p)
-                            is_sc = (active_scalp_sym is not None and pd.get("symbol") == active_scalp_sym)
+                            is_sc = (active_scalp_sym is not None and pd.get("symbol") == active_scalp_sym) or (int(pd.get("leverage", 1)) >= 3)
                             pd["is_scalp"] = is_sc
                             pd["trade_type"] = "SCALP" if is_sc else "MACRO"
                             enriched_pos.append(pd)
@@ -1582,13 +1600,16 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 curr_price = klines[-1]["close"]
                 apex_scalper.update_in_trade_path(curr_price)
 
+                duration_sec = int((now_utc - pos.entry_time_utc).total_seconds())
+
                 # Automatic Adaptation: Check if trade was already closed/flattened externally on Binance
                 if live_trading_enabled:
                     try:
                         live_acc = quant_bot.executor.get_live_account_summary()
                         if live_acc.get("connected"):
                             open_syms = [p.get("symbol") for p in live_acc.get("positions", [])]
-                            if pos.symbol not in open_syms:
+                            # Grace buffer: only consider externally flattened if position is missing after 30s
+                            if duration_sec >= 30 and pos.symbol not in open_syms:
                                 print(f">> [External Flatten Detected] {pos.symbol} position no longer on Binance. Releasing scalper slot.")
                                 try:
                                     quant_bot.executor._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": pos.symbol})
@@ -1605,9 +1626,6 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                                 return
                     except Exception as err:
                         logger.debug("Live sync check error: %s", err)
-                
-                # Check TP / SL hit or Fast Profit Snatch
-                duration_sec = int((now_utc - pos.entry_time_utc).total_seconds())
                 
                 # Calculate current net unrealized return
                 if pos.side == "BUY":
@@ -1687,7 +1705,40 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
             print(f">> [Apex Scalper Position Monitor Error] {err}")
         return
 
-    # 2. Slot is Free: Institutional Microstructure & Order Flow Screening
+    # 2. Slot Recovery across Restarts: Adopt existing Binance live scalp position (leverage >= 3)
+    if apex_scalper.is_slot_available and live_trading_enabled:
+        try:
+            live_acc = quant_bot.executor.get_live_account_summary()
+            if live_acc.get("connected"):
+                open_scalps = [p for p in live_acc.get("positions", []) if int(p.get("leverage", 1)) >= 3]
+                if open_scalps:
+                    sp = open_scalps[0]
+                    sym = sp.get("symbol")
+                    pos_amt = Decimal(str(sp.get("position_amt", "0.00")))
+                    side = "BUY" if pos_amt > Decimal("0") else "SELL"
+                    entry_px = Decimal(str(sp.get("entry_price", "0.00")))
+                    notional = Decimal(str(sp.get("notional_usd", "0.00")))
+                    lev = int(sp.get("leverage", 4))
+                    apex_scalper.active_scalp = ActiveScalpState(
+                        position_id=f"SCALP-REC-{sym}",
+                        symbol=sym,
+                        side=side,
+                        entry_price=entry_px,
+                        take_profit=entry_px * (Decimal("1.012") if side == "BUY" else Decimal("0.988")),
+                        stop_loss=entry_px * (Decimal("0.992") if side == "BUY" else Decimal("1.008")),
+                        quantity=abs(pos_amt),
+                        notional_usd=notional,
+                        entry_time_utc=now_utc,
+                        leverage=lev,
+                        initial_margin_usd=(notional / Decimal(str(lev))).quantize(Decimal("0.01")),
+                        max_duration_seconds=1200
+                    )
+                    print(f">> [Apex Scalp Slot Reconciled on Startup] Adopted active Binance scalp position: {sym} ({side})")
+                    return
+        except Exception as e:
+            logger.debug("Failed recovering active scalp position: %s", e)
+
+    # 3. Slot is Free: Institutional Microstructure & Order Flow Screening
     candidates = []
     
     # Symbol Mutual Exclusion: Get all symbols currently held in macro/swing positions
@@ -1704,6 +1755,14 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
             pass
 
     # Evaluate full supported universe using live order book depth and volume surge detection
+    current_breadth_pct = None
+    try:
+        macro_report = quant_bot.index_engine.evaluate_universe()
+        if macro_report and macro_report.breadth_ratio is not None:
+            current_breadth_pct = macro_report.breadth_ratio * Decimal("100")
+    except Exception:
+        pass
+
     for sym in list(ALL_SUPPORTED_SYMBOLS.keys()):
         # Conflict Shield: Never scalp a symbol that already has an active macro position!
         if sym in active_macro_symbols:
@@ -1727,7 +1786,8 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 recent_klines=klines,
                 bnb_discount=True,
                 micro_skew_bps=micro_data.micro_skew_bps,
-                micro_price=micro_data.micro_price
+                micro_price=micro_data.micro_price,
+                macro_breadth_pct=current_breadth_pct
             )
             if cand:
                 candidates.append(cand)
@@ -1737,6 +1797,7 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     apex = apex_scalper.select_apex_candidate(candidates)
     if apex:
         pos_id = f"SCALP-{now_utc.strftime('%H%M%S')}"
+        ct_tag = " [COUNTER-TREND V-BOTTOM: Half Margin]" if getattr(apex, "is_counter_trend", False) else " [TREND-CONFLUENT: Full Margin]"
         
         # Query free cash if in live mode to prevent margin overdraft
         available_cash = None
@@ -1775,7 +1836,7 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                     effective_leverage=new_pos.leverage,
                     risk_budget_usd=new_pos.initial_margin_usd,
                     reward_risk_ratio=apex.reward_risk_ratio,
-                    net_expected_gain_pct=apex.predicted_drift_pct,
+                    net_expected_gain_pct=apex.expected_net_drift_pct,
                     is_scalp=True
                 )
                 live_res = quant_bot.executor.submit_live_bracket_order(ticket)
@@ -1789,9 +1850,9 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                     quant_bot.executor.record_scalp_order(live_res.take_profit_order_id)
                 if live_res.stop_loss_order_id:
                     quant_bot.executor.record_scalp_order(live_res.stop_loss_order_id)
-                print(f">> [REAL LIVE APEX SCALP DISPATCHED TO BINANCE] {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} OrderID={live_res.entry_order_id}")
+                print(f">> [REAL LIVE APEX SCALP DISPATCHED TO BINANCE]{ct_tag} {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} OrderID={live_res.entry_order_id}")
             else:
-                print(f">> [Paper Apex Scalper Dispatched] {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
+                print(f">> [Paper Apex Scalper Dispatched]{ct_tag} {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
 
 
 @app.route('/api/scalper/reset-slot', methods=['POST'])
@@ -2239,7 +2300,7 @@ def get_live_status():
         enriched_positions = []
         for p in live_account.get("positions", []):
             p_dict = dict(p)
-            is_sc = (active_scalp_sym is not None and p_dict.get("symbol") == active_scalp_sym)
+            is_sc = (active_scalp_sym is not None and p_dict.get("symbol") == active_scalp_sym) or (int(p_dict.get("leverage", 1)) >= 3)
             p_dict["is_scalp"] = is_sc
             p_dict["trade_type"] = "SCALP" if is_sc else "MACRO"
             enriched_positions.append(p_dict)
@@ -2441,7 +2502,24 @@ def place_live_order():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+def acquire_single_instance_lock(port: int = 7071, max_retries: int = 5):
+    import socket
+    for attempt in range(max_retries):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(('127.0.0.1', port))
+            s.listen(1)
+            return s
+        except Exception as e:
+            s.close()
+            if attempt < max_retries - 1:
+                time.sleep(1)
+            else:
+                print(f"FATAL: Another instance of Kronos WebUI is already running on port {port} ({e}). Exiting to prevent dual-execution collision.")
+                sys.exit(0)
+
 if __name__ == '__main__':
+    _lock_sock = acquire_single_instance_lock(7071)
     print("Starting Kronos Web UI...")
     print(f"Model availability: {MODEL_AVAILABLE}")
     if MODEL_AVAILABLE:
@@ -2450,5 +2528,11 @@ if __name__ == '__main__':
         print("Tip: Will use simulated data for demonstration")
     # Auto-start Quant Bot & KEV.ai Autonomous Engine
     start_autopilot()
-    # Use use_reloader=False to avoid Windows watchdog socket race conditions
-    app.run(debug=False, use_reloader=False, host='0.0.0.0', port=7070)
+    # Resilient server loop: survives transient socket drops / resets
+    while True:
+        try:
+            app.run(debug=False, use_reloader=False, host='0.0.0.0', port=7070, threaded=True)
+            break
+        except Exception as e:
+            print(f">> [Flask Server Loop Recovered from Exception] {e}")
+            time.sleep(2)

@@ -856,6 +856,10 @@ class BinanceAtomicExecutor:
                 if pos.tp_order_id:
                     self.record_scalp_order(pos.tp_order_id)
             
+            # Invalidate cached account summary and trade history immediately after live execution
+            self._cached_account_summary = None
+            self._cached_live_trades = None
+            
         except Exception as e:
             logger.critical("CRITICAL: Failed to confirm SL/TP for live position %s: %s", pos_id, e)
             try:
@@ -996,7 +1000,18 @@ class BinanceAtomicExecutor:
 
         trades = []
         bnb_price = None
-        for sym in list(self.symbols_config.keys())[:5]:
+        symbols_to_poll = list(self.symbols_config.keys())
+        try:
+            pos_risk = self._signed_request("GET", "/fapi/v2/positionRisk")
+            for p in pos_risk:
+                if abs(Decimal(str(p.get("positionAmt", "0")))) > Decimal("0"):
+                    sym = p.get("symbol")
+                    if sym and sym not in symbols_to_poll:
+                        symbols_to_poll.append(sym)
+        except Exception:
+            pass
+
+        for sym in symbols_to_poll:
             try:
                 user_trades = self._signed_request("GET", "/fapi/v1/userTrades", {"symbol": sym, "limit": limit})
                 for t in user_trades:
