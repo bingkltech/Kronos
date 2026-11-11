@@ -1037,7 +1037,7 @@ def get_macro_overview():
         # Format symbols data
         symbols_data = []
         for sym, stats in macro_verdict.symbol_stats.items():
-            sym_funding = funding_map.get(sym, {}).get("funding_rate", Decimal("0.0001"))
+            sym_funding = (funding_map.get(sym) or {}).get("funding_rate", Decimal("0.0001"))
             annualized = sym_funding * Decimal("3") * Decimal("365") * Decimal("100")
             carry = quant_bot.carry_specialist.evaluate_carry(sym, "LONG", sym_funding)
             

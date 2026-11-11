@@ -10,12 +10,16 @@ Strictly adheres to AGENTS.md Invariant 1 (Zero Float Financial Math).
 """
 
 import datetime
+import logging
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple, Union
 import requests
 
 from src.quant.config import DEFAULT_RISK_CONFIG, TOP_10_SYMBOLS
+
+logger = logging.getLogger(__name__)
 
 
 # ==============================================================================
@@ -95,6 +99,10 @@ class NewsCatalystSpecialist:
             reason="Macro calendar clear. No high-impact events within blackout window."
         )
 
+    def is_blackout_active(self, current_time_utc: Optional[datetime.datetime] = None) -> bool:
+        """Convenience method returning True if currently in blackout window."""
+        return self.evaluate_blackout(current_time_utc).is_blackout
+
 
 # ==============================================================================
 # 2. Crypto Carry & Funding Rate Specialist
@@ -110,45 +118,62 @@ class CryptoCarrySpecialist:
 
     def __init__(self, session: Optional[requests.Session] = None):
         self.session = session or requests.Session()
+        self._cached_funding_rates: Dict[str, Dict[str, Union[Decimal, datetime.datetime]]] = {}
+        self._cached_funding_time: float = 0.0
 
     def fetch_funding_rates(self, symbol: Optional[str] = None) -> Dict[str, Dict[str, Union[Decimal, datetime.datetime]]]:
         """
         Fetch real-time 8-hour funding rates from Binance Futures public API.
         Enforces Zero Float Financial Math: all numeric fields converted via string to Decimal.
+        Cached 30 seconds to prevent Binance API rate-limit exhaustion and eliminate 500 errors.
         """
+        now = time.time()
+        if not symbol and self._cached_funding_rates and (now - self._cached_funding_time < 30):
+            return self._cached_funding_rates
+
         endpoint = f"{self.BASE_URL}/fapi/v1/premiumIndex"
         params = {}
         if symbol:
             params["symbol"] = symbol
 
-        resp = self.session.get(endpoint, params=params, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = self.session.get(endpoint, params=params, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
 
-        if isinstance(data, dict):
-            data = [data]
+            if isinstance(data, dict):
+                data = [data]
 
-        results: Dict[str, Dict[str, Union[Decimal, datetime.datetime]]] = {}
-        for item in data:
-            sym = item.get("symbol")
-            if not sym:
-                continue
-            
-            raw_rate = item.get("lastFundingRate", "0.0")
-            rate_dec = Decimal(str(raw_rate))
-            
-            next_time_ms = item.get("nextFundingTime", 0)
-            next_time = (
-                datetime.datetime.fromtimestamp(next_time_ms / 1000.0, tz=datetime.timezone.utc)
-                if next_time_ms else None
-            )
+            results: Dict[str, Dict[str, Union[Decimal, datetime.datetime]]] = {}
+            for item in data:
+                sym = item.get("symbol")
+                if not sym:
+                    continue
+                
+                raw_rate = item.get("lastFundingRate", "0.0")
+                rate_dec = Decimal(str(raw_rate))
+                
+                next_time_ms = item.get("nextFundingTime", 0)
+                next_time = (
+                    datetime.datetime.fromtimestamp(next_time_ms / 1000.0, tz=datetime.timezone.utc)
+                    if next_time_ms else None
+                )
 
-            results[sym] = {
-                "funding_rate": rate_dec,
-                "next_funding_time": next_time,
-            }
+                results[sym] = {
+                    "funding_rate": rate_dec,
+                    "next_funding_time": next_time,
+                }
 
-        return results
+            if not symbol and results:
+                self._cached_funding_rates = results
+                self._cached_funding_time = now
+
+            return results
+        except Exception as e:
+            logger.warning(f"Failed to fetch funding rates from Binance: {e}")
+            if self._cached_funding_rates:
+                return self._cached_funding_rates
+            return {}
 
     def evaluate_carry(
         self,
