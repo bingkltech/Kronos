@@ -2194,10 +2194,10 @@ def _run_gemini_meta_assessment():
                 print(f">> [Gemini Meta-Strategist] Applied new sweetspot: R:R={assessment.sweetspot_rr_ratio:.2f}, Fee Hurdle={assessment.sweetspot_fee_hurdle_pct:.2f}%, Risk={assessment.sweetspot_risk_budget_pct:.2f}%")
 
             _save_bot_settings()
-            return latest_gemini_assessment
+            return latest_gemini_assessment, None
         except Exception as e:
             print(f">> [Gemini Meta-Strategist Error] {e}")
-            return None
+            return None, str(e)
 
 
 @app.route('/api/gemini/assessment', methods=['GET'])
@@ -2221,10 +2221,10 @@ def get_gemini_assessment_endpoint():
 @app.route('/api/gemini/assess', methods=['POST'])
 def trigger_gemini_assessment_endpoint():
     """Trigger an immediate strategic meta-assessment via Gemini Free Tier."""
-    res = _run_gemini_meta_assessment()
+    res, err = _run_gemini_meta_assessment()
     if res:
         return jsonify({"success": True, "assessment": res})
-    return jsonify({"success": False, "error": "Strategic assessment failed"}), 500
+    return jsonify({"success": False, "error": err or "Strategic assessment failed"}), 503
 
 
 @app.route('/api/gemini/apply-sweetspot', methods=['POST'])
