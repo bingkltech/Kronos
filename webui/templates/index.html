@@ -3637,7 +3637,9 @@
                     if (dWinLoss) dWinLoss.textContent = `${acct.positions ? acct.positions.length : 0} Active Live Contracts`;
                     if (dWinRate) dWinRate.textContent = `Leverage: <=5x`;
                     if (dTotal) dTotal.textContent = `Margin Mode: ISOLATED`;
-                    if (dPF) dPF.textContent = `${data.confidence_multiplier.toFixed(2)}x Calib`;
+                    const dPfSub = document.getElementById('dash-card-pf-sub');
+                    if (dPF) dPF.textContent = ${bnbBal.toFixed(4)} BNB;
+                    if (dPfSub) dPfSub.textContent = bnbActive ? ⚡ 10% Discount Active (Calib: x) : Standard USDT (Calib: x);
                     if (dFeeDrag) dFeeDrag.textContent = `Live Telemetry via Binance API /fapi/v2/account`;
                 }
 
