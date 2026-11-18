@@ -44,6 +44,7 @@ class TradeTicket:
     reward_risk_ratio: Decimal
     net_expected_gain_pct: Decimal
     is_scalp: bool = False
+    forecast_confidence: Decimal = Decimal("0.65")
 
 
 @dataclass(frozen=True)
@@ -248,8 +249,33 @@ class KEVSupremeArbiter:
         tp = trajectory.dynamic_take_profit
         sl = trajectory.dynamic_stop_loss
 
-        risk_distance = abs(entry - sl)
-        reward_distance = abs(tp - entry)
+        # Directional invariant check: Stops and take-profits must respect market side
+        if side in ("LONG", "BUY"):
+            if not (sl < entry < tp):
+                return KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side=side,
+                    veto_gate_failed="GATE_6_INVALID_STOPS",
+                    veto_reason=f"VETO: Inverted bracket for LONG (SL {sl} < Entry {entry} < TP {tp} violated).",
+                    ticket=None,
+                    adversarial_notes="Stop-loss must be strictly below entry and take-profit strictly above entry for longs."
+                )
+            risk_distance = entry - sl
+            reward_distance = tp - entry
+        else:
+            if not (tp < entry < sl):
+                return KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side=side,
+                    veto_gate_failed="GATE_6_INVALID_STOPS",
+                    veto_reason=f"VETO: Inverted bracket for SHORT (TP {tp} < Entry {entry} < SL {sl} violated).",
+                    ticket=None,
+                    adversarial_notes="Take-profit must be strictly below entry and stop-loss strictly above entry for shorts."
+                )
+            risk_distance = sl - entry
+            reward_distance = entry - tp
 
         if risk_distance <= Decimal("0"):
             return KEVDecision(
@@ -376,6 +402,15 @@ class KEVSupremeArbiter:
         raw_leverage = int((notional_usd / account_equity).quantize(Decimal("1"), rounding=ROUND_DOWN)) + 1
         effective_leverage = min(self.risk_config.max_account_leverage, max(1, raw_leverage))
 
+        raw_conf = getattr(trajectory, "confidence", None)
+        if raw_conf is not None:
+            try:
+                forecast_conf = Decimal(str(raw_conf)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            except Exception:
+                forecast_conf = Decimal("0.65")
+        else:
+            forecast_conf = Decimal("0.65")
+
         ticket = TradeTicket(
             symbol=symbol,
             side="BUY" if side == "LONG" else "SELL",
@@ -388,6 +423,7 @@ class KEVSupremeArbiter:
             risk_budget_usd=risk_budget_usd,
             reward_risk_ratio=rr_ratio.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
             net_expected_gain_pct=(net_drift * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            forecast_confidence=forecast_conf,
         )
 
         return KEVDecision(

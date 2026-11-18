@@ -14,7 +14,7 @@
 The Kronos Web UI seamlessly links three institutional workstations into a single, cohesive, high-performance desktop application:
 
 ```
-[ Top Navigation Bar: Breadth Pill | Macro Regime Pill | Engine Pill | Navigation Tabs ]
+[ Top Navigation Bar: Breadth Pill | Macro Regime Pill | Engine Pill | Storm Protocol Pill | Navigation Tabs ]
 +--------------------------------------------------------------------------------------+
 | 1. DASHBOARD VIEW       | 2. KRONOS FORECAST WORKSTATION  | 3. BOT & KEV.AI COCKPIT  |
 | Top-10 Composite Breadth| Bloomberg 6-Panel Terminal Grid | KEV.ai 6-Point Veto Gate |
@@ -24,7 +24,7 @@ The Kronos Web UI seamlessly links three institutional workstations into a singl
 | Paper Performance Report| Agent Debate + Bull/Bear FIE    | Continuous Autopilot     |
 | Win vs Loss / PnL Audit | Execution View + CVD Sub-Panel  | Memory & State Restore   |
 | Brier Learning Health   | Monte Carlo Fan (6,000 Paths)   | SQLite Lessons Database  |
-|                         | 3D Param Sweep Sharpe Landscape | Emergency Flatten & Reset|
+| Tsunami Storm Status    | 3D Param Sweep Sharpe Landscape | Emergency Flatten & Reset|
 +--------------------------------------------------------------------------------------+
 ```
 
@@ -277,6 +277,8 @@ Displays every evaluated candidate coin with:
 | `/api/gemini/assess` | `POST` | Triggers an immediate strategic reasoning pass via Gemini Free Tier. | `success`, `assessment` |
 | `/api/gemini/apply-sweetspot` | `POST` | Manually applies the recommended sweetspot parameters to live KEV.ai gates. | `success`, `message` |
 | `/api/gemini/toggle-auto-apply` | `POST` | Toggles automatic sweetspot adoption upon background assessment completion. | `success`, `auto_apply` |
+| `/api/storm/status` | `GET` | Returns active ocean state, phase, remaining duration, and fleet capacity limits. | `success`, `ocean_state`, `is_storm_active`, `phase`, `remaining_minutes`, `max_macro_positions`, `max_scalp_positions` |
+| `/api/storm/toggle` | `POST` | Manually arms or disarms the 60-minute Tsunami Storm Adaptive Protocol. | `success`, `message`, `status` |
 
 ---
 

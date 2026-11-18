@@ -1,0 +1,11 @@
+[Unit]
+Description=Kronos Autonomous Storage & Process Hygiene Engine
+After=network.target
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/home/ec2-user/kronos-bot
+ExecStart=/bin/bash /home/ec2-user/kronos-bot/scripts/auto_antibloat.sh
+StandardOutput=journal
+StandardError=journal

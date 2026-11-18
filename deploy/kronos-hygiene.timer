@@ -1,0 +1,12 @@
+[Unit]
+Description=Trigger Kronos Autonomous Hygiene Maintenance Daily
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Runs daily at 03:00:00 UTC
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

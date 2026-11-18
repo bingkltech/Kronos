@@ -1,0 +1,56 @@
+{
+  "engine_name": "Kronos Lightning Scalper (Institutional Alpha)",
+  "enabled": true,
+  "execution_mode": "SHADOW_PAPER",
+  "min_win_probability_pct": 70.0,
+  "strategies": {
+    "liquidation_vacuum_rebound": {
+      "enabled": true,
+      "min_liquidation_usd": 75000.0,
+      "rejection_wick_ratio": 0.4,
+      "expected_net_snapback_pct": 1.1
+    },
+    "cross_asset_lead_lag": {
+      "enabled": true,
+      "btc_velocity_spike_pct": 0.45,
+      "max_lag_delay_ms": 3500,
+      "expected_momentum_pct": 1.1
+    },
+    "iceberg_shield_stoikov": {
+      "enabled": true,
+      "min_obi_threshold": 0.45,
+      "min_skew_bps": 0.25,
+      "expected_rebound_pct": 0.95
+    }
+  },
+  "execution_targets": {
+    "take_profit_net_pct": 1.25,
+    "fast_profit_ratchet_pct": 0.85,
+    "stop_loss_pct": 0.75,
+    "max_duration_seconds": 600,
+    "maker_first_pricing": true
+  },
+  "guardrails": {
+    "ringfenced_margin_usd": 20.0,
+    "isolated_leverage": 4,
+    "max_concurrent_scalps": 1,
+    "daily_loss_circuit_breaker_usd": 3.0,
+    "min_symbol_24h_volume_usd": 50000000.0,
+    "max_spread_bps": 2.5,
+    "consecutive_loss_quarantine_count": 5,
+    "post_exit_cooldown_seconds": 900,
+    "quarantined_symbols": [
+      "SOLUSDT"
+    ],
+    "atr_stop_multiplier": 1.0
+  },
+  "distillation_metadata": {
+    "last_distilled_utc": "2026-11-18T03:44:23.095712+00:00",
+    "audit_id": "DISTILL-20261118-034423",
+    "sample_size": 10,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "dominant_root_cause": "FRICTION_BLEED",
+    "synced_to_aws": false
+  }
+}

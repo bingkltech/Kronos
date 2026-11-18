@@ -13,7 +13,7 @@ def main():
     print("=" * 76)
 
     try:
-        r = requests.get(f"{target_url}/api/live/status", timeout=5)
+        r = requests.get(f"{target_url}/api/live/status", timeout=15)
         if r.status_code != 200:
             print(f"Server returned HTTP {r.status_code}")
             return

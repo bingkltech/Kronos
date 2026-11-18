@@ -71,6 +71,7 @@ class ActiveBracketPosition:
     slippage_usd: Decimal = Decimal("0.0")
     funding_fee_usd: Decimal = Decimal("0.0")
     close_reason: Optional[str] = None
+    forecast_confidence: Decimal = Decimal("0.65")
 
 
 class BinanceAtomicExecutor:
@@ -132,6 +133,7 @@ class BinanceAtomicExecutor:
         workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.scalp_orders_file = os.path.join(workspace_root, "data", "scalp_orders.json")
         self.scalp_order_ids: Set[str] = set()
+        self.scalp_active_symbols: Set[str] = set()
         self._load_scalp_orders()
 
     def _load_scalp_orders(self):
@@ -145,8 +147,10 @@ class BinanceAtomicExecutor:
         except Exception:
             self.scalp_order_ids = set()
 
-    def record_scalp_order(self, order_id: Any):
+    def record_scalp_order(self, order_id: Any, symbol: Optional[str] = None):
         """Register an order ID as belonging to an institutional micro-scalp."""
+        if symbol:
+            self.scalp_active_symbols.add(symbol)
         if not order_id:
             return
         oid = str(order_id)
@@ -208,7 +212,8 @@ class BinanceAtomicExecutor:
             "exit_fee_usd": str(pos.exit_fee_usd),
             "slippage_usd": str(pos.slippage_usd),
             "funding_fee_usd": str(pos.funding_fee_usd),
-            "close_reason": pos.close_reason
+            "close_reason": pos.close_reason,
+            "forecast_confidence": str(pos.forecast_confidence)
         }
 
     def _dict_to_pos(self, d: Dict[str, Any]) -> ActiveBracketPosition:
@@ -247,7 +252,8 @@ class BinanceAtomicExecutor:
             exit_fee_usd=Decimal(str(d.get("exit_fee_usd", "0.0"))),
             slippage_usd=Decimal(str(d.get("slippage_usd", "0.0"))),
             funding_fee_usd=Decimal(str(d.get("funding_fee_usd", "0.0"))),
-            close_reason=d.get("close_reason")
+            close_reason=d.get("close_reason"),
+            forecast_confidence=Decimal(str(d.get("forecast_confidence", "0.65")))
         )
 
     def _load_paper_state(self) -> None:
@@ -692,18 +698,62 @@ class BinanceAtomicExecutor:
                 amt = Decimal(str(p.get("positionAmt", "0.00")))
                 if abs(amt) > Decimal("0"):
                     entry_px = Decimal(str(p.get("entryPrice", "0.00")))
-                    notional = (abs(amt) * entry_px).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    mark_px = Decimal(str(p.get("markPrice", "0.00")))
+                    unreal_pnl = Decimal(str(p.get("unRealizedProfit", "0.00")))
+                    lev = Decimal(str(p.get("leverage", "1")))
+                    side = "BUY" if amt > Decimal("0") else "SELL"
+                    sym = p.get("symbol", "")
+                    cfg = self.symbols_config.get(sym)
+
+                    # Mark-to-market notional and initial margin
+                    notional = (abs(amt) * (mark_px if mark_px > Decimal("0") else entry_px)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    margin = (notional / lev).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if lev > Decimal("0") else notional
+
+                    # Price Gain % (directional price movement from entry to mark)
+                    if entry_px > Decimal("0"):
+                        if side == "BUY":
+                            price_gain_pct = ((mark_px - entry_px) / entry_px * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                        else:
+                            price_gain_pct = ((entry_px - mark_px) / entry_px * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    else:
+                        price_gain_pct = Decimal("0.00")
+
+                    # Round-trip fee deduction (VIP0 taker entry + exit, with 10% BNB discount if active)
+                    taker_rate = cfg.taker_fee_rate if cfg else Decimal("0.0005")
+                    if bnb_fee_discount_active:
+                        taker_rate = taker_rate * Decimal("0.90")
+                    rt_fee_rate = taker_rate * Decimal("2")
+                    rt_fee_usd = (notional * rt_fee_rate).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+                    # Net Unrealized PnL (all exchange taker fees deducted)
+                    net_pnl_usd = (unreal_pnl - rt_fee_usd).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+                    # ROI % on Initial Margin (Gross and Net after all fees)
+                    gross_roi_pct = ((unreal_pnl / margin) * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if margin > Decimal("0") else Decimal("0.00")
+                    net_roi_pct = ((net_pnl_usd / margin) * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if margin > Decimal("0") else Decimal("0.00")
+                    net_price_gain_pct = (price_gain_pct - (rt_fee_rate * Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+                    is_scalp = (sym in getattr(self, "scalp_active_symbols", set()))
                     active_live_positions.append({
-                        "symbol": p.get("symbol"),
+                        "symbol": sym,
                         "position_amt": str(amt),
-                        "side": "BUY" if amt > 0 else "SELL",
+                        "side": side,
                         "entry_price": str(entry_px),
-                        "mark_price": str(Decimal(str(p.get("markPrice", "0.00")))),
-                        "unrealized_pnl_usd": str(Decimal(str(p.get("unRealizedProfit", "0.00")))),
+                        "mark_price": str(mark_px),
+                        "unrealized_pnl_usd": str(unreal_pnl),
                         "liquidation_price": str(Decimal(str(p.get("liquidationPrice", "0.00")))),
                         "notional_usd": str(notional),
-                        "leverage": int(p.get("leverage", 1)),
-                        "margin_type": p.get("marginType", "isolated")
+                        "margin_usd": str(margin),
+                        "leverage": int(lev),
+                        "margin_type": p.get("marginType", "isolated"),
+                        "price_gain_pct": str(price_gain_pct),
+                        "net_price_gain_pct": str(net_price_gain_pct),
+                        "est_fee_usd": str(rt_fee_usd),
+                        "net_pnl_usd": str(net_pnl_usd),
+                        "gross_roi_pct": str(gross_roi_pct),
+                        "net_roi_pct": str(net_roi_pct),
+                        "is_scalp": is_scalp,
+                        "trade_type": "SCALP" if is_scalp else "MACRO"
                     })
                     
             summary = {
@@ -722,11 +772,7 @@ class BinanceAtomicExecutor:
             return summary
         except Exception as e:
             logger.error("Live Binance account query error: %s", e)
-            if cached is not None and (now - cached_time) < 30:
-                stale = dict(cached)
-                stale["warning"] = f"Using cached telemetry due to transient error: {e}"
-                return stale
-            return {
+            err_summary = {
                 "connected": False,
                 "error": str(e),
                 "total_wallet_balance_usd": Decimal("0.00"),
@@ -739,6 +785,14 @@ class BinanceAtomicExecutor:
                 "positions": [],
                 "open_orders": []
             }
+            if cached is not None and (now - cached_time) < 30:
+                stale = dict(cached)
+                stale["warning"] = f"Using cached telemetry due to transient error: {e}"
+                return stale
+            # Rate protection: Cache the error for 60s so WebUI polling doesn't hammer Binance with 401/429
+            self._cached_account_summary = err_summary
+            self._cached_account_summary_time = now
+            return err_summary
 
     def ensure_isolated_margin(self, symbol: str, leverage: int = 2) -> None:
         """Enforce ISOLATED margin mode and set safe leverage ceiling on Binance Futures."""
@@ -765,11 +819,51 @@ class BinanceAtomicExecutor:
         qty_prec = sym_cfg.quantity_precision if sym_cfg else 3
         fmt_price = Decimal("10") ** -price_prec
         fmt_qty = Decimal("10") ** -qty_prec
-        
-        self.ensure_isolated_margin(ticket.symbol, leverage=min(5, ticket.effective_leverage))
-        
+
         side = "BUY" if ticket.side in ("BUY", "LONG") else "SELL"
         opp_side = "SELL" if side == "BUY" else "BUY"
+
+        # Pre-Flight Invariant: Reject inverted brackets BEFORE any REST market order is dispatched
+        if side == "BUY":
+            if not (ticket.stop_loss < ticket.entry_price < ticket.take_profit):
+                logger.error(
+                    "PRE-FLIGHT REJECTED: Inverted bracket for LONG %s (SL %s < Entry %s < TP %s violated).",
+                    ticket.symbol, ticket.stop_loss, ticket.entry_price, ticket.take_profit
+                )
+                pos_id = f"REJECTED_{ticket.symbol}-{int(time.time()*1000)}"
+                return ActiveBracketPosition(
+                    position_id=pos_id,
+                    symbol=ticket.symbol,
+                    side=ticket.side,
+                    entry_price=ticket.entry_price,
+                    stop_loss=ticket.stop_loss,
+                    take_profit=ticket.take_profit,
+                    quantity=ticket.quantity,
+                    state=PositionState.REJECTED,
+                    close_reason=f"INVERTED_BRACKET: SL {ticket.stop_loss} < Entry {ticket.entry_price} < TP {ticket.take_profit} violated"
+                )
+        else:
+            if not (ticket.take_profit < ticket.entry_price < ticket.stop_loss):
+                logger.error(
+                    "PRE-FLIGHT REJECTED: Inverted bracket for SHORT %s (TP %s < Entry %s < SL %s violated).",
+                    ticket.symbol, ticket.take_profit, ticket.entry_price, ticket.stop_loss
+                )
+                pos_id = f"REJECTED_{ticket.symbol}-{int(time.time()*1000)}"
+                return ActiveBracketPosition(
+                    position_id=pos_id,
+                    symbol=ticket.symbol,
+                    side=ticket.side,
+                    entry_price=ticket.entry_price,
+                    stop_loss=ticket.stop_loss,
+                    take_profit=ticket.take_profit,
+                    quantity=ticket.quantity,
+                    state=PositionState.REJECTED,
+                    close_reason=f"INVERTED_BRACKET: TP {ticket.take_profit} < Entry {ticket.entry_price} < SL {ticket.stop_loss} violated"
+                )
+
+        # Ensure isolated contract leverage is at least 3x (up to 5x) to prevent 100% margin lock on micro-notionals
+        exchange_lev = max(3, min(5, ticket.effective_leverage))
+        self.ensure_isolated_margin(ticket.symbol, leverage=exchange_lev)
         
         qty_str = str(ticket.quantity.quantize(fmt_qty, rounding=ROUND_HALF_UP))
         sl_price_str = str(ticket.stop_loss.quantize(fmt_price, rounding=ROUND_HALF_UP))
@@ -807,8 +901,10 @@ class BinanceAtomicExecutor:
             
         pos_id = f"LIVE_{ticket.symbol}-{int(time.time()*1000)}"
         entry_order_id_str = str(entry_resp.get("orderId"))
-        if getattr(ticket, "is_scalp", False) and entry_order_id_str:
-            self.record_scalp_order(entry_order_id_str)
+        if getattr(ticket, "is_scalp", False):
+            self.scalp_active_symbols.add(ticket.symbol)
+            if entry_order_id_str:
+                self.record_scalp_order(entry_order_id_str, ticket.symbol)
 
         pos = ActiveBracketPosition(
             position_id=pos_id,
@@ -820,7 +916,8 @@ class BinanceAtomicExecutor:
             quantity=ticket.quantity,
             state=PositionState.ENTRY_FILLED,
             entry_order_id=entry_order_id_str,
-            entry_fill_time_utc=datetime.datetime.now(datetime.timezone.utc)
+            entry_fill_time_utc=datetime.datetime.now(datetime.timezone.utc),
+            forecast_confidence=getattr(ticket, "forecast_confidence", Decimal("0.65"))
         )
         
         # 2. Dispatch Stop-Loss & Take-Profit Brackets via Binance Algo Order Service
@@ -832,6 +929,7 @@ class BinanceAtomicExecutor:
                 "type": "STOP_MARKET",
                 "triggerPrice": sl_price_str,
                 "closePosition": "true",
+                "workingType": "MARK_PRICE",
                 "clientAlgoId": f"SL_{ticket.symbol}_{int(time.time()*1000)}"[:32]
             }
             sl_resp = self._signed_request("POST", "/fapi/v1/algoOrder", sl_params)
@@ -942,6 +1040,57 @@ class BinanceAtomicExecutor:
         except Exception as e:
             logger.error("Failed to flatten live symbol %s: %s", symbol, e)
             return {"success": False, "symbol": symbol, "error": str(e)}
+
+    def purge_orphaned_algo_orders(self) -> List[str]:
+        """
+        Scan live account for open algo orders on Binance Futures.
+        If any symbol has 0 open position or has an algo order with improper direction,
+        cancel all open algo orders for that symbol to prevent rogue entries / double fills.
+        """
+        purged_symbols = []
+        if not self.api_key or not self.secret_key:
+            return purged_symbols
+
+        try:
+            pos_data = self._signed_request("GET", "/fapi/v2/positionRisk")
+            open_positions = {}
+            for p in pos_data:
+                sym = p.get("symbol")
+                amt = Decimal(str(p.get("positionAmt", "0.00")))
+                open_positions[sym] = amt
+
+            algo_orders = self._signed_request("GET", "/fapi/v1/openAlgoOrders")
+            if not isinstance(algo_orders, list):
+                return purged_symbols
+
+            symbols_to_cancel = set()
+            for o in algo_orders:
+                sym = o.get("symbol")
+                side = o.get("side")
+                pos_amt = open_positions.get(sym, Decimal("0.00"))
+
+                if pos_amt == Decimal("0.00"):
+                    # Zero open position -> Any algo order is an orphan!
+                    symbols_to_cancel.add(sym)
+                elif pos_amt > Decimal("0.00") and side == "BUY":
+                    # Currently LONG, but algo order is BUY (unhedged addition)
+                    symbols_to_cancel.add(sym)
+                elif pos_amt < Decimal("0.00") and side == "SELL":
+                    # Currently SHORT, but algo order is SELL (unhedged addition)
+                    symbols_to_cancel.add(sym)
+
+            for sym in symbols_to_cancel:
+                try:
+                    self._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": sym})
+                    purged_symbols.append(sym)
+                    logger.info("Purged orphaned/malformed algo orders for %s", sym)
+                except Exception as e:
+                    logger.warning("Failed to cancel algo orders for %s: %s", sym, e)
+
+            return purged_symbols
+        except Exception as e:
+            logger.error("Error during purge_orphaned_algo_orders: %s", e)
+            return purged_symbols
 
     def sweep_live_temporal_exits(
         self,
@@ -1097,7 +1246,8 @@ class BinanceAtomicExecutor:
             quantity=ticket.quantity,
             state=PositionState.ENTRY_SUBMITTED,
             entry_fee_usd=entry_fee,
-            slippage_usd=slippage
+            slippage_usd=slippage,
+            forecast_confidence=getattr(ticket, "forecast_confidence", Decimal("0.65"))
         )
 
         fill_time = fill_time_utc or datetime.datetime.now(datetime.timezone.utc)

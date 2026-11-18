@@ -70,10 +70,16 @@ def test_long_trajectory_bracket_envelope():
     # Terminal close: 2502 + 12*5 = 2562.00
     assert verdict.terminal_price == Decimal("2562.00")
     assert verdict.raw_drift > Decimal("0")
-    # Take profit must be >= terminal price
-    assert verdict.dynamic_take_profit >= verdict.terminal_price
-    # Stop loss must be below spot price
+    # Stop loss must be below spot price and strictly capped to <= 6.0% ROI at 5x leverage
     assert verdict.dynamic_stop_loss < verdict.current_price
+    risk_dist = verdict.current_price - verdict.dynamic_stop_loss
+    sl_roi = (risk_dist / verdict.current_price) * Decimal("5") * Decimal("100")
+    assert sl_roi <= Decimal("6.0")
+
+    # Take profit must be above spot price, reduced in relation to new SL with RR >= 1.50
+    assert verdict.dynamic_take_profit > verdict.current_price
+    reward_dist = verdict.dynamic_take_profit - verdict.current_price
+    assert (reward_dist / risk_dist) >= Decimal("1.50")
 
 
 def test_short_trajectory_bracket_envelope():
@@ -95,7 +101,56 @@ def test_short_trajectory_bracket_envelope():
     assert verdict.symbol == "ETHUSDT"
     assert verdict.proposed_side == "SHORT"
     assert verdict.raw_drift < Decimal("0")
-    # Take profit must be <= terminal price
-    assert verdict.dynamic_take_profit <= verdict.terminal_price
-    # Stop loss must be above spot price
+    # Stop loss must be above spot price and strictly capped to <= 6.0% ROI at 5x leverage
     assert verdict.dynamic_stop_loss > verdict.current_price
+    risk_dist = verdict.dynamic_stop_loss - verdict.current_price
+    sl_roi = (risk_dist / verdict.current_price) * Decimal("5") * Decimal("100")
+    assert sl_roi <= Decimal("6.0")
+
+    # Take profit must be below spot price, reduced in relation to new SL with RR >= 1.50
+    assert verdict.dynamic_take_profit < verdict.current_price
+    reward_dist = verdict.current_price - verdict.dynamic_take_profit
+    assert (reward_dist / risk_dist) >= Decimal("1.50")
+
+
+def test_slow_volatility_regime_brackets():
+    """
+    Verify Dual-Regime Volatility Adapter:
+    When ATR-14 < 1.0% (slow market compression):
+    - Take-Profit targets +1.12% (+5.1% Net ROI after fees at 5x leverage)
+    - Stop-Loss is scaled relative to TP at -0.70% (-3.5% Net ROI at 5x leverage, RR 1.60:1)
+    """
+    engine = KronosTrajectoryEngine()
+    # Build low-volatility lookback (narrow 0.3% candle ranges)
+    n = 100
+    p = 2000.0
+    slow_lookback = pd.DataFrame({
+        "open": [p] * n,
+        "high": [p + 4.0] * n,   # 0.20% high
+        "low": [p - 4.0] * n,    # 0.20% low
+        "close": [p] * n,
+        "volume": [10.0] * n
+    })
+    mock_pred = pd.DataFrame({
+        "open": [p + i * 2 for i in range(1, 13)],
+        "high": [p + i * 2 + 3 for i in range(1, 13)],
+        "low": [p + i * 2 - 3 for i in range(1, 13)],
+        "close": [p + i * 2 for i in range(1, 13)],
+        "volume": [10.0] * 12
+    })
+    verdict = engine.generate_trajectory("ETHUSDT", slow_lookback, mock_forecast=mock_pred)
+
+    assert verdict.proposed_side == "LONG"
+    risk_dist = verdict.current_price - verdict.dynamic_stop_loss
+    reward_dist = verdict.dynamic_take_profit - verdict.current_price
+
+    sl_pct = risk_dist / verdict.current_price
+    tp_pct = reward_dist / verdict.current_price
+
+    # SL price distance must be exactly 0.66% (-3.30% ROI at 5x)
+    assert sl_pct == Decimal("0.0066")
+    # TP price distance must be exactly 1.01% (+5.05% gross, +4.65% net ROI at 5x)
+    assert tp_pct == Decimal("0.0101")
+    # RR ratio must be >= 1.50:1 (exact: 1.53:1)
+    assert (reward_dist / risk_dist) >= Decimal("1.50")
+    assert "Slow Vol" in verdict.rationale

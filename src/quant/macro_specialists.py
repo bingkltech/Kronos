@@ -46,6 +46,15 @@ class CarryVerdict:
     reason: str
 
 
+@dataclass(frozen=True)
+class SessionLiquidityVerdict:
+    """Evaluation output from the Session Liquidity Specialist (Lesson #38)."""
+    is_entry_permitted: bool
+    session_name: str
+    phase: str  # "PRIME_ALPHA", "NORMAL", "WHIPSAW_GUARD", "THIN_LIQUIDITY_GUARD"
+    reason: str
+
+
 # ==============================================================================
 # 1. News & Macro Catalyst Specialist
 # ==============================================================================
@@ -251,3 +260,87 @@ class CryptoCarrySpecialist:
                 )
         else:
             raise ValueError(f"Unknown side {side}; expected 'LONG' or 'SHORT'")
+
+
+# ==============================================================================
+# 3. Session Liquidity & Market Open Specialist (Lesson #38 & #40)
+# ==============================================================================
+
+class SessionLiquiditySpecialist:
+    """
+    Session-aware market liquidity & volatility specialist.
+    Derived from empirical audit of 276 real-money trades on Binance Futures (Lesson #38).
+
+    Protects against:
+    1. US Cash Equity Open Whipsaw (14:00 - 15:00 UTC / 09:30 EST) - caused -$5.57 net real-money loss.
+    2. Late-Night Asia Pre-Open & Funding Settlement (22:00 - 02:59 UTC) - caused -$11.12 net real-money loss.
+
+    Permits unconstrained active trading across the other 18 hours per day:
+    - European Morning (08:00 - 13:30 UTC): Generated +$10.89 net (5.49x Profit Factor).
+    - US Afternoon & Close (16:30 - 22:00 UTC): Generated +$7.21 net (3.16x Profit Factor).
+    - Asian Main Session (03:00 - 08:00 UTC): Positive carry / flow.
+    - Post-Open US Momentum (15:00 - 16:30 UTC).
+    """
+
+    def __init__(self, enable_session_filter: bool = True):
+        self.enable_session_filter = enable_session_filter
+
+    def evaluate_session(self, current_time_utc: Optional[datetime.datetime] = None) -> SessionLiquidityVerdict:
+        if not self.enable_session_filter:
+            return SessionLiquidityVerdict(
+                is_entry_permitted=True,
+                session_name="ALL_SESSIONS_ENABLED",
+                phase="UNCONSTRAINED",
+                reason="Session filter disabled. All market hours permitted."
+            )
+
+        if current_time_utc is None:
+            current_time_utc = datetime.datetime.now(datetime.timezone.utc)
+        elif current_time_utc.tzinfo is None:
+            current_time_utc = current_time_utc.replace(tzinfo=datetime.timezone.utc)
+
+        h = current_time_utc.hour
+
+        # Toxic Window 1: US Cash Equity Open Whipsaw & Post-Open Exhaustion (14:00 - 15:30 UTC)
+        if h == 14 or (h == 15 and current_time_utc.minute < 30):
+            return SessionLiquidityVerdict(
+                is_entry_permitted=False,
+                session_name="US_CASH_OPEN_AND_SETTLE",
+                phase="WHIPSAW_GUARD",
+                reason="US Cash Equity Open (14:30 UTC / 09:30 EST) volatility and 15:00-15:30 settlement window. New entries paused."
+            )
+
+        # Toxic Window 2: Late-Night Asia Pre-Open & 00:00 UTC Funding Settle (22:00 - 02:59 UTC)
+        if h in (22, 23, 0, 1, 2):
+            return SessionLiquidityVerdict(
+                is_entry_permitted=False,
+                session_name="LATE_NIGHT_ASIA_FUNDING_SETTLE",
+                phase="THIN_LIQUIDITY_GUARD",
+                reason="Late-night thin order book & 00:00 UTC funding settlement liquidation sweep window. New entries paused."
+            )
+
+        # European Prime Session (08:00 - 13:30 UTC)
+        if 8 <= h < 14:
+            return SessionLiquidityVerdict(
+                is_entry_permitted=True,
+                session_name="EUROPE_PRIME_ALPHA",
+                phase="PRIME_ALPHA",
+                reason="European morning session. Peak institutional trend drift and optimal execution liquidity."
+            )
+
+        # US Afternoon & Cash Close (16:00 - 21:59 UTC)
+        if 16 <= h < 22:
+            return SessionLiquidityVerdict(
+                is_entry_permitted=True,
+                session_name="US_AFTERNOON_AND_CLOSE",
+                phase="PRIME_ALPHA",
+                reason="US afternoon and cash close session. Directional trend continuation active."
+            )
+
+        # Standard Active Session (03:00 - 07:59 UTC, 15:00 - 15:59 UTC)
+        return SessionLiquidityVerdict(
+            is_entry_permitted=True,
+            session_name="NORMAL_MARKET_HOURS",
+            phase="NORMAL",
+            reason="Normal trading hours. Standard risk parameters active."
+        )

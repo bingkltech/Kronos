@@ -22,6 +22,8 @@ from src.quant.macro_specialists import (
     NewsBlackoutVerdict,
     CryptoCarrySpecialist,
     CarryVerdict,
+    SessionLiquiditySpecialist,
+    SessionLiquidityVerdict
 )
 
 
@@ -116,3 +118,44 @@ def test_live_binance_funding_fetch():
     # Evaluate carry on live rate
     verdict = carry.evaluate_carry("BTCUSDT", "LONG", funding_rate, next_time)
     assert verdict.verdict in ["FAVORABLE", "NEUTRAL", "PROHIBITIVE"]
+
+
+def test_session_liquidity_specialist_timing_gates():
+    """Verify session-aware timing gates (Lesson #38 & #40)."""
+    specialist = SessionLiquiditySpecialist(enable_session_filter=True)
+
+    # 1. European Morning (10:00 UTC) -> Permitted (Prime Alpha)
+    t_eu = datetime.datetime(2026, 11, 16, 10, 0, tzinfo=datetime.timezone.utc)
+    v_eu = specialist.evaluate_session(t_eu)
+    assert v_eu.is_entry_permitted is True
+    assert v_eu.phase == "PRIME_ALPHA"
+    assert "EUROPE_PRIME_ALPHA" in v_eu.session_name
+
+    # 2. US Cash Open Whipsaw (14:30 UTC & 15:15 UTC post-open settlement) -> Gated / Suspended
+    t_us_open = datetime.datetime(2026, 11, 16, 14, 30, tzinfo=datetime.timezone.utc)
+    v_us_open = specialist.evaluate_session(t_us_open)
+    assert v_us_open.is_entry_permitted is False
+    assert v_us_open.phase == "WHIPSAW_GUARD"
+
+    t_us_post_open = datetime.datetime(2026, 11, 16, 15, 15, tzinfo=datetime.timezone.utc)
+    v_us_post_open = specialist.evaluate_session(t_us_post_open)
+    assert v_us_post_open.is_entry_permitted is False
+    assert v_us_post_open.phase == "WHIPSAW_GUARD"
+
+    # 3. US Afternoon Trend (18:00 UTC) -> Permitted
+    t_us_aft = datetime.datetime(2026, 11, 16, 18, 0, tzinfo=datetime.timezone.utc)
+    v_us_aft = specialist.evaluate_session(t_us_aft)
+    assert v_us_aft.is_entry_permitted is True
+    assert v_us_aft.phase == "PRIME_ALPHA"
+
+    # 4. Late-Night Asia / Funding Settle (23:30 UTC) -> Gated / Suspended
+    t_late = datetime.datetime(2026, 11, 16, 23, 30, tzinfo=datetime.timezone.utc)
+    v_late = specialist.evaluate_session(t_late)
+    assert v_late.is_entry_permitted is False
+    assert v_late.phase == "THIN_LIQUIDITY_GUARD"
+
+    # 5. Asian Active Hours (05:00 UTC) -> Permitted
+    t_asia = datetime.datetime(2026, 11, 16, 5, 0, tzinfo=datetime.timezone.utc)
+    v_asia = specialist.evaluate_session(t_asia)
+    assert v_asia.is_entry_permitted is True
+    assert v_asia.phase == "NORMAL"

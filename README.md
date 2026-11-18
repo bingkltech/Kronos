@@ -87,13 +87,31 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
 
 ### Key Capabilities
 
-* **Unified 3-in-1 Web Terminal (`http://localhost:7070`):**
-  * **Macro Dashboard:** Real-time composite market breadth ($>60\%$ Bull Expansion, $<40\%$ Bear Distribution), 24h VWAP leaderboard, perpetual funding carry radar, macroeconomic news blackout shield (FOMC/CPI event protection), and live Paper Trading Performance Audit Report (Win vs Loss, PnL, Profit Factor, closed trade log).
-  * **Kronos Forecast Workstation:** Institutional Bloomberg-style 6-panel workstation with Market Watch, Main Chart + Shaded Purple Forecast Corridor (`NEXT 15 BARS`, $P(\text{up}) = 69\%$), streaming Time & Sales tape, Agent Debate (Bull vs Bear FIE), Execution View with Volume Profile & CVD, Monte Carlo Fan (6,000 Sampled Paths), and 3D Param Sweep Sharpe terrain.
-  * **Quant Bot Control Cockpit:** Small-account micro-trading engine ($200.00 USDT equity baseline, 1.5% max risk budget), continuous autonomous background scanning daemon, full state persistence across restarts (`data/paper_trading_state.json` and `data/bot_settings.json`), live KEV.ai 6-point veto gate audits, and rolling Brier learning memory.
+* **Unified Multi-Speed Trading Cockpits (http://localhost:7070):**
+  * **Macro Dashboard (/):** Real-time composite market breadth ($>60\%$ Bull Expansion, $<40\%$ Bear Distribution), 24h VWAP leaderboard, perpetual funding carry radar, macroeconomic news blackout shield (FOMC/CPI event protection), Paper Performance Audit Report, and the **1-Year Rolling Monthly Asset Activity & Profitability Matrix** (Bought/Sold counts per asset per month, intensity-scaled green when profitable, across Live, Tiger, and Paper sources).
+* **Previous-UTC-Day Volume Profile Spatial Veto & AWS Live Quota Guard (`src/quant/volume_profile.py`):**
+  * Pure-`Decimal` zero-lookahead Fixed-Range Volume Profile (`pPOC`, `pVAH`, `pVAL`, HVN/LVN density) cached once per UTC day (`< 10 KB` RAM on AWS `t3.micro`).
+  * Empirically validated on 293 real closed Binance Futures trades (`p = 0.0034`, `+286%` counterfactual net PnL): blocks entries firing directly into opposing `pPOC` (`VP_FIRING_INTO_POC`) or High-Volume Node chop zones (`VP_HVN_CHOP`), plus `VP_FADING_BREAKOUT` protection in Stalking Tiger.
+  * Persistent live trade-quota auto-pause circuit breaker on AWS (`POST /api/live/toggle` with `trade_cap`). See [`docs/VOLUME_PROFILE_SPATIAL_VETO_AND_DASHBOARD_MATRIX.md`](docs/VOLUME_PROFILE_SPATIAL_VETO_AND_DASHBOARD_MATRIX.md).
+  * **Kronos Forecast Workstation (/workstation):** Institutional Bloomberg-style 6-panel workstation with Market Watch, Main Chart + Shaded Purple Forecast Corridor (NEXT 15 BARS, (\text{up}) = 69\%$), streaming Time & Sales tape, Agent Debate (Bull vs Bear FIE), Execution View with Volume Profile & CVD, Monte Carlo Fan (6,000 Sampled Paths), and 3D Param Sweep Sharpe terrain.
+  * **Quant Bot Control Cockpit (/bot):** Small-account micro-trading engine (.00 USDT equity baseline, 1.5% max risk budget), continuous autonomous background scanning daemon, full state persistence across restarts (data/paper_trading_state.json and data/bot_settings.json), live KEV.ai 6-point veto gate audits, and rolling Brier learning memory.
+  * **Dedicated Lightning Scalper Cockpit (/scalper):** Autonomous high-frequency microstructural execution engine with independent rules, strategies, and guardrails. Scans the Whole-Binance perpetual universe (300+ pairs) via array streams (!forceOrder@arr), executing 3 alpha edges (Liquidation Vacuum, Lead-Lag Delta, Stoikov Micro-Price) with .00 ringfenced isolated margin (4x), 15-minute post-exit quarantine, and institutional two-tier profit ratchets.
+* **Asymmetric Compute & Distillation Pipeline (PC-to-AWS):**
+  * **Heavy Research on PC:** 46-item microstructural TCA decomposition (MFE, MAE, Realization Tax Drag bps), deterministic root-cause diagnosis, and Bayesian parameter recalibration run on Local PC.
+  * **Lean Execution on AWS EC2:** AWS node (13.63.158.94) runs ultra-lean (<105MB RAM, zero heavy ML loops) and hot-reloads distilled decision rules (data/scalper_distilled_rules.json) on the fly with zero service restarts and zero downtime.
+  * **CLI Distillation Engine:** python scripts/distill_scalper_learning.py --sync-aws.
+* **Tsunami Storm Adaptive Protocol (Rough Seas & Black Swan Defense):**
+  * **3-Phase Adaptive State Machine:** Automatically detects violent shocks (BTC 5m velocity $\ge 2\%$, 5m range $\ge 3\%$, market breadth collapse $<15\%$ or $>85\%$, or macroeconomic news catalysts) and triggers protective protocol.
+  * **Phase 1 Shock Pause (First 15m):** Strict VETO on all new entries. Lets falling knives and sudden liquidation wicks clear without catching wicks.
+  * **Phase 2 Focused Caution (Minutes 15-60):** Fleet capacity is strictly clamped to **1 Macro Position and 1 Scalp Position** (down from 3 Macro / 1 Scalp), elevating win probability requirement to $\ge 75.0\%$ with Mark-Price stops.
+  * **Phase 3 Calm Water Auto-Recovery:** Automatically reverts to normal fleet capacity (3 Macro / 1 Scalp) after 60 minutes once turbulence normalizes (zero restarts required).
+  * **Exchange-Native Mark-Price Anti-Wick Protection:** Stop-Loss brackets dispatch with `workingType: "MARK_PRICE"`, protecting isolated stops against single-exchange needle wicks while preserving contract price Take-Profits.
+  * **Interactive Cockpit Telemetry:** Live topbar indicator (`#topbar-storm-pill`) displaying ocean state, countdown timers, and instant manual override capability.
 * **Role-Specialized Multi-Agent Architecture:**
   * **Macro Specialists:** Asynchronous event catalyst shield + 8-hour crypto carry monitor.
-  * **Tactical Core:** 12-hour autoregressive trajectory engine with dynamic ATR-14 volatility envelopes.
+  * **Tactical Core & Dual-Regime Volatility Adapters:** 12-hour autoregressive trajectory engine with dynamic regime brackets:
+    * **Normal / High Volatility (ATR-14 $\ge 1.0\%$):** Target $+1.90\%$ price ($+9.1\%$ Net ROI at 5x), Stop-Loss capped at $-1.10\%$ price ($-5.5\%$ max ROI, RR $1.73:1$).
+    * **Slow Volatility / Compression (ATR-14 $< 1.0\%$):** Target $+1.01\%$ price ($+4.65\%$ Net ROI after fees at 5x), Stop-Loss scaled relative to TP at $-0.66\%$ price ($-3.30\%$ Net ROI, RR $1.53:1$) with a hard noise floor to prevent spread choke.
   * **KEV.ai Risk Arbiter & Supreme Veto Gate:** 6-point mathematical veto gate enforcing macro alignment, carry economics, fee hurdles ($0.04\%$), reward/risk $\ge 2.0$, Fractional Kelly dollar sizing, and adversarial Bull/Bear Devil's Advocate stress-tests.
   * **The Learning Governor:** Rolling 48-hour Brier calibration scoring ($0.0\text{x}$ to $1.0\text{x}$ dynamic capital throttle) with persistent SQLite post-mortem logging in `data/lessons.db`.
   * **Atomic Bracket Execution:** Entry limit orders paired with native SL/TP brackets, Anti-Naked-Position Guard (<1,000ms SL confirmation timeout), and 12-hour temporal stale-trade auto-expiry.
@@ -113,7 +131,14 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
    python -m pytest tests/ -q
    ```
 
+3. **Simulate Tsunami Shock & High-Wave Adaptation:**
+   ```bash
+   python scripts/simulate_tsunami_shock.py
+   ```
+
 ### Documentation Links
+* 🌊 [Tsunami Storm Adaptive Protocol Manual](docs/TSUNAMI_STORM_ADAPTIVE_PROTOCOL.md)
+* ⚡ [Lightning Scalper Architecture & Distillation Manual](docs/LIGHTNING_SCALPER_ARCHITECTURE.md)
 * 📘 [Quant Architecture Specification](docs/ARCHITECTURE.md)
 * 🖥️ [Unified Terminal User Guide](docs/UNIFIED_TERMINAL_GUIDE.md)
 * 📑 [Master Binance Futures Bot Guide](docs/KRONOS_BINANCE_FUTURES_BOT_GUIDE.md)

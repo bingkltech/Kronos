@@ -20,18 +20,33 @@ import os
 import sys
 import time
 import datetime
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 import pandas as pd
 
-from src.quant.config import TOP_10_SYMBOLS, DEFAULT_RISK_CONFIG, FuturesSymbolConfig, GlobalRiskConfig
-from src.quant.macro_specialists import NewsCatalystSpecialist, CryptoCarrySpecialist, NewsBlackoutVerdict, CarryVerdict
+logger = logging.getLogger("QuantBotOrchestrator")
+
+from src.quant.config import TOP_10_SYMBOLS, DEFAULT_RISK_CONFIG, FuturesSymbolConfig, GlobalRiskConfig, LIVE_EXCLUDED_SYMBOLS
+from src.quant.macro_specialists import (
+    NewsCatalystSpecialist,
+    CryptoCarrySpecialist,
+    NewsBlackoutVerdict,
+    CarryVerdict,
+    SessionLiquiditySpecialist,
+    SessionLiquidityVerdict
+)
 from src.quant.crypto_index_engine import CryptoIndexEngine, MacroIndexVerdict
 from src.quant.kronos_onnx_engine import KronosTrajectoryEngine, TrajectoryVerdict
 from src.quant.kev_risk_arbiter import KEVSupremeArbiter, KEVDecision, TradeTicket
 from src.quant.learning_governor import LearningGovernor, CalibrationReport, TradeOutcome
 from src.quant.binance_execution import BinanceAtomicExecutor, ActiveBracketPosition, PositionState
+from src.quant.volume_profile import (
+    DailyVolumeProfileCache,
+    VolumeProfileEngine,
+    VolumeProfileSnapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -55,23 +70,92 @@ class QuantBotOrchestrator:
         news_specialist: Optional[NewsCatalystSpecialist] = None,
         index_engine: Optional[CryptoIndexEngine] = None,
         carry_specialist: Optional[CryptoCarrySpecialist] = None,
+        session_specialist: Optional[SessionLiquiditySpecialist] = None,
         trajectory_engine: Optional[KronosTrajectoryEngine] = None,
         risk_arbiter: Optional[KEVSupremeArbiter] = None,
         learning_governor: Optional[LearningGovernor] = None,
         executor: Optional[BinanceAtomicExecutor] = None,
         symbols_config: Optional[Dict[str, FuturesSymbolConfig]] = None,
-        risk_config: Optional[GlobalRiskConfig] = None
+        risk_config: Optional[GlobalRiskConfig] = None,
+        cooldown_seconds: int = 900,
+        volume_profile_cache: Optional[DailyVolumeProfileCache] = None,
+        enable_volume_profile_veto: bool = True,
+        require_neural_model: bool = True
     ):
         self.symbols_config = symbols_config or TOP_10_SYMBOLS
         self.risk_config = risk_config or DEFAULT_RISK_CONFIG
+        self.cooldown_seconds = cooldown_seconds
+        self.volume_profile_cache = volume_profile_cache or DailyVolumeProfileCache()
+        self.enable_volume_profile_veto = enable_volume_profile_veto
+        self.require_neural_model = require_neural_model
+
+        # Post-Exit Quarantine / Cooldown tracker (symbol -> {expires_utc, reason, ...})
+        self.symbol_cooldowns: Dict[str, Dict[str, Any]] = {}
+        # Directional Flip Hysteresis tracker (symbol -> {side, timestamp_utc})
+        self.recent_directional_exits: Dict[str, Dict[str, Any]] = {}
 
         self.news_specialist = news_specialist or NewsCatalystSpecialist()
+        self.session_specialist = session_specialist or SessionLiquiditySpecialist()
         self.index_engine = index_engine or CryptoIndexEngine(symbols_config=self.symbols_config)
         self.carry_specialist = carry_specialist or CryptoCarrySpecialist()
         self.trajectory_engine = trajectory_engine or KronosTrajectoryEngine(symbols_config=self.symbols_config)
         self.risk_arbiter = risk_arbiter or KEVSupremeArbiter(risk_config=self.risk_config, symbols_config=self.symbols_config)
         self.learning_governor = learning_governor or LearningGovernor()
         self.executor = executor or BinanceAtomicExecutor(dry_run=True, realistic_friction=True, symbols_config=self.symbols_config)
+
+    def register_symbol_cooldown(
+        self,
+        symbol: str,
+        current_time_utc: datetime.datetime,
+        duration_seconds: Optional[int] = None,
+        reason: str = "POST_EXIT_COOLDOWN"
+    ) -> None:
+        """
+        Quarantines a symbol for a cooldown window after exit (manual, take-profit, or stop-loss).
+        Prevents rapid churn, double-fee bleeding, and shorting the local mean-reversion bottom.
+        """
+        dur = duration_seconds if duration_seconds is not None else self.cooldown_seconds
+        expires_utc = current_time_utc + datetime.timedelta(seconds=dur)
+        self.symbol_cooldowns[symbol] = {
+            "expires_utc": expires_utc,
+            "duration_seconds": dur,
+            "reason": reason,
+            "registered_at_utc": current_time_utc
+        }
+
+    def is_symbol_in_cooldown(self, symbol: str, current_time_utc: datetime.datetime) -> bool:
+        """Returns True if the symbol is actively quarantined under post-exit cooldown."""
+        if symbol not in self.symbol_cooldowns:
+            return False
+        info = self.symbol_cooldowns[symbol]
+        if current_time_utc < info["expires_utc"]:
+            return True
+        # Cooldown expired, clean up entry
+        del self.symbol_cooldowns[symbol]
+        return False
+
+    def get_cooldown_status(self, current_time_utc: Optional[datetime.datetime] = None) -> Dict[str, Any]:
+        """Returns map of actively quarantined symbols and remaining seconds."""
+        now_u = current_time_utc or datetime.datetime.now(datetime.timezone.utc)
+        active = {}
+        for sym, info in list(self.symbol_cooldowns.items()):
+            if now_u < info["expires_utc"]:
+                remaining = int((info["expires_utc"] - now_u).total_seconds())
+                active[sym] = {
+                    "remaining_seconds": remaining,
+                    "expires_utc": info["expires_utc"].isoformat(),
+                    "reason": info["reason"]
+                }
+            else:
+                del self.symbol_cooldowns[sym]
+        return active
+
+    def record_directional_loss(self, symbol: str, side: str, timestamp_utc: datetime.datetime) -> None:
+        """Records a loss exit to enforce 30-minute directional flip hysteresis."""
+        self.recent_directional_exits[symbol] = {
+            "side": side.upper(),
+            "timestamp_utc": timestamp_utc
+        }
 
     @property
     def kev_arbiter(self) -> KEVSupremeArbiter:
@@ -85,7 +169,9 @@ class QuantBotOrchestrator:
         current_time_utc: Optional[datetime.datetime] = None,
         mock_preloaded_klines: Optional[Dict[str, List[Dict[str, Decimal]]]] = None,
         mock_trajectories: Optional[Dict[str, TrajectoryVerdict]] = None,
-        execution_mode: str = "PAPER"
+        mock_volume_profiles: Optional[Dict[str, VolumeProfileSnapshot]] = None,
+        execution_mode: str = "PAPER",
+        max_new_entries: Optional[int] = None
     ) -> CycleReport:
         """
         Execute an end-to-end market scan across the Top 10 universe.
@@ -112,8 +198,9 @@ class QuantBotOrchestrator:
             ]
             free_margin = self.executor.get_free_margin()
 
-        # 1. Macro News Blackout Shield
+        # 1. Macro News Blackout & Session Liquidity Shields
         news_verdict = self.news_specialist.evaluate_blackout(current_time_utc)
+        session_verdict = self.session_specialist.evaluate_session(current_time_utc)
 
         # 2. Systemic Market Breadth & Macro Regime
         macro_verdict = self.index_engine.evaluate_universe(preloaded_klines=mock_preloaded_klines)
@@ -134,11 +221,14 @@ class QuantBotOrchestrator:
             closed_by_price = self.executor.check_bracket_price_triggers(current_prices, current_time_utc=current_time_utc)
             for pos in closed_by_price:
                 hit = 1 if pos.close_reason == "TAKE_PROFIT_TRIGGERED" else 0
+                if hit == 0 and pos.realized_pnl_usd < Decimal("0"):
+                    self.record_directional_loss(pos.symbol, pos.side, pos.close_time_utc or current_time_utc)
+                conf = getattr(pos, "forecast_confidence", Decimal("0.65"))
                 self.learning_governor.record_outcome(TradeOutcome(
                     trade_id=pos.position_id,
                     symbol=pos.symbol,
                     side=pos.side,
-                    forecast_confidence=Decimal("0.70"),
+                    forecast_confidence=conf,
                     realized_hit=hit,
                     realized_pnl_usd=pos.realized_pnl_usd,
                     exit_reason=pos.close_reason or "BRACKET_EXIT",
@@ -150,6 +240,20 @@ class QuantBotOrchestrator:
         elif execution_mode == "LIVE":
             # Active Live Temporal Sweeper (Lesson #17: Hard 12-Hour Stale Expiry)
             self.sweep_temporal_exits(current_time_utc=current_time_utc, execution_mode="LIVE")
+            # Ingest recent live closed trades for directional flip hysteresis
+            try:
+                for ct in getattr(self.executor, "closed_trades", [])[-15:]:
+                    if ct.get("result") == "LOSS" or Decimal(str(ct.get("realized_pnl_usd", 0))) < Decimal("0"):
+                        c_sym = ct.get("symbol")
+                        c_side = ct.get("side")
+                        c_time_str = ct.get("close_time") or ct.get("timestamp_utc")
+                        if c_sym and c_side and c_time_str:
+                            c_dt = datetime.datetime.fromisoformat(str(c_time_str))
+                            if c_dt.tzinfo is None:
+                                c_dt = c_dt.replace(tzinfo=datetime.timezone.utc)
+                            self.record_directional_loss(c_sym, c_side, c_dt)
+            except Exception as e:
+                logger.debug("Error ingesting recent live losses: %s", e)
 
         # 5. Check Active Positions & Capacity
         decisions: Dict[str, KEVDecision] = {}
@@ -172,6 +276,59 @@ class QuantBotOrchestrator:
             if symbol in active_symbols:
                 continue
 
+            # Live fleet pruning (Lesson #40): Veto toxic meme coins in live mode
+            if execution_mode == "LIVE" and symbol in LIVE_EXCLUDED_SYMBOLS:
+                decisions[symbol] = KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side="NEUTRAL",
+                    veto_gate_failed="FLEET_PRUNING",
+                    veto_reason=f"{symbol} is excluded from live execution to prevent meme whipsaw (Lesson #40).",
+                    ticket=None,
+                    adversarial_notes="Excluded asset to preserve capital for high-alpha fleet."
+                )
+                continue
+
+            # Session Timing Gate (Lesson #38 & #40): Protects against US Cash Open & Late Night funding whipsaws
+            if not session_verdict.is_entry_permitted:
+                decisions[symbol] = KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side="NEUTRAL",
+                    veto_gate_failed="SESSION_LIQUIDITY_GUARD",
+                    veto_reason=session_verdict.reason,
+                    ticket=None,
+                    adversarial_notes="Session timing guard active."
+                )
+                continue
+
+            # Post-Exit Quarantine Check: Veto if symbol is cooling down after recent exit
+            if self.is_symbol_in_cooldown(symbol, current_time_utc):
+                expires_str = self.symbol_cooldowns[symbol]["expires_utc"].strftime("%H:%M:%S UTC")
+                decisions[symbol] = KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side="NEUTRAL",
+                    veto_gate_failed="POST_EXIT_COOLDOWN",
+                    veto_reason=f"Symbol in post-exit quarantine cooldown until {expires_str} (prevents churn & mean-reversion whipsaw).",
+                    ticket=None,
+                    adversarial_notes="Cooldown active to protect banked profits."
+                )
+                continue
+
+            # Fail-Safe Neural Model Gate (Lesson #41): Prohibit unverified linear fallback in LIVE mode
+            if self.require_neural_model and execution_mode == "LIVE" and not mock_trajectories and not self.trajectory_engine.is_neural_model_loaded():
+                decisions[symbol] = KEVDecision(
+                    approved=False,
+                    symbol=symbol,
+                    side="NEUTRAL",
+                    veto_gate_failed="NEURAL_MODEL_OFFLINE",
+                    veto_reason="VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
+                    ticket=None,
+                    adversarial_notes="Fail-safe safety gate: Real neural model must be loaded into memory."
+                )
+                continue
+
             # Obtain or compute Trajectory
             if mock_trajectories and symbol in mock_trajectories:
                 trajectory = mock_trajectories[symbol]
@@ -189,6 +346,60 @@ class QuantBotOrchestrator:
 
             if trajectory.proposed_side == "NEUTRAL":
                 continue
+
+            # Directional Flip Hysteresis (Lesson #41): Veto opposite-direction entries within 30m of a loss
+            if symbol in self.recent_directional_exits:
+                exit_info = self.recent_directional_exits[symbol]
+                last_side = exit_info["side"]
+                last_time = exit_info["timestamp_utc"]
+                prop_side = "BUY" if trajectory.proposed_side == "LONG" else "SELL"
+                if prop_side != last_side:
+                    diff_m = (current_time_utc - last_time).total_seconds() / 60.0
+                    if 0.0 <= diff_m < 30.0:
+                        decisions[symbol] = KEVDecision(
+                            approved=False,
+                            symbol=symbol,
+                            side="NEUTRAL",
+                            veto_gate_failed="DIRECTIONAL_FLIP_HYSTERESIS",
+                            veto_reason=f"VETO: Directional flip ({last_side} -> {prop_side}) blocked for 30m after loss (elapsed: {diff_m:.1f}m). Prevents whipsaw.",
+                            ticket=None,
+                            adversarial_notes="Anti-whipsaw directional hysteresis active."
+                        )
+                        continue
+                    else:
+                        del self.recent_directional_exits[symbol]
+
+            # Spatial Liquidity Veto Gate (Previous-UTC-Day Volume Profile H1+H4):
+            # Veto entries firing directly into opposing pPOC (0.05-0.80%) or inside HVN chop (>=1.5x avg).
+            # In offline mock tests without mock_volume_profiles, skip live HTTP fetch for determinism.
+            if self.enable_volume_profile_veto:
+                vp_snapshot: Optional[VolumeProfileSnapshot] = None
+                if mock_volume_profiles is not None:
+                    vp_snapshot = mock_volume_profiles.get(symbol)
+                elif not mock_trajectories:
+                    vp_snapshot = self.volume_profile_cache.get_previous_day_profile(symbol, current_time_utc)
+
+                if vp_snapshot is not None:
+                    prop_side_vp = "BUY" if trajectory.proposed_side == "LONG" else "SELL"
+                    vp_res = VolumeProfileEngine.evaluate_spatial_veto(
+                        profile=vp_snapshot,
+                        entry_price=trajectory.current_price,
+                        side=prop_side_vp,
+                        veto_firing_into_poc=True,
+                        veto_hvn_chop=True,
+                        veto_fading_breakout=False,
+                    )
+                    if not vp_res.approved:
+                        decisions[symbol] = KEVDecision(
+                            approved=False,
+                            symbol=symbol,
+                            side="NEUTRAL",
+                            veto_gate_failed=vp_res.veto_code or "VP_SPATIAL_VETO",
+                            veto_reason=vp_res.reason,
+                            ticket=None,
+                            adversarial_notes="Empirically validated prior-UTC-day Volume Profile spatial liquidity guard (p=0.0034)."
+                        )
+                        continue
 
             # Carry Verdict
             sym_funding = funding_map.get(symbol, {}).get("funding_rate", Decimal("0.0001"))
@@ -217,6 +428,38 @@ class QuantBotOrchestrator:
 
             # 8. Dispatch Approved Trades
             if decision.approved and decision.ticket:
+                # Tsunami Storm Protocol Gate
+                try:
+                    from src.quant.storm_protocol import StormProtocolManager
+                    storm_mgr = StormProtocolManager()
+                    btc_cand_klines = mock_preloaded_klines.get("BTCUSDT") if mock_preloaded_klines else None
+                    storm_mgr.evaluate_market_wave(
+                        btc_klines=btc_cand_klines,
+                        macro_breadth_pct=macro_verdict.advance_decline_ratio * Decimal("100") if macro_verdict.advance_decline_ratio else None,
+                        is_news_blackout=news_verdict.is_blackout,
+                        news_event_name=news_verdict.event_name,
+                        current_time_utc=current_time_utc
+                    )
+                    conf_pct = float(getattr(decision.ticket, "forecast_confidence", Decimal("0.65")) * Decimal("100"))
+                    scalp_cnt = len(getattr(self.executor, "scalp_active_symbols", set()))
+                    permitted, storm_reason = storm_mgr.is_entry_permitted(
+                        is_scalp=False,
+                        current_macro_count=len(active_symbols),
+                        current_scalp_count=scalp_cnt,
+                        confidence_pct=conf_pct,
+                        current_time_utc=current_time_utc
+                    )
+                    if not permitted:
+                        decisions[symbol] = replace(
+                            decision,
+                            approved=False,
+                            veto_gate_failed="STORM_PROTOCOL",
+                            veto_reason=storm_reason,
+                        )
+                        continue
+                except Exception as storm_err:
+                    logger.debug("Storm protocol check warning: %s", storm_err)
+
                 if execution_mode == "LIVE":
                     pos = self.executor.submit_live_bracket_order(decision.ticket)
                 else:
@@ -229,11 +472,17 @@ class QuantBotOrchestrator:
                         used = (pos.quantity * pos.entry_price) / lev
                         free_margin = max(Decimal("0.00"), free_margin - used)
                 else:
-                    decision.approved = False
-                    decision.veto_reason = f"ORDER_REJECTED: {pos.close_reason}"
+                    decisions[symbol] = replace(
+                        decision,
+                        approved=False,
+                        veto_gate_failed="ORDER_REJECTED",
+                        veto_reason=f"ORDER_REJECTED: {pos.close_reason}",
+                    )
 
-                # Stop scanning if max concurrent positions reached
+                # Stop scanning if max concurrent positions or session trade quota reached
                 if len(active_symbols) >= self.risk_config.max_concurrent_positions:
+                    break
+                if max_new_entries is not None and len(dispatched_trades) >= max_new_entries:
                     break
 
         return CycleReport(
@@ -263,6 +512,7 @@ class QuantBotOrchestrator:
             for item in live_expired:
                 sym = item["symbol"]
                 expired_ids.append(f"LIVE_{sym}")
+                self.register_symbol_cooldown(sym, now_u, reason="TEMPORAL_EXIT_12H_STALE")
                 self.learning_governor.record_outcome(TradeOutcome(
                     trade_id=f"LIVE_EXPIRED_{sym}_{int(time.time())}",
                     symbol=sym,
@@ -282,6 +532,7 @@ class QuantBotOrchestrator:
             px = prices.get(pos.symbol)
             if self.executor.evaluate_temporal_exit(pos, current_time_utc=now_u, max_duration_hours=self.risk_config.stale_trade_hours, current_price=px):
                 expired_ids.append(pos_id)
+                self.register_symbol_cooldown(pos.symbol, now_u, reason="TEMPORAL_EXIT_12H_STALE")
                 self.learning_governor.record_outcome(TradeOutcome(
                     trade_id=pos.position_id,
                     symbol=pos.symbol,

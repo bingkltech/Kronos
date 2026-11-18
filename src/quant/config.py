@@ -56,7 +56,7 @@ class FuturesSymbolConfig:
 TOP_10_SYMBOLS: Dict[str, FuturesSymbolConfig] = {
     "BTCUSDT": FuturesSymbolConfig(
         symbol="BTCUSDT",
-        price_precision=2,
+        price_precision=1,
         quantity_precision=3,
         min_quantity=Decimal("0.001"),
         min_notional=Decimal("5.0"),
@@ -99,15 +99,15 @@ TOP_10_SYMBOLS: Dict[str, FuturesSymbolConfig] = {
     "ADAUSDT": FuturesSymbolConfig(
         symbol="ADAUSDT",
         price_precision=4,
-        quantity_precision=1,
-        min_quantity=Decimal("0.1"),
+        quantity_precision=0,
+        min_quantity=Decimal("1"),
         min_notional=Decimal("5.0"),
     ),
     "AVAXUSDT": FuturesSymbolConfig(
         symbol="AVAXUSDT",
-        price_precision=2,
-        quantity_precision=2,
-        min_quantity=Decimal("0.01"),
+        price_precision=3,
+        quantity_precision=0,
+        min_quantity=Decimal("1"),
         min_notional=Decimal("5.0"),
     ),
     "LINKUSDT": FuturesSymbolConfig(
@@ -148,6 +148,9 @@ ALL_SUPPORTED_SYMBOLS: Dict[str, FuturesSymbolConfig] = {
     **MEME_ASSETS,
 }
 
+# Empirical Live Trading Fleet Filters (Lesson #40: Exclude verified toxic meme assets while keeping fleet active)
+LIVE_EXCLUDED_SYMBOLS = {"DOGEUSDT"}
+
 
 # ==============================================================================
 # Global Quantitative Governance & Risk Bounds
@@ -162,7 +165,17 @@ class GlobalRiskConfig:
     max_concurrent_positions: int = 3
     max_pair_correlation: Decimal = Decimal("0.85")     # Correlation veto ceiling
     
-    # Circuit Breakers
+    # Circuit Breakers & ROI Risk Clamps
+    max_sl_roi_pct: Decimal = Decimal("5.5")            # Hard target on SL: -5.0% to -6.0% max ROI
+    max_sl_roi_ceiling_pct: Decimal = Decimal("6.0")    # Absolute ceiling: 6.0% max ROI
+    target_rr_ratio: Decimal = Decimal("1.75")          # TP calibrated in relation to new SL (1.75:1 RR)
+    
+    # Dual-Regime Volatility Adapters (Option A: Slow Volatility Optimization - Lesson #39)
+    slow_vol_atr_threshold_pct: Decimal = Decimal("1.00") # ATR-14 < 1.0% triggers Slow Volatility Regime
+    slow_vol_tp_price_pct: Decimal = Decimal("0.0101")     # +1.01% price move = +4.65% Net ROI after fees at 5x
+    slow_vol_sl_price_pct: Decimal = Decimal("0.0066")     # -0.66% price move = -3.30% Net ROI at 5x (RR 1.53:1)
+    min_noise_floor_sl_pct: Decimal = Decimal("0.0066")    # Hard noise floor calibrated to 0.66% (Lesson #39)
+    
     daily_drawdown_limit_ratio: Decimal = Decimal("0.03") # 3.0% 24h loss forces shutdown
     min_net_fee_hurdle: Decimal = Decimal("0.0050")        # 0.50% net expected gain (Lesson #10)
     min_rr_ratio: Decimal = Decimal("1.50")                # Minimum 1.50:1 Take-Profit over Stop-Loss

@@ -82,3 +82,14 @@ data/_temp*
 
 data/paper_trading_state.json
 data/binance_*
+data/gemini_share.html
+data/blueprint_index.html
+data/fetch_gemini.py
+data/parse_gemini.py
+data/aws_trade_quota.json
+data/tiger_radar.json
+data/tiger_state.json
+data/storm_state.json
+data/tiger_trades.db
+data/trade_autopsies.db
+*.tar.gz

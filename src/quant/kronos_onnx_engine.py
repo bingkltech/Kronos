@@ -59,6 +59,19 @@ class KronosTrajectoryEngine:
         self.symbols_config = symbols_config or ALL_SUPPORTED_SYMBOLS
         self.session = session or requests.Session()
 
+    def is_neural_model_loaded(self) -> bool:
+        """Check if local Kronos microservice has foundation model loaded in memory."""
+        if not self.service_url:
+            return False
+        try:
+            resp = self.session.get(f"{self.service_url}/api/model-status", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                return bool(data.get("loaded", False))
+        except Exception:
+            return False
+        return False
+
     def generate_trajectory(
         self,
         symbol: str,
@@ -86,6 +99,9 @@ class KronosTrajectoryEngine:
         # 1. Obtain Forecast (mock injection or live service query)
         if mock_forecast is not None:
             pred_df = mock_forecast
+        elif not self.service_url:
+            # Headless/Lean Mode: Direct mathematical synthetic momentum trajectory without disk/HTTP overhead
+            pred_df = self._generate_synthetic_path(tail_df, horizon)
         else:
             try:
                 pred_df = self._query_kronos_service(tail_df, horizon)
@@ -110,41 +126,63 @@ class KronosTrajectoryEngine:
         tr_list = []
         for i in range(1, len(closes)):
             tr_list.append(max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1])))
+        # ATR-14 volatility estimation
         recent_tr = tr_list[-14:] if len(tr_list) >= 14 else tr_list
         atr_float = (sum(recent_tr) / len(recent_tr)) if recent_tr else float(spot_price * Decimal("0.01"))
         atr_dec = cfg.quantize_price(Decimal(str(round(atr_float, cfg.price_precision))))
+        atr_pct = (atr_dec / spot_price) * Decimal("100") if spot_price > Decimal("0") else Decimal("1.0")
 
-        # Dynamic stop distance: at least 1.5x ATR (or minimum 1.0% safety floor)
-        min_stop_distance = max(atr_dec * Decimal("1.5"), spot_price * Decimal("0.010"))
+        # ----------------------------------------------------------------------
+        # Dual-Regime Volatility Bracket Adapter
+        # - Slow Volatility (ATR-14 < 1.0%): TP +1.10% (+5.0% Net ROI), SL -0.70% (-3.5% Net ROI, RR 1.57:1)
+        # - Normal / High Volatility: TP +1.90% (+9.5% ROI), SL -1.10% (-5.5% max ROI, RR 1.75:1)
+        # ----------------------------------------------------------------------
+        leverage = Decimal(str(DEFAULT_RISK_CONFIG.max_account_leverage))
+        slow_vol_threshold = getattr(DEFAULT_RISK_CONFIG, "slow_vol_atr_threshold_pct", Decimal("1.00"))
+        is_slow_vol = atr_pct < slow_vol_threshold
+
+        if is_slow_vol:
+            # Slow Volatility Regime: Bank +4.65% Net ROI (+1.01% price) with tightly scaled -3.3% SL (-0.66% price)
+            slow_tp_pct = getattr(DEFAULT_RISK_CONFIG, "slow_vol_tp_price_pct", Decimal("0.0101")) # +1.01% price
+            slow_sl_pct = getattr(DEFAULT_RISK_CONFIG, "slow_vol_sl_price_pct", Decimal("0.0066")) # -0.66% price
+            min_noise_floor_pct = getattr(DEFAULT_RISK_CONFIG, "min_noise_floor_sl_pct", Decimal("0.0066"))
+            
+            chosen_stop_distance = spot_price * max(min_noise_floor_pct, slow_sl_pct)
+            calibrated_tp_distance = spot_price * slow_tp_pct
+            regime_label = f"Slow Vol (ATR {float(atr_pct):.2f}%): TP +4.65% Net ROI (+{float(slow_tp_pct*100):.2f}%), SL -3.3% ROI (-{float(slow_sl_pct*100):.2f}%, RR 1.53:1)"
+        else:
+            # Normal / High Volatility Regime
+            max_sl_roi = getattr(DEFAULT_RISK_CONFIG, "max_sl_roi_pct", Decimal("5.5"))
+            max_price_sl_pct = max_sl_roi / (leverage * Decimal("100")) # 5.5% / 5 = 1.10% (0.0110)
+            hard_max_stop_distance = spot_price * max_price_sl_pct
+            min_stop_distance = spot_price * getattr(DEFAULT_RISK_CONFIG, "min_noise_floor_sl_pct", Decimal("0.0070"))
+            
+            raw_atr_stop = atr_dec * Decimal("1.2")
+            chosen_stop_distance = max(min_stop_distance, min(raw_atr_stop, hard_max_stop_distance))
+            target_rr = getattr(DEFAULT_RISK_CONFIG, "target_rr_ratio", Decimal("1.75"))
+            calibrated_tp_distance = chosen_stop_distance * target_rr
+            regime_label = f"High Vol (ATR {float(atr_pct):.2f}%): TP +{float(calibrated_tp_distance/spot_price*100):.2f}%, SL -{float(chosen_stop_distance/spot_price*100):.2f}% (Max {float(max_sl_roi):.1f}% ROI, RR {float(target_rr):.2f}:1)"
 
         if raw_drift > Decimal("0"):
             # Bullish Candidate (LONG)
             proposed_side = "LONG"
-            inferred_sl = min(spot_price - min_stop_distance, path_low)
-            stop_loss = cfg.quantize_price(inferred_sl)
-
-            # Institutional Target: Take-profit reflects organic forecast trajectory ceiling
-            target_tp = max(terminal_close, path_high)
-            take_profit = cfg.quantize_price(target_tp)
+            stop_loss = cfg.quantize_price(spot_price - chosen_stop_distance)
+            take_profit = cfg.quantize_price(spot_price + calibrated_tp_distance)
 
             rationale = (
                 f"Kronos Bullish Drift: Terminal Target +{raw_drift*Decimal('100'):.2f}% to {terminal_close}. "
-                f"Envelope TP: {take_profit}, SL: {stop_loss}."
+                f"Calibrated TP: {take_profit}, SL: {stop_loss} ({regime_label})."
             )
 
         elif raw_drift < Decimal("0"):
             # Bearish Candidate (SHORT)
             proposed_side = "SHORT"
-            inferred_sl = max(spot_price + min_stop_distance, path_high)
-            stop_loss = cfg.quantize_price(inferred_sl)
-
-            # Institutional Target: Take-profit reflects organic forecast trajectory floor
-            target_tp = min(terminal_close, path_low)
-            take_profit = cfg.quantize_price(target_tp)
+            stop_loss = cfg.quantize_price(spot_price + chosen_stop_distance)
+            take_profit = cfg.quantize_price(spot_price - calibrated_tp_distance)
 
             rationale = (
                 f"Kronos Bearish Drift: Terminal Target {raw_drift*Decimal('100'):.2f}% to {terminal_close}. "
-                f"Envelope TP: {take_profit}, SL: {stop_loss}."
+                f"Calibrated TP: {take_profit}, SL: {stop_loss} ({regime_label})."
             )
         else:
             proposed_side = "NEUTRAL"

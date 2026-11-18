@@ -66,8 +66,8 @@ def test_pepe_vs_btc_volatility_stop_scaling():
     btc_verdict = engine.generate_trajectory("BTCUSDT", btc_df, mock_forecast=btc_mock_pred)
     btc_stop_pct = abs(btc_verdict.current_price - btc_verdict.dynamic_stop_loss) / btc_verdict.current_price
 
-    # BTC stop should be approximately 1.0% (safety floor since 1.5 * 400 ATR = $600 = ~0.9%)
-    assert btc_stop_pct == Decimal("0.010")  # Exactly 1.0% floor
+    # BTC stop is dynamically calculated from ATR and stays within safe ROI bounds (<= 5.5% ROI at 5x)
+    assert Decimal("0.0050") <= btc_stop_pct <= Decimal("0.0110")
 
     # 2. Build 1000PEPE lookback with wide 6.0% meme-coin volatility
     pepe_price = 0.0100000
@@ -88,6 +88,6 @@ def test_pepe_vs_btc_volatility_stop_scaling():
     pepe_verdict = engine.generate_trajectory("1000PEPEUSDT", pepe_df, mock_forecast=pepe_mock_pred)
     pepe_stop_pct = abs(pepe_verdict.current_price - pepe_verdict.dynamic_stop_loss) / pepe_verdict.current_price
 
-    # PEPE stop distance is scaled by ATR: 1.5 * 0.0012000 = 0.0018000 = 18.0%!
-    assert pepe_stop_pct > Decimal("0.05")  # Must be > 5.0%, accommodating meme volatility
-    assert pepe_stop_pct > btc_stop_pct     # PEPE stop percentage is much wider than BTC!
+    # PEPE stop expands with volatility compared to BTC, but is strictly clamped by the -5.5% to -6.0% max ROI ceiling
+    assert pepe_stop_pct > btc_stop_pct     # PEPE stop percentage expands relative to BTC
+    assert pepe_stop_pct <= Decimal("0.0120") # Strictly capped to <= 1.20% price move (<= 6.0% ROI at 5x leverage)

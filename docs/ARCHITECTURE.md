@@ -1,6 +1,6 @@
 # Kronos Institutional Quant Architecture & Multi-Agent Engine
 
-> **Document Version:** 2.5.0  
+> **Document Version:** 2.6.0  
 > **Target Framework:** Binance USDⓈ-M Perpetual Futures & Spot Universe  
 > **Core Alpha Engine:** `NeoQuasar/Kronos-base` (102.3M parameters, 512 context length)  
 > **Risk Arbiter:** KEV.ai 7-Point Supreme Veto Gate & Bayesian Brier Learning Engine  
@@ -15,8 +15,8 @@
 
 Kronos is an institutional-grade quantitative trading and forecasting platform. Rather than relying on simple technical indicators or uncalibrated language model sentiment, Kronos synergizes:
 1. **The Kronos Foundation Model:** Autoregressive time-series transformer for 12-hour candlestick trajectory generation and dynamic volatility envelopes.
-2. **Decoupled Asynchronous Macro Specialists:** Continuous surveillance of macroeconomic catalysts (CPI/FOMC blackout shield), perpetual funding carry economics, and 24h market breadth.
-3. **KEV.ai Risk Arbiter & Supreme Veto Gate:** A 7-point mathematical veto gate that audits every proposed ticket for trend alignment, funding drag, exchange fee hurdles ($\ge 0.50\%$), minimum 1.50:1 reward/risk, volatility envelopes, and adversarial Bull/Bear contradictions.
+2. **Decoupled Asynchronous Macro Specialists:** Continuous surveillance of macroeconomic catalysts (CPI/FOMC blackout shield), perpetual funding carry economics, session-aware liquidity timing gates (`SessionLiquiditySpecialist` — Lesson #38 & #40), and 24h market breadth.
+3. **KEV.ai Risk Arbiter & Supreme Veto Gate:** A 7-point mathematical veto gate that audits every proposed ticket for trend alignment, funding drag, exchange fee hurdles ($\ge 0.50\%$), minimum 1.40:1 reward/risk, volatility envelopes, and adversarial Bull/Bear contradictions.
 4. **The Learning Governor:** An empirical calibration engine that scores rolling 48-hour forecasts using Brier probability loss, throttles risk capital ($0.0\text{x}-1.0\text{x}$), and logs post-mortems into an SQLite institutional database (`data/lessons.db`).
 5. **Real Live Trading & Small-Account Micro-Trading Engine:** Real Binance Futures execution with ISOLATED margin, BNB fee discount deduction buffer (10% off), small-account risk budgeting, and state persistence in `data/bot_settings.json`.
 6. **Atomic Execution State Machine:** Failsafe bracket order execution with an Anti-Naked-Position Guard (1,000ms SL timeout emergency flatten) and a 12-Hour Temporal Stale-Trade Expiry.
@@ -186,6 +186,14 @@ Acts as the **Supervisory Chief Investment Officer (CIO)** operating on an async
 * **Deterministic Guardrail Clamping:** Raw LLM outputs are strictly clamped to institutional quant bounds before passing to `quant_bot.risk_arbiter.update_sweetspot()`, guaranteeing zero hallucination risk.
 * **Zero Credit Burning:** Utilizes Google Gemini Free Tier (`gemini-3.8-flash` via the official `google-genai` SDK) with pre-digested bounded summaries (<1,200 tokens) ensuring continuous 100% free operation well within the 1,500 daily request quota.
 
+### 3.10 Previous-UTC-Day Volume Profile Spatial Veto & 1-Year Dashboard Matrix (`src/quant/volume_profile.py`, `webui/static/js/yearly_matrix.js`)
+* **Zero-Lookahead Spatial Liquidity Guard:** Builds a 60-bin, 70% Value Area Fixed-Range Volume Profile (`pPOC`, `pVAH`, `pVAL`, HVN/LVN density) strictly in `Decimal` from the completed previous UTC day's `96 × 15m` Binance Futures candles, cached once per symbol per UTC day via `DailyVolumeProfileCache` (`< 10 KB` RAM on AWS `t3.micro`).
+* **Empirically Validated Veto Gates (`p = 0.0034` over 293 real live trades):**
+  * `VP_FIRING_INTO_POC` + `VP_HVN_CHOP` active across Macro (`orchestrator.py`) and Apex Scalper (`apex_scalper.py`).
+  * `VP_FADING_BREAKOUT` additionally active in Stalking Tiger (`tiger_scalper.py`).
+* **Persistent Live Trade-Quota Guard (`scripts/headless_worker.py`):** Supports bounded live evaluation runs (e.g., 20-trade cap persisted in `data/aws_trade_quota.json`) that automatically flip AWS execution to `STANDBY_PAUSED` upon reaching quota.
+* **1-Year Rolling Monthly Asset Matrix (`GET /api/analytics/yearly-matrix`):** Dashboard footer heatmap showing monthly Bought/Sold counts & `Decimal`-exact Net PnL across `Live`, `Tiger`, and `Paper` sources, color-coded green when profitable. See `docs/VOLUME_PROFILE_SPATIAL_VETO_AND_DASHBOARD_MATRIX.md` for full empirical benchmarks.
+
 ---
 
 ## 4. Institutional Invariants (`AGENTS.md`)
@@ -220,5 +228,6 @@ python -m pytest tests/ -q
 * `tests/test_pepe_asset_scaling.py`: Sub-penny PEPE vs BTC precision and envelope scaling.
 * `tests/test_quant_pipeline.py`: Full end-to-end multi-agent pipeline integration.
 * `tests/test_gemini_strategy_arbiter.py`: Strategic digest generation, bounded parameter adaptation.
+* `tests/test_volume_profile.py`: Pure-Decimal Volume Profile binning, cache eviction, and Macro/Scalp/Tiger spatial veto integration.
 * `tests/test_smoke.py`: Ultra-fast (<4s) full pipeline smoke verification.
-* **Status:** 58 passed in 52.89s (100% pass rate).
+* **Status:** 146 passed (100% pass rate).

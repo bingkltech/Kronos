@@ -1,0 +1,166 @@
+{
+  "audit_id": "TIGER_AUDIT_1794968110",
+  "updated_at_utc": "2026-11-18T02:15:10.074225+00:00",
+  "sample_size": 30,
+  "win_rate_pct": "36.7",
+  "profit_factor": "0.70",
+  "avg_mfe_pct": "0.0056",
+  "avg_mae_pct": "0.0069",
+  "calibrated_min_wick_ratio": "0.48",
+  "calibrated_min_cvd_zscore": "2.4",
+  "calibrated_slow_tp_pct": "0.0080",
+  "calibrated_slow_sl_pct": "0.0055",
+  "quarantined_symbols": [
+    "SOXLUSDT",
+    "SNXXUSDT",
+    "MMTUSDT",
+    "FHEUSDT",
+    "BLESSUSDT",
+    "BULLAUSDT"
+  ],
+  "best_performing_symbols": [
+    "EVAAUSDT",
+    "KORUUSDT",
+    "SOXSUSDT",
+    "RAREUSDT"
+  ],
+  "paper_sample_size": 30,
+  "live_sample_size": 0,
+  "paper_win_rate_pct": "36.7",
+  "live_win_rate_pct": "0.0",
+  "quarantine_registry": {
+    "AGTUSDT": {
+      "symbol": "AGTUSDT",
+      "quarantined_at_utc": "2026-11-16T01:44:19.308611+00:00",
+      "expiry_utc": "2026-11-16T13:44:19.308611+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "AKEUSDT": {
+      "symbol": "AKEUSDT",
+      "quarantined_at_utc": "2026-11-16T01:44:19.308611+00:00",
+      "expiry_utc": "2026-11-16T13:44:19.308611+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "EVAAUSDT": {
+      "symbol": "EVAAUSDT",
+      "quarantined_at_utc": "2026-11-16T01:44:19.308611+00:00",
+      "expiry_utc": "2026-11-16T13:44:19.308611+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 2,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "KAVAUSDT": {
+      "symbol": "KAVAUSDT",
+      "quarantined_at_utc": "2026-11-16T01:44:19.308611+00:00",
+      "expiry_utc": "2026-11-16T13:44:19.308611+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "BTWUSDT": {
+      "symbol": "BTWUSDT",
+      "quarantined_at_utc": "2026-11-16T12:46:28.618313+00:00",
+      "expiry_utc": "2026-11-17T00:46:28.618313+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "SOPHUSDT": {
+      "symbol": "SOPHUSDT",
+      "quarantined_at_utc": "2026-11-16T12:46:28.618313+00:00",
+      "expiry_utc": "2026-11-17T00:46:28.618313+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "INITUSDT": {
+      "symbol": "INITUSDT",
+      "quarantined_at_utc": "2026-11-16T23:03:23.287911+00:00",
+      "expiry_utc": "2026-11-17T11:03:23.287911+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "ASTERUSDT": {
+      "symbol": "ASTERUSDT",
+      "quarantined_at_utc": "2026-11-16T23:03:23.287911+00:00",
+      "expiry_utc": "2026-11-17T11:03:23.287911+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "GRADUATED"
+    },
+    "SOXLUSDT": {
+      "symbol": "SOXLUSDT",
+      "quarantined_at_utc": "2026-11-17T17:18:38.175762+00:00",
+      "expiry_utc": "2026-11-18T05:18:38.175762+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "SNXXUSDT": {
+      "symbol": "SNXXUSDT",
+      "quarantined_at_utc": "2026-11-17T22:06:07.732872+00:00",
+      "expiry_utc": "2026-11-18T10:06:07.732872+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "MMTUSDT": {
+      "symbol": "MMTUSDT",
+      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
+      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "FHEUSDT": {
+      "symbol": "FHEUSDT",
+      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
+      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "BLESSUSDT": {
+      "symbol": "BLESSUSDT",
+      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
+      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "BULLAUSDT": {
+      "symbol": "BULLAUSDT",
+      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
+      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    }
+  },
+  "autopsy_breakdown": {
+    "WIN_SQUEEZE": 11,
+    "ZERO_MFE_LIQ_FLUSH": 9,
+    "MFE_REVERSAL": 3,
+    "STOP_OUT": 3,
+    "STEAMROLLER_OUTLIER": 4
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "audit_id": "DISTILL-20261118-034423",
+  "timestamp_utc": "2026-11-18T03:44:23.095712+00:00",
+  "sample_size": 10,
+  "win_rate_pct": 0.0,
+  "profit_factor": 0.0,
+  "realization_tax_drag_bps": 24.0,
+  "dominant_root_cause": "FRICTION_BLEED",
+  "recommended_remedy": "Excessive Fee Friction detected. Raised minimum net take-profit hurdle to 1.25% and ratchet trigger to 0.85%. Drawdown survival bias or low win-rate (<55%). Elevated minimum win probability sieve to 70.0%.",
+  "calibrated_parameters": {
+    "atr_stop_multiplier": 1.0,
+    "fee_hurdle_pct": 1.25,
+    "min_win_prob_pct": 70.0,
+    "ratchet_trigger_pct": 0.85
+  },
+  "quarantined_symbols": [
+    "SOLUSDT"
+  ],
+  "synced_to_aws": false,
+  "aws_sync_notes": ""
+}
