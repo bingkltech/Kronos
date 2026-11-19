@@ -23,7 +23,8 @@ import urllib.request
 import urllib.error
 
 # Add repository root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, PROJECT_ROOT)
 
 from src.quant.tiger_config import TigerMasterConfig, DEFAULT_TIGER_CONFIG
 from src.quant.tiger_scanner import (
@@ -164,17 +165,21 @@ def run_scan_once(cfg: TigerMasterConfig) -> None:
     print(f"[RATE LIMIT STATUS] Safe headroom remaining: {2400 - used_weight} weight/min (Zero Ban Risk)\n")
 
 
-def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) -> None:
+def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, quota: Optional[int] = None) -> None:
     """
-    Continuous real-time forward paper trading loop on PC.
-    Runs until interrupted, learning from live market flow and logging forensics.
+    Continuous real-time forward trading loop.
+    Supports both FORWARD PAPER TRADING and REAL CAPITAL LIVE TRADING (Binance USD(S)-M Futures).
+    Runs until interrupted or quota is reached, learning from live market flow and logging forensics.
     """
+    mode_str = "PAPER TRADING" if is_paper else "REAL CAPITAL LIVE TRADING"
     print("\n" + "=" * 92)
-    print(f"  STALKING TIGER (STRATEGY #3) — REAL-TIME LIVE FORWARD PAPER TRADING ENGINE")
-    print(f"  Environment: Local High-Performance PC | Exchange: Binance USD(S)-M Futures")
+    print(f"  STALKING TIGER (STRATEGY #3) — REAL-TIME LIVE {mode_str} ENGINE")
+    print(f"  Environment: AWS / Local | Exchange: Binance USD(S)-M Futures")
     print(f"  Rate Budget: 2,400 weight/min | Sieve Scan Cadence: 30s | Sniper Slots: 5 Hot Prey")
     print(f"  Capital/Trade: $20 Margin x 5x Leverage ($100 Max Notional) | Friction: 0.22% Roundtrip (Fees+Slippage)")
-    print(f"  Temporal Discipline: 90s Signal TTL | 8-12-15m Temporal Decay Ladder")
+    print(f"  Temporal Discipline: 90s Signal TTL | 30s Zero-MFE Abort | 8-12-15m Temporal Decay Ladder")
+    if quota is not None:
+        print(f"  Execution Target: {quota} Consecutive Trades Quota Cap")
     print(f"  Forensics Database: data/tiger_trades.db | Learning Rules: data/tiger_distilled_rules.json")
     print("=" * 92 + "\n")
 
@@ -185,6 +190,27 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
     vp_cache = DailyVolumeProfileCache()
     ws_manager = TigerWebSocketManager(config=cfg)
     ws_manager.start()
+
+    executor = None
+    completed_live_trades = 0
+    if not is_paper:
+        from src.quant.binance_execution import BinanceAtomicExecutor
+        executor = BinanceAtomicExecutor()
+        acct = executor.get_live_account_summary(force_refresh=True)
+        wallet = Decimal(str(acct.get("total_wallet_balance_usd", acct.get("total_wallet_balance", "0"))))
+        avail = Decimal(str(acct.get("available_balance_usd", acct.get("available_balance", "0"))))
+        print(f"  Binance Futures Live Account : CONNECTED (Wallet: ${wallet:.2f} USDT, Avail: ${avail:.2f} USDT)")
+        if wallet <= Decimal("0"):
+            logger.error("[TIGER LIVE ERROR] Total wallet balance is $0.00. Cannot execute live real money trades.")
+            ws_manager.stop()
+            return
+        tiger_equity_usd = wallet
+        tiger_peak_equity_usd = wallet
+        tiger_intraday_start_usd = wallet
+    else:
+        tiger_equity_usd = Decimal("200.00")
+        tiger_peak_equity_usd = tiger_equity_usd
+        tiger_intraday_start_usd = tiger_equity_usd
 
     # Wire Real-Money Integrity Standard (v3) Sovereign Risk Engine sharing data/risk_ledger.db & data/risk_state.txt
     from dataclasses import replace as _dc_replace
@@ -482,6 +508,14 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                         fee_friction_pct=total_fee_pct
                     )
                     pos_last_tick_ts_ms.pop(pos_id, None)
+
+                    # Real Capital Execution: Flatten position on Binance Futures
+                    if not is_paper and executor:
+                        try:
+                            executor.flatten_live_symbol(pos.symbol)
+                            logger.info(f"[TIGER LIVE FLATTENED] Symbol {pos.symbol} flattened on Binance Futures: {close_info['reason']}")
+                        except Exception as fe:
+                            logger.error(f"[TIGER LIVE FLATTEN ERROR] Failed to flatten {pos.symbol} on Binance: {fe}")
                     net_ret = pnl_bd.net_return_pct
                     notional_traded = pos.notional_usd
                     net_usd = pnl_bd.net_pnl_usd
@@ -546,6 +580,18 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                     distilled = learning.run_learning_distillation()
                     if distilled:
                         logger.info(f"[LEARNING AUDIT] Rules updated! Win Rate: {distilled.win_rate_pct}% | PF: {distilled.profit_factor}")
+
+                    completed_live_trades += 1
+                    if quota is not None:
+                        logger.info(f"[TIGER SESSION PROGRESS] Executed {completed_live_trades}/{quota} trades.")
+                        if completed_live_trades >= quota:
+                            print("\n" + "=" * 92)
+                            print(f"  [TIGER LIVE SESSION COMPLETE] Target quota of {quota} consecutive trades reached!")
+                            print(f"  Final Net PnL: ${tiger_equity_usd - tiger_intraday_start_usd:+.2f} USDT")
+                            print("=" * 92 + "\n")
+                            logger.info(f"[TIGER LIVE QUOTA] Completed {quota} consecutive trades. Standing down gracefully.")
+                            ws_manager.stop()
+                            return
 
             # 4. Process Pending Signals: Causal Breakout Entry Fills (Zero Same-Candle Lookahead + Dynamic Slippage)
             for sig_id, sig in list(engine.pending_signals.items()):
@@ -698,8 +744,45 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                             qty = risk_dec.approved_qty
                             notional_usd = (qty * fill_price).quantize(Decimal("0.01"))
 
+                        # Real Capital Execution on Binance Futures
+                        live_pos_id = None
+                        if not is_paper and executor:
+                            from src.quant.kev_risk_arbiter import TradeTicket
+                            ticket = TradeTicket(
+                                symbol=sig.symbol,
+                                side="BUY" if sig.action == "BUY" else "SELL",
+                                entry_price=fill_price,
+                                stop_loss=sig.stop_loss_price,
+                                take_profit=sig.take_profit_price,
+                                quantity=qty,
+                                notional_usd=notional_usd,
+                                leverage=5,
+                                reward_risk_ratio=Decimal("2.0"),
+                                net_expected_gain_pct=Decimal("0.010"),
+                                is_scalp=True
+                            )
+                            live_pos = executor.submit_live_bracket_order(ticket)
+                            if not live_pos or not live_pos.entry_order_id:
+                                logger.error(
+                                    f"[TIGER LIVE REJECTED] Binance order failed for {sig.symbol}: "
+                                    f"{live_pos.close_reason if live_pos else 'Order submission rejected'}"
+                                )
+                                sig.status = "CANCELLED"
+                                del engine.pending_signals[sig_id]
+                                engine.save_state()
+                                continue
+                            fill_price = live_pos.entry_price or fill_price
+                            qty = live_pos.quantity or qty
+                            live_pos_id = str(live_pos.entry_order_id)
+                            logger.info(
+                                f"[TIGER LIVE POUNCE DISPATCHED] Order ID {live_pos.entry_order_id} on Binance Futures "
+                                f"for {sig.symbol} {sig.action} | Qty: {qty} | Notional: ${notional_usd:.2f} | Leverage: 5x"
+                            )
+
                         pos_obj = engine.fill_signal(sig_id, fill_price=fill_price, quantity=qty, fill_time_utc=now_utc, notional_usd=notional_usd)
                         if pos_obj:
+                            if live_pos_id:
+                                pos_obj.position_id = live_pos_id
                             pos_last_tick_ts_ms[pos_obj.position_id] = int(now_utc.timestamp() * 1000)
                         logger.info(
                             f"[TIGER POUNCE FILLED] {sig.symbol} {sig.action} filled at {fill_price:.6f} "
@@ -931,9 +1014,11 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Kronos Strategy #3: Stalking Tiger PC Daemon")
+    parser = argparse.ArgumentParser(description="Kronos Strategy #3: Stalking Tiger Execution Daemon")
     parser.add_argument("--scan-once", action="store_true", help="Run a single bulk scan and output Top 5 Hot Prey")
     parser.add_argument("--paper", action="store_true", help="Run continuous real-time forward paper trading")
+    parser.add_argument("--live", action="store_true", help="Run real money live trading on Binance USD(S)-M Futures")
+    parser.add_argument("--quota", type=int, default=None, help="Stop after N consecutive trades (e.g. --quota 5)")
     parser.add_argument("--config", default="data/tiger_config.json", help="Path to config file")
     args = parser.parse_args()
 
@@ -944,11 +1029,17 @@ def main():
         run_scan_once(cfg)
         return
 
-    if args.paper:
-        run_realtime_paper_trading(cfg, is_paper=True)
+    if args.live:
+        target_quota = args.quota or 5
+        logger.info(f"Launching Stalking Tiger in REAL CAPITAL LIVE TRADING mode with {target_quota}-trade quota...")
+        run_realtime_paper_trading(cfg, is_paper=False, quota=target_quota)
         return
 
-    logger.info("Strategy #3 (Stalking Tiger) initialized. Run with --paper for real-time forward paper trading or --scan-once.")
+    if args.paper:
+        run_realtime_paper_trading(cfg, is_paper=True, quota=args.quota)
+        return
+
+    logger.info("Strategy #3 (Stalking Tiger) initialized. Run with --live --quota 5 for real money live trading or --paper.")
 
 
 if __name__ == "__main__":

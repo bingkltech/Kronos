@@ -998,6 +998,43 @@ class BinanceAtomicExecutor:
 
         return ticket, None
 
+    def _resolve_symbol_precision(self, symbol: str) -> Tuple[int, int]:
+        """Dynamically resolve price and quantity precision from symbols_config or Binance exchangeInfo."""
+        sym_cfg = self.symbols_config.get(symbol)
+        if sym_cfg:
+            return sym_cfg.price_precision, sym_cfg.quantity_precision
+
+        if not hasattr(self, "_dynamic_precision_cache"):
+            self._dynamic_precision_cache: Dict[str, Tuple[int, int]] = {}
+        if symbol in self._dynamic_precision_cache:
+            return self._dynamic_precision_cache[symbol]
+
+        try:
+            url = "https://fapi.binance.com/fapi/v1/exchangeInfo"
+            import urllib.request, json
+            req = urllib.request.Request(url, headers={"User-Agent": "Kronos/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode())
+                for s in data.get("symbols", []):
+                    if s.get("symbol") == symbol:
+                        p_prec = int(s.get("pricePrecision", 4))
+                        q_prec = int(s.get("quantityPrecision", 1))
+                        for f in s.get("filters", []):
+                            if f.get("filterType") == "PRICE_FILTER":
+                                tick = str(f.get("tickSize", "0.0001"))
+                                if "." in tick:
+                                    p_prec = len(tick.split(".")[1].rstrip("0"))
+                            elif f.get("filterType") == "LOT_SIZE":
+                                step = str(f.get("stepSize", "0.1"))
+                                if "." in step:
+                                    q_prec = len(step.split(".")[1].rstrip("0"))
+                        self._dynamic_precision_cache[symbol] = (p_prec, q_prec)
+                        return p_prec, q_prec
+        except Exception as e:
+            logger.warning(f"Failed to fetch exchangeInfo precision for {symbol}: {e}")
+
+        return 4, 1
+
     def submit_live_bracket_order(
         self,
         ticket: TradeTicket,
@@ -1013,9 +1050,7 @@ class BinanceAtomicExecutor:
         4. Simultaneous Stop-Loss & Take-Profit dispatch via Algo Order API (/fapi/v1/algoOrder).
         5. Anti-naked-position: If SL fails to confirm in 1,000ms, emergency market flatten.
         """
-        sym_cfg = self.symbols_config.get(ticket.symbol)
-        price_prec = sym_cfg.price_precision if sym_cfg else 2
-        qty_prec = sym_cfg.quantity_precision if sym_cfg else 3
+        price_prec, qty_prec = self._resolve_symbol_precision(ticket.symbol)
         fmt_price = Decimal("10") ** -price_prec
         fmt_qty = Decimal("10") ** -qty_prec
 
