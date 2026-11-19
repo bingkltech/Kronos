@@ -30,6 +30,11 @@ MANIFEST
 # VS Code
 .vscode/
 
+# Candidates & external experimental clones
+candidates/
+
+.vscode/
+
 # macOS
 .DS_Store
 .AppleDouble

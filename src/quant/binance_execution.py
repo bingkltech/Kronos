@@ -92,7 +92,8 @@ class BinanceAtomicExecutor:
         initial_equity: Decimal = Decimal("200.00"),
         state_file: Optional[str] = None,
         symbols_config: Optional[Dict[str, FuturesSymbolConfig]] = None,
-        realistic_friction: bool = False
+        realistic_friction: bool = False,
+        risk_engine: Optional[Any] = None
     ):
         self.api_key = ""
         self.secret_key = ""
@@ -112,6 +113,8 @@ class BinanceAtomicExecutor:
         self.closed_trades: List[Dict[str, Any]] = []
         self.symbols_config = symbols_config or TOP_10_SYMBOLS
         self.realistic_friction = realistic_friction
+        self.risk_engine = risk_engine
+        self.last_risk_decision: Optional[Any] = None
         self._time_offset_ms: int = 0
         self._last_time_sync: float = 0.0
 
@@ -806,13 +809,209 @@ class BinanceAtomicExecutor:
         except Exception as e:
             logger.warning("Failed to set leverage %sx for %s: %s", leverage, symbol, e)
 
-    def submit_live_bracket_order(self, ticket: TradeTicket) -> ActiveBracketPosition:
+    def fetch_live_risk_snapshots(
+        self,
+        symbol: str,
+        fallback_price: Optional[Decimal] = None,
+        realized_vol: Decimal = Decimal("0.015"),
+        baseline_vol: Decimal = Decimal("0.015"),
+        atr_pct: Optional[Decimal] = None,
+        live_summary: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Optional[Any], Optional[Any]]:
+        """
+        Fetch fresh Mark-to-Market PortfolioState and live OrderBook MarketSnapshot
+        for RiskEngine synchronous clearance. Returns (None, None) on connectivity failure
+        so the RiskEngine fails closed.
+        """
+        from risk_engine.adapter import (
+            build_market_snapshot_from_orderbook,
+            build_portfolio_state_from_summary,
+        )
+
+        now_ms = int(time.time() * 1000)
+        summary = live_summary if (live_summary and live_summary.get("connected")) else self.get_live_account_summary()
+        if not summary or not summary.get("connected"):
+            return None, None
+
+        portfolio_state = build_portfolio_state_from_summary(summary, now_ms=now_ms)
+
+        sym_upper = symbol.strip().upper()
+        sym_cfg = self.symbols_config.get(sym_upper)
+        step_size = (Decimal("10") ** -sym_cfg.quantity_precision) if sym_cfg else Decimal("0.001")
+        min_qty = sym_cfg.min_quantity if sym_cfg else Decimal("0.001")
+        min_notional = sym_cfg.min_notional if sym_cfg else Decimal("5.00")
+
+        try:
+            depth_url = f"{self.base_url}/fapi/v1/depth"
+            resp = self.session.get(depth_url, params={"symbol": sym_upper, "limit": 10}, timeout=4)
+            resp.raise_for_status()
+            book = resp.json()
+            bids = book.get("bids", [])
+            asks = book.get("asks", [])
+            if not bids or not asks:
+                return None, None
+
+            best_bid = Decimal(str(bids[0][0]))
+            best_ask = Decimal(str(asks[0][0]))
+            bid_depth_usd = sum((Decimal(str(px)) * Decimal(str(q)) for px, q in bids), Decimal("0"))
+            ask_depth_usd = sum((Decimal(str(px)) * Decimal(str(q)) for px, q in asks), Decimal("0"))
+            tob_depth_usd = (
+                Decimal(str(bids[0][0])) * Decimal(str(bids[0][1]))
+                + Decimal(str(asks[0][0])) * Decimal(str(asks[0][1]))
+            )
+            mid_px = (best_bid + best_ask) / Decimal("2")
+            mark_px = mid_px
+            try:
+                prem_resp = self.session.get(
+                    f"{self.base_url}/fapi/v1/premiumIndex", params={"symbol": sym_upper}, timeout=3
+                )
+                if prem_resp.ok:
+                    mp = Decimal(str(prem_resp.json().get("markPrice", "0")))
+                    if mp > Decimal("0"):
+                        mark_px = mp
+            except Exception:
+                pass
+
+            market_snapshot = build_market_snapshot_from_orderbook(
+                symbol=sym_upper,
+                mark_price=mark_px,
+                best_bid=best_bid,
+                best_ask=best_ask,
+                bid_depth_usd=bid_depth_usd,
+                ask_depth_usd=ask_depth_usd,
+                realized_vol=realized_vol,
+                baseline_vol=baseline_vol,
+                atr_pct=atr_pct,
+                step_size=step_size,
+                min_qty=min_qty,
+                min_notional_usd=min_notional,
+                top_of_book_depth_usd=max(tob_depth_usd, bid_depth_usd + ask_depth_usd),
+                now_ms=int(time.time() * 1000),
+            )
+            return portfolio_state, market_snapshot
+        except Exception as exc:
+            logger.warning("Failed fetching live orderbook snapshot for %s (fail-closed): %s", sym_upper, exc)
+            return None, None
+
+    def _apply_risk_gate(
+        self,
+        ticket: TradeTicket,
+        portfolio_state: Optional[Any] = None,
+        market_snapshot: Optional[Any] = None,
+        is_live: bool = False,
+    ) -> Tuple[Optional[TradeTicket], Optional[ActiveBracketPosition]]:
+        """
+        Synchronous Risk Engine gatekeeper check.
+        When `self.risk_engine` is attached, no order may proceed without explicit
+        APPROVED or RESIZED clearance (fail-closed if snapshots are missing).
+        """
+        if self.risk_engine is None:
+            # Real-Money Integrity Standard (v3): LIVE execution MUST FAIL CLOSED
+            # if no RiskEngine gatekeeper is attached. Dry-run unit tests remain unaffected.
+            if is_live and not self.dry_run:
+                pos_id = f"REJECTED_{ticket.symbol}-{int(time.time()*1000)}"
+                logger.error(
+                    "LIVE EXECUTION BLOCKED (FAIL-CLOSED): No RiskEngine attached to BinanceAtomicExecutor for %s.",
+                    ticket.symbol,
+                )
+                return None, ActiveBracketPosition(
+                    position_id=pos_id,
+                    symbol=ticket.symbol,
+                    side=ticket.side,
+                    entry_price=ticket.entry_price,
+                    stop_loss=ticket.stop_loss,
+                    take_profit=ticket.take_profit,
+                    quantity=Decimal("0"),
+                    state=PositionState.REJECTED,
+                    close_reason="RISK_VETOED:LIVE_MODE_REQUIRES_RISK_ENGINE",
+                )
+            return ticket, None
+
+        from dataclasses import replace as _dc_replace
+        from risk_engine.adapter import ticket_to_proposed_order
+        from risk_engine.models import DecisionStatus
+
+        if portfolio_state is None or market_snapshot is None:
+            pos_id = f"REJECTED_{ticket.symbol}-{int(time.time()*1000)}"
+            return None, ActiveBracketPosition(
+                position_id=pos_id,
+                symbol=ticket.symbol,
+                side=ticket.side,
+                entry_price=ticket.entry_price,
+                stop_loss=ticket.stop_loss,
+                take_profit=ticket.take_profit,
+                quantity=Decimal("0"),
+                state=PositionState.REJECTED,
+                close_reason="RISK_VETOED:MISSING_PORTFOLIO_OR_MARKET_SNAPSHOT",
+            )
+
+        proposed = ticket_to_proposed_order(ticket)
+        decision = self.risk_engine.evaluate_order(
+            proposed_order=proposed,
+            portfolio_state=portfolio_state,
+            market_snapshot=market_snapshot,
+        )
+        self.last_risk_decision = decision
+
+        if decision.status == DecisionStatus.KILL_SWITCH:
+            if is_live and not self.dry_run:
+                try:
+                    self.flatten_all_live_positions()
+                except Exception as exc:
+                    logger.error("Kill-switch live flatten failed: %s", exc)
+            pos_id = f"KILL_{ticket.symbol}-{int(time.time()*1000)}"
+            return None, ActiveBracketPosition(
+                position_id=pos_id,
+                symbol=ticket.symbol,
+                side=ticket.side,
+                entry_price=ticket.entry_price,
+                stop_loss=ticket.stop_loss,
+                take_profit=ticket.take_profit,
+                quantity=Decimal("0"),
+                state=PositionState.REJECTED,
+                close_reason=f"RISK_KILL_SWITCH:{'|'.join(decision.reason_codes)}",
+            )
+
+        if not decision.is_executable:
+            pos_id = f"VETO_{ticket.symbol}-{int(time.time()*1000)}"
+            return None, ActiveBracketPosition(
+                position_id=pos_id,
+                symbol=ticket.symbol,
+                side=ticket.side,
+                entry_price=ticket.entry_price,
+                stop_loss=ticket.stop_loss,
+                take_profit=ticket.take_profit,
+                quantity=Decimal("0"),
+                state=PositionState.REJECTED,
+                close_reason=f"RISK_VETOED:{'|'.join(decision.reason_codes)}",
+            )
+
+        if decision.status == DecisionStatus.RESIZED:
+            new_notional = (decision.approved_qty * ticket.entry_price).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            ticket = _dc_replace(
+                ticket,
+                quantity=decision.approved_qty,
+                notional_usd=new_notional,
+            )
+
+        return ticket, None
+
+    def submit_live_bracket_order(
+        self,
+        ticket: TradeTicket,
+        portfolio_state: Optional[Any] = None,
+        market_snapshot: Optional[Any] = None,
+    ) -> ActiveBracketPosition:
         """
         Execute real capital atomic bracket order on Binance Futures REST API.
-        1. Pre-flight isolated margin & leverage.
-        2. Market entry order dispatch.
-        3. Simultaneous Stop-Loss & Take-Profit dispatch via Algo Order API (/fapi/v1/algoOrder).
-        4. Anti-naked-position: If SL fails to confirm in 1,000ms, emergency market flatten.
+        0. Pre-flight inverted bracket geometry invariant.
+        1. Synchronous Risk Engine clearance (fail-closed in live mode before any REST call).
+        2. Pre-flight isolated margin & leverage.
+        3. Market entry order dispatch.
+        4. Simultaneous Stop-Loss & Take-Profit dispatch via Algo Order API (/fapi/v1/algoOrder).
+        5. Anti-naked-position: If SL fails to confirm in 1,000ms, emergency market flatten.
         """
         sym_cfg = self.symbols_config.get(ticket.symbol)
         price_prec = sym_cfg.price_precision if sym_cfg else 2
@@ -861,6 +1060,14 @@ class BinanceAtomicExecutor:
                     close_reason=f"INVERTED_BRACKET: TP {ticket.take_profit} < Entry {ticket.entry_price} < SL {ticket.stop_loss} violated"
                 )
 
+        # Synchronous Risk Engine Gatekeeper (fail-closed in live mode before ANY exchange call)
+        gated_ticket, rejected_pos = self._apply_risk_gate(
+            ticket, portfolio_state=portfolio_state, market_snapshot=market_snapshot, is_live=True
+        )
+        if rejected_pos is not None or gated_ticket is None:
+            return rejected_pos  # type: ignore[return-value]
+        ticket = gated_ticket
+
         # Ensure isolated contract leverage is at least 3x (up to 5x) to prevent 100% margin lock on micro-notionals
         exchange_lev = max(3, min(5, ticket.effective_leverage))
         self.ensure_isolated_margin(ticket.symbol, leverage=exchange_lev)
@@ -881,6 +1088,10 @@ class BinanceAtomicExecutor:
         try:
             entry_resp = self._signed_request("POST", "/fapi/v1/order", entry_params)
         except Exception as e:
+            if self.risk_engine is not None and self.last_risk_decision is not None:
+                res_id = getattr(self.last_risk_decision, "metrics_snapshot", {}).get("reservation_id")
+                if res_id and hasattr(self.risk_engine, "release_slot_reservation"):
+                    self.risk_engine.release_slot_reservation(res_id)
             logger.warning("Live entry rejected for %s: %s", ticket.symbol, e)
             pos_id = f"REJECTED_{ticket.symbol}-{int(time.time()*1000)}"
             return ActiveBracketPosition(
@@ -1209,13 +1420,21 @@ class BinanceAtomicExecutor:
         self,
         ticket: TradeTicket,
         mock_simulate_sl_failure: bool = False,
-        fill_time_utc: Optional[datetime.datetime] = None
+        fill_time_utc: Optional[datetime.datetime] = None,
+        portfolio_state: Optional[Any] = None,
+        market_snapshot: Optional[Any] = None,
     ) -> ActiveBracketPosition:
         """
         Execute an atomic bracket trade from a pre-cleared KEV.ai TradeTicket.
         State progression: IDLE -> ENTRY_SUBMITTED -> ENTRY_FILLED -> BRACKETS_ACTIVE.
         If Stop-Loss confirmation fails within 1,000ms, triggers EMERGENCY_FLATTEN.
         """
+        gated_ticket, rejected_pos = self._apply_risk_gate(
+            ticket, portfolio_state=portfolio_state, market_snapshot=market_snapshot, is_live=False
+        )
+        if rejected_pos is not None or gated_ticket is None:
+            return rejected_pos  # type: ignore[return-value]
+        ticket = gated_ticket
         # Determine effective entry price and entry taker fee
         if self.realistic_friction:
             sym_cfg = self.symbols_config.get(ticket.symbol)

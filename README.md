@@ -107,6 +107,17 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
   * **Phase 3 Calm Water Auto-Recovery:** Automatically reverts to normal fleet capacity (3 Macro / 1 Scalp) after 60 minutes once turbulence normalizes (zero restarts required).
   * **Exchange-Native Mark-Price Anti-Wick Protection:** Stop-Loss brackets dispatch with `workingType: "MARK_PRICE"`, protecting isolated stops against single-exchange needle wicks while preserving contract price Take-Profits.
   * **Interactive Cockpit Telemetry:** Live topbar indicator (`#topbar-storm-pill`) displaying ocean state, countdown timers, and instant manual override capability.
+* **Specialized Advisory Consultant & Tri-Perspective ACR (`src/quant/advisory_consultant.py`):**
+  * **Adversarial Conviction Ratio ($ACR$):** Pure `Decimal` mathematical formulation synthesizing multi-perspective analysis:
+    $$ACR = \frac{C_{\text{bull}} \times (1 - P_{\text{bear}})}{1 + R_{\text{drag}}}$$
+  * **Decoupled Out-of-Band Audit:** Runs completely asynchronously without adding execution latency to the 24/7 AWS worker loop.
+  * **Multi-Perspective Cross-Examination:** Cross-examines Bullish Conviction ($C_{\text{bull}}$: OBI, Stoikov micro-price skew) against Bearish Hazard ($P_{\text{bear}}$: Volume Profile $pPOC$ ceilings, funding drag) and Frictional Drag ($R_{\text{drag}}$: VIP0 taker fees + slippage).
+  * **Autonomous Post-Trade Reflection:** Decomposes realized trade returns against the Bitcoin benchmark ($\alpha = R_{\text{trade}} - R_{\text{BTC}}$) and records structured 2-sentence empirical lessons to `data/consultant_lessons.jsonl`.
+  * **CLI Consultant Engine:** `python scripts/run_consultant_assessment.py --symbol SOLUSDT` or `--all`.
+* **Portfolio Concurrency Allocation & 50-Trade Session Quota Guard:**
+  * **Strict Fleet Ceiling (Max 3 Trades):** Maximum **2 concurrent Macro positions + 1 Lightning Scalp position** across the entire universe, with total active margin exposure strictly capped at $\le 4.5\%$ of account equity.
+  * **50-Trade Session Quota:** Hard session circuit breaker automatically halts new entries upon the 50th completed trade and dispatches an automated SMTP summary email to the operator.
+  * **Sweetspot Trade Expirations:** Scalps bounded to 10–12m sweetspot with an 8m stagnation cutoff (if unrealized PnL $< +0.15\%$); macro trades bounded to 90m stagnation cutoff (4h maximum duration).
 * **Role-Specialized Multi-Agent Architecture:**
   * **Macro Specialists:** Asynchronous event catalyst shield + 8-hour crypto carry monitor.
   * **Tactical Core & Dual-Regime Volatility Adapters:** 12-hour autoregressive trajectory engine with dynamic regime brackets:
@@ -137,7 +148,9 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
    ```
 
 ### Documentation Links
+* 🧠 [Specialized Advisory Consultant & Tri-Perspective ACR Manual](docs/ADVISORY_CONSULTANT_AND_TRI_PERSPECTIVE_ACR.md)
 * 🌊 [Tsunami Storm Adaptive Protocol Manual](docs/TSUNAMI_STORM_ADAPTIVE_PROTOCOL.md)
+* 📊 [Previous-UTC-Day Volume Profile Spatial Veto Manual](docs/VOLUME_PROFILE_SPATIAL_VETO_AND_DASHBOARD_MATRIX.md)
 * ⚡ [Lightning Scalper Architecture & Distillation Manual](docs/LIGHTNING_SCALPER_ARCHITECTURE.md)
 * 📘 [Quant Architecture Specification](docs/ARCHITECTURE.md)
 * 🖥️ [Unified Terminal User Guide](docs/UNIFIED_TERMINAL_GUIDE.md)

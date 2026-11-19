@@ -434,7 +434,7 @@ class TigerExecutionEngine:
         if new_sl is not None:
             pos.stop_loss = Decimal(str(new_sl))
         else:
-            fee_buffer = Decimal("0.0009")
+            fee_buffer = Decimal("0.0022")
             if pos.side == "BUY":
                 pos.stop_loss = pos.entry_price * (Decimal("1") + fee_buffer)
             else:
@@ -449,15 +449,17 @@ class TigerExecutionEngine:
         position_id: str,
         exit_price: Decimal,
         exit_time_utc: datetime.datetime,
-        reason: str
+        reason: str,
+        fee_friction_pct: Decimal = Decimal("0.0000")
     ) -> Dict[str, Any]:
-        """Closes an active position and updates 5-consecutive-loss state."""
+        """Closes an active position and updates 5-consecutive-loss state using net-of-friction win truth."""
         pos = self.active_positions.get(position_id)
         if not pos:
             raise KeyError(f"Position {position_id} not found.")
 
         pnl_pct = pos.current_pnl_pct(exit_price)
-        is_win = pnl_pct > Decimal("0")
+        net_pnl_pct = pnl_pct - fee_friction_pct
+        is_win = net_pnl_pct > Decimal("0")
 
         self.total_trades_count += 1
         if is_win:

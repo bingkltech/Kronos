@@ -302,12 +302,12 @@ def test_volatility_scaled_dynamic_duration():
         reward_risk_ratio=Decimal("2.5")
     )
     pos_high = engine.open_scalp(cand_high_vol, account_equity=Decimal("200.00"), position_id="HIGH-VOL", current_time_utc=now_utc)
-    assert pos_high.max_duration_seconds == 1800
+    assert pos_high.max_duration_seconds == 600
 
     # Reset slot
     engine.active_scalp = None
 
-    # 2. Medium Volatility (ATR% = 0.50% >= 0.40%) -> 2700 seconds (45 min)
+    # 2. Medium Volatility (ATR% = 0.50% >= 0.40%) -> 720 seconds (12 min sweetspot)
     cand_med_vol = ScalpCandidate(
         symbol="SOLUSDT",
         side="BUY",
@@ -323,12 +323,12 @@ def test_volatility_scaled_dynamic_duration():
         reward_risk_ratio=Decimal("3.0")
     )
     pos_med = engine.open_scalp(cand_med_vol, account_equity=Decimal("200.00"), position_id="MED-VOL", current_time_utc=now_utc)
-    assert pos_med.max_duration_seconds == 2700
+    assert pos_med.max_duration_seconds == 720
 
     # Reset slot
     engine.active_scalp = None
 
-    # 3. Low Volatility (ATR% = 0.20% < 0.40%) -> 3600 seconds (60 min)
+    # 3. Low Volatility (ATR% = 0.20% < 0.40%) -> 900 seconds (15 min sweetspot)
     cand_low_vol = ScalpCandidate(
         symbol="BTCUSDT",
         side="BUY",
@@ -344,7 +344,7 @@ def test_volatility_scaled_dynamic_duration():
         reward_risk_ratio=Decimal("2.0")
     )
     pos_low = engine.open_scalp(cand_low_vol, account_equity=Decimal("200.00"), position_id="LOW-VOL", current_time_utc=now_utc)
-    assert pos_low.max_duration_seconds == 3600
+    assert pos_low.max_duration_seconds == 900
 
 
 def test_live_scalp_ticket_drift_parameter_contract():

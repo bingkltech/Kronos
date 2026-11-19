@@ -289,7 +289,7 @@ def test_plateau_breakeven_ratchet_protection(recycler):
 def test_opportunity_displacement_liberation(recycler):
     """A sluggish trade is displaced when top scanner candidate is waiting to enter."""
     now = datetime.datetime.now(datetime.timezone.utc)
-    entry_t = now - datetime.timedelta(minutes=8)  # 8m old (> 60% of 12m)
+    entry_t = now - datetime.timedelta(minutes=6)  # 6m old (between 60% and 100% of 8m max_stall)
 
     pos = NormalizedPosition(
         position_id="TEST_DISPLACE",

@@ -143,15 +143,15 @@ def test_end_to_end_scan_and_execution_cycle():
         assert pos.sl_order_id is not None
         assert pos.tp_order_id is not None
 
-        # 7. Verify 12-Hour Temporal Expiry Sweep
-        # Case A: 4 hours later -> Still active
-        expired_4h = orch.sweep_temporal_exits(current_time_utc=cycle_time + datetime.timedelta(hours=4))
-        assert len(expired_4h) == 0
+        # 7. Verify Temporal Expiry Sweep (stale_trade_hours = 4)
+        # Case A: 2 hours later -> Still active
+        expired_2h = orch.sweep_temporal_exits(current_time_utc=cycle_time + datetime.timedelta(hours=2))
+        assert len(expired_2h) == 0
         assert pos.state == PositionState.BRACKETS_ACTIVE
 
-        # Case B: 12.5 hours later -> Closed as stale
-        expired_12h = orch.sweep_temporal_exits(current_time_utc=cycle_time + datetime.timedelta(hours=12, minutes=30))
-        assert len(expired_12h) == 1
+        # Case B: 5 hours later -> Closed as stale
+        expired_5h = orch.sweep_temporal_exits(current_time_utc=cycle_time + datetime.timedelta(hours=5))
+        assert len(expired_5h) == 1
         assert pos.state == PositionState.CLOSED
         assert pos.close_reason == "TEMPORAL_EXIT_12H_STALE"
 

@@ -27,7 +27,10 @@
     "take_profit_net_pct": 1.25,
     "fast_profit_ratchet_pct": 0.85,
     "stop_loss_pct": 0.75,
-    "max_duration_seconds": 600,
+    "max_duration_seconds": 900,
+    "stagnation_timeout_seconds": 480,
+    "min_stagnation_mfe_pct": 0.25,
+    "plateau_ratchet_seconds": 240,
     "maker_first_pricing": true
   },
   "guardrails": {
@@ -45,8 +48,8 @@
     "atr_stop_multiplier": 1.0
   },
   "distillation_metadata": {
-    "last_distilled_utc": "2026-11-18T03:44:23.095712+00:00",
-    "audit_id": "DISTILL-20261118-034423",
+    "last_distilled_utc": "2026-11-19T07:09:14.403157+00:00",
+    "audit_id": "DISTILL-20261119-070914",
     "sample_size": 10,
     "win_rate_pct": 0.0,
     "profit_factor": 0.0,

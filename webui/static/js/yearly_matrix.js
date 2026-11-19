@@ -1,12 +1,14 @@
 /**
  * webui/static/js/yearly_matrix.js
- * Renders the 1-Year Rolling Monthly Asset Activity (Bought/Sold) & Profitability Heatmap Matrix
- * at the bottom of the Kronos Dashboard (#view-dashboard).
+ * Renders the 1-Year Rolling Monthly AND Full-Month Daily (Nov, Dec, Jan...)
+ * Asset Activity (Bought/Sold) & Profitability Heatmap Matrix at the bottom of #view-dashboard.
  */
 
 (function () {
     let ymSource = "live";
-    let ymMode = "both"; // "both" | "bs" | "pnl"
+    let ymTimeframe = "1y";      // "1y" | "daily"
+    let ymSelectedMonth = null;  // null -> auto current UTC month (Nov '26, Dec '26, ...)
+    let ymMode = "both";         // "both" | "bs" | "pnl"
     let ymLastData = null;
 
     function formatSignedUsd(valStr) {
@@ -17,11 +19,7 @@
         return "$0.00";
     }
 
-    /**
-     * Intensity-scaled green/red heatmap pill colors matching institutional dark UI.
-     * Green when net_pnl > 0 (profitable), red when net_pnl < 0 (loss).
-     */
-    function getHeatStyle(cell, maxAbsPnl, isYearly) {
+    function getHeatStyle(cell, maxAbsPnl, isSummaryCol) {
         if (!cell || cell.status === "empty" || cell.total === 0) {
             return { cls: "ym-pill ym-pill-empty", style: "" };
         }
@@ -31,13 +29,11 @@
 
         const pnl = parseFloat(cell.net_pnl || "0");
         const denom = Math.max(0.5, parseFloat(maxAbsPnl || "1"));
-        // Nonlinear sqrt scaling so smaller real profits/losses still show crisp gradation
         const rawRatio = Math.min(1, Math.abs(pnl) / denom);
         const intensity = Math.sqrt(rawRatio);
 
         if (pnl > 0) {
-            // Profitable -> Emerald Green scale
-            const alphaBg = isYearly
+            const alphaBg = isSummaryCol
                 ? (0.18 + intensity * 0.34).toFixed(2)
                 : (0.16 + intensity * 0.56).toFixed(2);
             const alphaBorder = (0.35 + intensity * 0.45).toFixed(2);
@@ -47,8 +43,7 @@
                 style: `background: rgba(22, 163, 74, ${alphaBg}); border: 1px solid rgba(34, 197, 94, ${alphaBorder}); color: ${textColor};`
             };
         } else {
-            // Unprofitable -> Crimson Red scale
-            const alphaBg = isYearly
+            const alphaBg = isSummaryCol
                 ? (0.18 + intensity * 0.34).toFixed(2)
                 : (0.16 + intensity * 0.56).toFixed(2);
             const alphaBorder = (0.35 + intensity * 0.45).toFixed(2);
@@ -60,17 +55,17 @@
         }
     }
 
-    function buildCellHtml(cell, maxAbsPnl, label, monthLabel, isYearly) {
-        const hs = getHeatStyle(cell, maxAbsPnl, isYearly);
+    function buildCellHtml(cell, maxAbsPnl, label, bucketLabel, isSummaryCol) {
+        const hs = getHeatStyle(cell, maxAbsPnl, isSummaryCol);
         if (!cell || cell.total === 0) {
-            const title = `${label} · ${monthLabel}: No trades executed`;
+            const title = `${label} · ${bucketLabel}: No trades executed`;
             return `<div class="${hs.cls}" title="${title}"><span class="ym-pill-primary">—</span></div>`;
         }
 
         const bsText = `${cell.buys}B/${cell.sells}S`;
         const pnlText = formatSignedUsd(cell.net_pnl);
         const tooltip =
-            `${label} · ${monthLabel}\n` +
+            `${label} · ${bucketLabel}\n` +
             `Bought: ${cell.buys} | Sold: ${cell.sells} (Total: ${cell.total})\n` +
             `Gross PnL: ${formatSignedUsd(cell.gross_pnl)} | Fees: -$${Math.abs(parseFloat(cell.fees || "0")).toFixed(2)}\n` +
             `Net PnL: ${pnlText} (${cell.status === "profit" ? "PROFITABLE" : cell.status === "loss" ? "LOSS" : "FLAT"})`;
@@ -89,71 +84,126 @@
         return `<div class="${hs.cls}" style="${hs.style}" title="${tooltip.replace(/"/g, "&quot;")}">${inner}</div>`;
     }
 
+    function syncMonthControls(data) {
+        const dailyBtn = document.getElementById("ym-btn-daily");
+        if (dailyBtn && data.current_month_label) {
+            dailyBtn.textContent = `Daily (${data.current_month_label})`;
+        }
+
+        const sel = document.getElementById("ym-month-select");
+        if (sel) {
+            sel.style.display = ymTimeframe === "daily" ? "inline-block" : "none";
+            const avail = data.available_months || [];
+            if (avail.length > 0) {
+                const activeVal = data.selected_month || data.current_month;
+                const needsBuild = sel.options.length !== avail.length || (sel.options[0] && sel.options[0].value !== avail[0].key);
+                if (needsBuild) {
+                    sel.innerHTML = avail
+                        .map((m) => `<option value="${m.key}">${m.label}${m.is_current ? " (Current)" : ""}</option>`)
+                        .join("");
+                }
+                if (activeVal) {
+                    sel.value = activeVal;
+                }
+            }
+        }
+
+        const titleEl = document.getElementById("ym-card-title");
+        const subEl = document.getElementById("ym-card-subtitle");
+        if (ymTimeframe === "daily") {
+            if (titleEl) titleEl.textContent = `Daily asset returns & volume (${data.selected_month_label || data.current_month_label || ""})`;
+            if (subEl) subEl.textContent = "Bought / Sold count per day · Green if profitable";
+        } else {
+            if (titleEl) titleEl.textContent = "Monthly asset returns & volume";
+            if (subEl) subEl.textContent = "Bought / Sold count per month · Green if profitable (click any month for daily view)";
+        }
+    }
+
     function renderYearlyMatrix(data) {
         const container = document.getElementById("ym-table-container");
         const rangeEl = document.getElementById("ym-range-label");
         const summaryEl = document.getElementById("ym-footer-summary");
         if (!container || !data || !data.success) return;
 
+        syncMonthControls(data);
+
         if (rangeEl) {
-            rangeEl.textContent = data.range_label || "12-month rolling";
+            rangeEl.textContent = data.range_label || "";
         }
 
-        const months = data.months || [];
+        const isDaily = data.timeframe === "daily";
+        const cols = data.months || [];
+        const sumColLabel = data.summary_col_label || (isDaily ? "MTD" : "1Y");
         const maxAbs = data.max_abs_pnl || "1.00";
         const sumRow = data.summary_row;
         const rows = data.rows || [];
 
         let thead = `<thead><tr><th class="ym-col-asset">Asset</th>`;
-        for (const m of months) {
-            const thCls = m.is_current ? "ym-th-current" : "";
-            thead += `<th class="${thCls}">${m.label}</th>`;
+        for (const col of cols) {
+            const curCls = col.is_current ? "ym-th-current" : "";
+            if (!isDaily) {
+                thead += `<th class="${curCls} ym-th-clickable" onclick="openDailyMonth('${col.key}')" title="Open full daily report for ${col.label} ${col.short_year}">${col.label}</th>`;
+            } else {
+                thead += `<th class="${curCls}" title="${col.key}">${col.label}</th>`;
+            }
         }
-        thead += `<th class="ym-col-1y">1Y</th></tr></thead>`;
+        thead += `<th class="ym-col-1y">${sumColLabel}</th></tr></thead>`;
 
         let tbody = `<tbody>`;
 
-        // 1. Portfolio Summary Top Row (mirrors "Model" top row in reference)
+        // 1. Portfolio Summary Top Row
         if (sumRow) {
             tbody += `<tr class="ym-row-portfolio">`;
             tbody += `<td><div class="ym-asset-cell">${sumRow.label || "Portfolio"}</div></td>`;
-            for (const m of months) {
-                const tdCls = m.is_current ? "ym-month-td ym-td-current" : "ym-month-td";
-                const cell = (sumRow.months || {})[m.key];
-                tbody += `<td class="${tdCls}">${buildCellHtml(cell, maxAbs, "Portfolio Total", `${m.label} ${m.short_year}`, false)}</td>`;
+            for (const col of cols) {
+                const tdCls = col.is_current ? "ym-month-td ym-td-current" : "ym-month-td";
+                const cell = (sumRow.months || {})[col.key];
+                const bLbl = isDaily ? col.key : `${col.label} ${col.short_year}`;
+                tbody += `<td class="${tdCls}">${buildCellHtml(cell, maxAbs, "Portfolio Total", bLbl, false)}</td>`;
             }
-            tbody += `<td class="ym-td-1y">${buildCellHtml(sumRow.yearly, maxAbs, "Portfolio 1Y Total", "1Y", true)}</td>`;
+            tbody += `<td class="ym-td-1y">${buildCellHtml(sumRow.yearly, maxAbs, `Portfolio ${sumColLabel} Total`, sumColLabel, true)}</td>`;
             tbody += `</tr>`;
         }
 
         // 2. Individual Asset Rows
         if (rows.length === 0) {
-            tbody += `<tr><td colspan="${months.length + 2}" style="text-align:center;color:var(--text-muted);padding:20px;">No executed trades recorded in this source for the last 12 months.</td></tr>`;
+            tbody += `<tr><td colspan="${cols.length + 2}" style="text-align:center;color:var(--text-muted);padding:20px;">No executed trades recorded in this period.</td></tr>`;
         } else {
             for (const r of rows) {
                 tbody += `<tr>`;
                 tbody += `<td><div class="ym-asset-cell" title="${r.symbol}">` +
                     `<span class="ym-asset-dot" style="background:${r.color};"></span>` +
                     `<span>${r.short_name}</span></div></td>`;
-                for (const m of months) {
-                    const tdCls = m.is_current ? "ym-td-current" : "";
-                    const cell = (r.months || {})[m.key];
-                    tbody += `<td class="${tdCls}">${buildCellHtml(cell, maxAbs, r.symbol, `${m.label} ${m.short_year}`, false)}</td>`;
+                for (const col of cols) {
+                    const tdCls = col.is_current ? "ym-td-current" : "";
+                    const cell = (r.months || {})[col.key];
+                    const bLbl = isDaily ? col.key : `${col.label} ${col.short_year}`;
+                    tbody += `<td class="${tdCls}">${buildCellHtml(cell, maxAbs, r.symbol, bLbl, false)}</td>`;
                 }
-                tbody += `<td class="ym-td-1y">${buildCellHtml(r.yearly, maxAbs, `${r.symbol} 1Y`, "1Y", true)}</td>`;
+                tbody += `<td class="ym-td-1y">${buildCellHtml(r.yearly, maxAbs, `${r.symbol} ${sumColLabel}`, sumColLabel, true)}</td>`;
                 tbody += `</tr>`;
             }
         }
 
         tbody += `</tbody>`;
-        container.innerHTML = `<table class="ym-table">${thead}${tbody}</table>`;
+        const tableCls = isDaily ? "ym-table ym-table-daily" : "ym-table";
+        container.innerHTML = `<table class="${tableCls}">${thead}${tbody}</table>`;
+
+        // In daily view, smoothly scroll active/today column into clear view if needed
+        if (isDaily) {
+            const curTh = container.querySelector("th.ym-th-current");
+            if (curTh && container.scrollWidth > container.clientWidth) {
+                const targetScroll = Math.max(0, curTh.offsetLeft - container.clientWidth * 0.55);
+                container.scrollLeft = targetScroll;
+            }
+        }
 
         if (summaryEl && sumRow && sumRow.yearly) {
             const y = sumRow.yearly;
             const netStr = formatSignedUsd(y.net_pnl);
             const netColor = parseFloat(y.net_pnl) >= 0 ? "#4ade80" : "#fb7185";
             summaryEl.innerHTML =
-                `1Y Total: <strong style="color:var(--text-primary);">${y.buys} Bought</strong> / ` +
+                `${sumColLabel} Total: <strong style="color:var(--text-primary);">${y.buys} Bought</strong> / ` +
                 `<strong style="color:var(--text-primary);">${y.sells} Sold</strong> ` +
                 `(${y.total} executions) · Net PnL: <strong style="color:${netColor};">${netStr}</strong>`;
         }
@@ -166,14 +216,20 @@
             container.style.opacity = "0.6";
         }
         try {
-            const url = `/api/analytics/yearly-matrix?source=${encodeURIComponent(ymSource)}${forceRefresh ? "&refresh=true" : ""}`;
+            let url = `/api/analytics/yearly-matrix?source=${encodeURIComponent(ymSource)}&timeframe=${encodeURIComponent(ymTimeframe)}`;
+            if (ymTimeframe === "daily" && ymSelectedMonth) {
+                url += `&month=${encodeURIComponent(ymSelectedMonth)}`;
+            }
+            if (forceRefresh) {
+                url += "&refresh=true";
+            }
             const resp = await fetch(url);
             const data = await resp.json();
             if (data && data.success) {
                 ymLastData = data;
                 renderYearlyMatrix(data);
             } else {
-                container.innerHTML = `<div style="padding:18px;text-align:center;color:#fb7185;font-size:12px;">Unable to load 1-year report: ${(data && data.error) || "Unknown error"}</div>`;
+                container.innerHTML = `<div style="padding:18px;text-align:center;color:#fb7185;font-size:12px;">Unable to load asset report: ${(data && data.error) || "Unknown error"}</div>`;
             }
         } catch (err) {
             container.innerHTML = `<div style="padding:18px;text-align:center;color:var(--text-muted);font-size:12px;">Awaiting backend telemetry...</div>`;
@@ -188,6 +244,30 @@
             btn.classList.toggle("active", btn.getAttribute("data-ym-source") === src);
         });
         loadYearlyMatrix(false);
+    };
+
+    window.setYearlyMatrixTimeframe = function (tf) {
+        ymTimeframe = tf;
+        if (tf === "daily" && !ymSelectedMonth && ymLastData && ymLastData.current_month) {
+            ymSelectedMonth = ymLastData.current_month;
+        }
+        document.querySelectorAll("[data-ym-tf]").forEach((btn) => {
+            btn.classList.toggle("active", btn.getAttribute("data-ym-tf") === tf);
+        });
+        loadYearlyMatrix(false);
+    };
+
+    window.setYearlyMatrixMonth = function (monthKey) {
+        ymSelectedMonth = monthKey;
+        ymTimeframe = "daily";
+        document.querySelectorAll("[data-ym-tf]").forEach((btn) => {
+            btn.classList.toggle("active", btn.getAttribute("data-ym-tf") === "daily");
+        });
+        loadYearlyMatrix(false);
+    };
+
+    window.openDailyMonth = function (monthKey) {
+        window.setYearlyMatrixMonth(monthKey);
     };
 
     window.setYearlyMatrixMode = function (mode) {
@@ -206,7 +286,6 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         loadYearlyMatrix(false);
-        // Auto-refresh quietly every 90 seconds
         setInterval(function () {
             const dash = document.getElementById("view-dashboard");
             if (dash && dash.style.display !== "none") {

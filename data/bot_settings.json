@@ -4,154 +4,21 @@
   "live_trading_enabled": false,
   "live_trading_interval": 300,
   "live_last_cycle_summary": {
-    "success": true,
-    "timestamp": "2026-11-17T15:59:07.975901+00:00",
-    "macro_regime": "BEAR_DISTRIBUTION",
-    "breadth_pct": "0.0%",
-    "evaluated_count": 10,
-    "dispatched_count": 0,
-    "decisions": [
-      {
-        "symbol": "BTCUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "BNBUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "XRPUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "DOGEUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "FLEET_PRUNING",
-        "reason": "DOGEUSDT is excluded from live execution to prevent meme whipsaw (Lesson #40).",
-        "adversarial_notes": "Excluded asset to preserve capital for high-alpha fleet.",
-        "ticket": null
-      },
-      {
-        "symbol": "ADAUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "AVAXUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "LINKUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "SUIUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "1000PEPEUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      },
-      {
-        "symbol": "PEPEUSDT",
-        "side": "NEUTRAL",
-        "approved": false,
-        "veto_gate": "NEURAL_MODEL_OFFLINE",
-        "reason": "VETO: Kronos Foundation Neural Model is offline/unloaded in WebUI. Fallback linear momentum extrapolation strictly prohibited in LIVE mode.",
-        "adversarial_notes": "Fail-safe safety gate: Real neural model must be loaded into memory.",
-        "ticket": null
-      }
-    ],
-    "dispatched_trades": [],
+    "success": false,
+    "timestamp": "2026-11-19T07:14:13.400573+00:00",
+    "error": "Binance Futures API Error (401): Invalid API-key, IP, or permissions for action, request ip: 37.186.48.71",
     "live_account": {
-      "total_wallet_balance_usd": 193.64279769,
-      "available_balance_usd": 160.64886894,
-      "unrealized_pnl_usd": -0.90098433,
-      "margin_ratio_pct": 0.23,
-      "active_positions": [
-        {
-          "symbol": "ETHUSDT",
-          "position_amt": "-0.028",
-          "side": "SELL",
-          "entry_price": "1768.06",
-          "mark_price": "1786.60141860",
-          "unrealized_pnl_usd": "-0.51915972",
-          "liquidation_price": "2347.14075199",
-          "notional_usd": "50.02",
-          "margin_usd": "16.67",
-          "leverage": 3,
-          "margin_type": "isolated",
-          "price_gain_pct": "-1.05",
-          "net_price_gain_pct": "-1.14",
-          "est_fee_usd": "0.0450",
-          "net_pnl_usd": "-0.5642",
-          "gross_roi_pct": "-3.11",
-          "net_roi_pct": "-3.38",
-          "is_scalp": true,
-          "trade_type": "SCALP"
-        },
-        {
-          "symbol": "SOLUSDT",
-          "position_amt": "-0.69",
-          "side": "SELL",
-          "entry_price": "71.92",
-          "mark_price": "72.47336901",
-          "unrealized_pnl_usd": "-0.38182461",
-          "liquidation_price": "95.38047145",
-          "notional_usd": "50.01",
-          "margin_usd": "16.67",
-          "leverage": 3,
-          "margin_type": "isolated",
-          "price_gain_pct": "-0.77",
-          "net_price_gain_pct": "-0.86",
-          "est_fee_usd": "0.0450",
-          "net_pnl_usd": "-0.4268",
-          "gross_roi_pct": "-2.29",
-          "net_roi_pct": "-2.56",
-          "is_scalp": false,
-          "trade_type": "MACRO"
-        }
-      ]
+      "connected": false,
+      "error": "Binance Futures API Error (401): Invalid API-key, IP, or permissions for action, request ip: 37.186.48.71",
+      "total_wallet_balance_usd": "0.00",
+      "available_balance_usd": "0.00",
+      "unrealized_pnl_usd": "0.00",
+      "margin_ratio_pct": "0.00",
+      "bnb_balance": "0.00",
+      "bnb_fee_discount_active": false,
+      "active_positions_count": 0,
+      "positions": [],
+      "open_orders": []
     }
   },
   "last_cycle_summary": {
@@ -672,5 +539,5 @@
   },
   "gemini_auto_apply": true,
   "latest_gemini_assessment": null,
-  "updated_at": "2026-11-17T16:02:29.882267+00:00"
+  "updated_at": "2026-11-19T07:17:13.248884+00:00"
 }

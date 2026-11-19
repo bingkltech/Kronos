@@ -1134,12 +1134,43 @@ def test_tiger_execution_engine_ratchet_to_breakeven():
         
         success_buy = engine.ratchet_to_breakeven(pos_buy.position_id)
         assert success_buy is True
-        expected_sl = Decimal("15.0000") * (Decimal("1") + Decimal("0.0009"))
+        expected_sl = Decimal("15.0000") * (Decimal("1") + Decimal("0.0022"))
         assert pos_buy.stop_loss == expected_sl
         assert pos_buy.is_breakeven_ratcheted is True
 
         # 3. Test non-existent position ID
         assert engine.ratchet_to_breakeven("NON_EXISTENT_ID") is False
+
+
+def test_close_position_net_of_friction_win_truth():
+    """Verify close_position evaluates is_win strictly NET of realistic 0.22% friction (no fake scratch wins)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state_file = os.path.join(tmpdir, "tiger_net_win_state.json")
+        engine = TigerExecutionEngine(state_file=state_file)
+        t0 = datetime.datetime(2026, 11, 18, 8, 0, tzinfo=datetime.timezone.utc)
+
+        mock_sig = AbsorptionSignal(
+            symbol="EVAAUSDT", action="SELL", entry_trigger_price=Decimal("2.0000"),
+            invalidation_stop_price=Decimal("2.0200"), cvd_zscore=Decimal("2.5"),
+            micro_price_skew_bps=Decimal("-0.30"), ofi_score=Decimal("-0.55"),
+            wick_ratio=Decimal("0.60"), absorption_density=Decimal("0.85"),
+            is_steamroller_vetoed=False, is_valid=True, reason="Test Short"
+        )
+        sig = engine.create_signal_from_absorption(mock_sig, atr_pct=Decimal("0.0080"), current_time_utc=t0)
+        assert sig is not None
+        pos = engine.fill_signal(sig.signal_id, fill_price=Decimal("2.0000"), quantity=Decimal("50"), fill_time_utc=t0)
+
+        # +0.10% gross favorable move (2.0000 -> 1.9980), but after 0.22% friction net is -0.12% -> MUST BE LOSS!
+        res = engine.close_position(
+            pos.position_id,
+            exit_price=Decimal("1.9980"),
+            exit_time_utc=t0 + datetime.timedelta(minutes=5),
+            reason="STALL_SCRATCH",
+            fee_friction_pct=Decimal("0.0022")
+        )
+        assert res["is_win"] is False
+        assert engine.total_wins_count == 0
+        assert engine.consecutive_losses == 1
 
 
 

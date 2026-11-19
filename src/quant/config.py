@@ -181,7 +181,7 @@ class GlobalRiskConfig:
     min_rr_ratio: Decimal = Decimal("1.50")                # Minimum 1.50:1 Take-Profit over Stop-Loss
     
     # Execution & Microstructure Timeouts
-    stale_trade_hours: int = 12                         # Temporal exit threshold
+    stale_trade_hours: int = 4                          # Temporal exit threshold: 4h sweetspot (down from 12h)
     bracket_confirm_timeout_ms: int = 1000              # Anti-naked-position emergency flatten timeout
     
     # Macro Market Breadth

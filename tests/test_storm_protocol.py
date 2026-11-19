@@ -27,17 +27,19 @@ def test_normal_waters_capacity(temp_storm_manager):
     status = temp_storm_manager.get_status()
     assert not status.is_storm_active
     assert status.phase == StormPhase.NORMAL_WATERS
-    assert status.max_macro_positions == 3
+    assert status.max_macro_positions == 2
     assert status.max_scalp_positions == 1
 
-    # Macro trade 1, 2, 3 permitted
+    # Macro trade 1 permitted
     ok, _ = temp_storm_manager.is_entry_permitted(is_scalp=False, current_macro_count=0, current_scalp_count=0, confidence_pct=65.0)
     assert ok is True
-    ok, _ = temp_storm_manager.is_entry_permitted(is_scalp=False, current_macro_count=2, current_scalp_count=0, confidence_pct=65.0)
+
+    # Macro trade 2 permitted
+    ok, _ = temp_storm_manager.is_entry_permitted(is_scalp=False, current_macro_count=1, current_scalp_count=0, confidence_pct=65.0)
     assert ok is True
 
-    # Macro trade 4 rejected (cap 3)
-    ok, _ = temp_storm_manager.is_entry_permitted(is_scalp=False, current_macro_count=3, current_scalp_count=0, confidence_pct=65.0)
+    # Macro trade 3 rejected (cap 2)
+    ok, _ = temp_storm_manager.is_entry_permitted(is_scalp=False, current_macro_count=2, current_scalp_count=0, confidence_pct=65.0)
     assert ok is False
 
 
@@ -138,7 +140,7 @@ def test_storm_lifecycle_and_auto_recovery(temp_storm_manager):
     status_61m = temp_storm_manager.get_status(current_time_utc=t_61m)
     assert status_61m.is_storm_active is False
     assert status_61m.phase == StormPhase.NORMAL_WATERS
-    assert status_61m.max_macro_positions == 3
+    assert status_61m.max_macro_positions == 2
     assert status_61m.max_scalp_positions == 1
 
     # Standard confidence entry (65%) -> PERMITTED again now that ocean is calm

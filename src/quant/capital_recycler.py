@@ -55,8 +55,8 @@ class RecyclerConfig:
     min_observation_minutes_macro: Decimal = Decimal("15.0")
 
     # Maximum stagnation duration (minutes without follow-through before triggering move-on)
-    max_stall_minutes_scalp: Decimal = Decimal("12.0")
-    max_stall_minutes_macro: Decimal = Decimal("180.0")  # 3 hours
+    max_stall_minutes_scalp: Decimal = Decimal("8.0")    # Sweetspot: 8 minutes (down from 12m)
+    max_stall_minutes_macro: Decimal = Decimal("90.0")   # Sweetspot: 90 minutes / 1.5h (down from 180m / 3h)
 
     # Dead band bounds around entry (+/- percentage of price where trade is dead/stalled)
     dead_band_pct: Decimal = Decimal("0.0025")           # +/- 0.25%
@@ -70,8 +70,8 @@ class RecyclerConfig:
     mfe_ratchet_trigger_macro: Decimal = Decimal("0.0120")     # +1.20%
 
     # Plateau duration (minutes of sideways chop after peak MFE before triggering ratchet)
-    plateau_ratchet_minutes_scalp: Decimal = Decimal("5.0")
-    plateau_ratchet_minutes_macro: Decimal = Decimal("45.0")
+    plateau_ratchet_minutes_scalp: Decimal = Decimal("4.0")   # Sweetspot: 4 minutes
+    plateau_ratchet_minutes_macro: Decimal = Decimal("30.0")  # Sweetspot: 30 minutes
 
     # Breakeven fee buffer (protects against taker exit fee 0.05% + roundtrip friction)
     breakeven_fee_buffer_pct: Decimal = Decimal("0.0012")      # +0.12% above entry for LONG

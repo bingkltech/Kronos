@@ -64,7 +64,7 @@ class ActiveScalpState:
     entry_time_utc: datetime.datetime
     leverage: int = 3                 # Dynamic 3x - 5x isolated leverage
     initial_margin_usd: Decimal = Decimal("15.00")
-    max_duration_seconds: int = 600   # 10 minutes max fast timeout for scalps
+    max_duration_seconds: int = 900   # 15 minutes sweetspot ceiling for scalps
     min_profit_lock_pct: Decimal = Decimal("0.25") # Fast green take-profit trigger (+0.25% net)
     highest_favorable_price: Optional[Decimal] = None
     lowest_adverse_price: Optional[Decimal] = None
@@ -95,7 +95,7 @@ class ApexScalperEngine:
         symbols_config: Optional[Dict[str, FuturesSymbolConfig]] = None,
         risk_config: Optional[GlobalRiskConfig] = None,
         min_score_threshold: Decimal = Decimal("0.35"),
-        max_duration_seconds: int = 3600,
+        max_duration_seconds: int = 900,
         cooldown_seconds: int = 900
     ):
         self.symbols_config = symbols_config or ALL_SUPPORTED_SYMBOLS
@@ -502,19 +502,19 @@ class ApexScalperEngine:
         notional = qty * candidate.entry_price
         actual_margin = notional / Decimal(dynamic_leverage)
 
-        # Volatility-Scaled Dynamic Temporal Expiry:
-        # High ATR% (>= 0.80%): 1800s (30m - 6 full 5m bars) for high-beta volatility assets
-        # Medium ATR% (>= 0.40%): 2700s (45m - 9 full 5m bars) for moderate volatility assets
-        # Low ATR% (< 0.40%): 3600s (60m - 12 full 5m bars) for low-volatility majors (BTC/ETH)
-        dynamic_duration = self.max_duration_seconds
+        # Volatility-Scaled Dynamic Temporal Expiry (Sweetspot Calibration):
+        # High ATR% (>= 0.80%): 600s (10m) for fast meme/high-beta volatility assets
+        # Medium ATR% (>= 0.40%): 720s (12m) for moderate volatility assets
+        # Low ATR% (< 0.40%): 900s (15m max ceiling) for low-volatility majors (BTC/ETH)
+        dynamic_duration = min(self.max_duration_seconds, 900)
         if candidate.entry_price > Decimal("0") and candidate.atr_5m > Decimal("0"):
             atr_pct = (candidate.atr_5m / candidate.entry_price) * Decimal("100")
             if atr_pct >= Decimal("0.80"):
-                dynamic_duration = min(self.max_duration_seconds, 1800)
+                dynamic_duration = min(self.max_duration_seconds, 600)
             elif atr_pct >= Decimal("0.40"):
-                dynamic_duration = min(self.max_duration_seconds, 2700)
+                dynamic_duration = min(self.max_duration_seconds, 720)
             else:
-                dynamic_duration = min(self.max_duration_seconds, 3600)
+                dynamic_duration = min(self.max_duration_seconds, 900)
 
         self.active_scalp = ActiveScalpState(
             position_id=position_id,
@@ -721,10 +721,44 @@ class ApexScalperEngine:
 
         return False, None
 
+    def evaluate_stagnation(
+        self,
+        current_time_utc: datetime.datetime,
+        stagnation_seconds: int = 480,
+        min_mfe_pct: Decimal = Decimal("0.25")
+    ) -> Tuple[bool, str]:
+        """
+        Detects capital stagnation and dead-band stall (Lesson #41).
+        If the scalp has been open >= 8 minutes and has failed to achieve at least +0.25% MFE,
+        alpha has expired. Liberates the slot for high-velocity candidates.
+        """
+        if not self.active_scalp:
+            return False, ""
+        pos = self.active_scalp
+        duration_sec = int((current_time_utc - pos.entry_time_utc).total_seconds())
+        if duration_sec < stagnation_seconds:
+            return False, ""
+
+        entry = pos.entry_price
+        if entry <= Decimal("0"):
+            return False, ""
+
+        if pos.side == "BUY":
+            peak = pos.highest_favorable_price or entry
+            mfe_pct = ((peak - entry) / entry) * Decimal("100")
+        else:
+            peak = pos.highest_favorable_price or entry
+            mfe_pct = ((entry - peak) / entry) * Decimal("100")
+
+        if mfe_pct < min_mfe_pct:
+            return True, f"STAGNATION_DEAD_BAND: Duration {duration_sec}s >= {stagnation_seconds}s and peak MFE {mfe_pct:.2f}% < {min_mfe_pct:.2f}%"
+
+        return False, ""
+
     def close_scalp(
         self,
         exit_price: Decimal,
-        close_reason: Literal["TAKE_PROFIT_HIT", "STOP_LOSS_HIT", "TIME_EXPIRATION", "MANUAL_OVERRIDE"],
+        close_reason: str,
         current_time_utc: datetime.datetime,
         exchange_fees_usd: Decimal = Decimal("0.0"),
         trade_mode: Literal["LIVE", "PAPER"] = "LIVE"

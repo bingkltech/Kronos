@@ -1,0 +1,95 @@
+# ==============================================================================
+# risk_engine/risk_config.yaml — Real-Money Integrity Standard (v3)
+# ==============================================================================
+# Empirically calibrated against 293 real-money Binance trades + 45 lessons in
+# data/lessons.db. All numeric values deserialize strictly into decimal.Decimal.
+
+# 1. Single-Pass Net-of-Fee Fractional Kelly & Volatility Targeting
+kelly_fraction: "0.25"                  # Quarter-Kelly default (0.25 * f*)
+default_win_rate: "0.55"
+default_payoff_ratio: "1.50"
+win_rate_decay_buffer: "0.005"          # 50 bps buffer (avoids starving 2.7% empirical edge)
+payoff_decay_buffer: "0.05"             # Applied ONLY when is_gross_edge_estimate=true
+kelly_apply_decay_only_to_gross: true
+max_kelly_allocation_pct: "0.25"
+target_volatility: "0.015"
+volatility_floor: "0.005"
+max_vol_scalar: "1.50"
+min_vol_scalar: "0.15"
+
+# 2. Tail-Risk (Empirical CVaR), Aggregate Open Stop-Risk & Exposure Caps
+cvar_confidence_level: "0.95"
+max_portfolio_cvar_pct: "0.04"
+cvar_fat_tail_multiplier: "1.50"
+cvar_min_samples: 20
+max_single_asset_exposure_pct: "0.25"
+max_gross_leverage: "3.00"
+max_net_leverage: "2.00"
+small_account_threshold_usd: "2500.00"
+small_account_max_net_leverage: "1.00"  # Caps correlated one-way beta on small accounts
+preserve_indivisible_min_lot: true      # Keeps 0.001 BTC eligible when stop-risk & CVaR clear
+max_portfolio_open_stop_risk_pct: "0.025"       # Max 2.5% aggregate risk-at-stop across all open positions
+tier1_max_portfolio_open_stop_risk_pct: "0.0125" # Cut to 1.25% in Tier 1
+max_single_trade_stop_risk_pct: "0.015"         # Max 1.5% risk-at-stop on any single trade
+
+# 3. Unified Portfolio Concurrency & Same-Symbol Lock (L#15 Alpha-Agnostic)
+max_concurrent_positions: 3             # Empirically validated sweet spot across Macro + Scalp
+tier1_max_concurrent_positions: 1       # True 67% portfolio throttle in Tier 1
+max_positions_per_symbol: 1             # Enforces L#15 without knowing strategy identities
+
+# 4. Split Pod-Shop Drawdown Velocity Clocks (Intraday vs. Rolling)
+tier1_drawdown_pct: "0.03"              # Intraday -3.0% Soft Breach
+tier2_drawdown_pct: "0.06"              # Intraday -6.0% Hard Breach -> KILL_SWITCH + HALTED
+tier1_rolling_drawdown_pct: "0.06"      # Multi-day rolling -6.0% Soft Breach
+tier2_rolling_drawdown_pct: "0.12"      # Multi-day rolling -12.0% Hard Breach -> KILL_SWITCH
+tier1_size_multiplier: "0.50"
+tier1_min_conviction: "0.75"
+tier1_spread_tightening_factor: "0.60"
+base_min_conviction: "0.50"
+
+# 5. Layer 1: Signal & Regime Defense (Scale-Invariant + 72h Shadow Calibration)
+max_vol_spike_ratio: "2.50"
+max_absolute_vol: "0.10"
+max_spread_bps: "25.0"                  # Stage-1 disaster ceiling (25 bps; 15 bps in Tier 1)
+shadow_warn_spread_bps: "5.0"           # Stage-2 shadow telemetry warning for 72h calibration
+min_top_of_book_depth_usd: "500.00"     # Dust floor; scaled dynamically by 10x order notional
+min_book_depth_multiple: "10.0"
+max_pairwise_correlation: "0.85"
+max_portfolio_avg_correlation: "0.80"
+
+# 6. Layer 2: Pre-Trade OMS Defense (Mandatory SL, Stop Geometry, Scale-Aware Fat-Finger)
+max_single_order_notional_usd: "25000.00"
+small_account_fat_finger_floor_usd: "100.00"
+fat_finger_equity_multiple: "0.50"      # Small accounts: max($100, 0.50 * equity)
+fat_finger_hard_veto: true
+max_order_book_depth_pct: "0.10"
+max_price_collar_pct: "0.015"
+require_stop_loss_on_entries: true      # Zero naked entries
+min_stop_distance_pct: "0.0066"         # L#16 & L#39 noise floor
+max_sl_roi_pct: "0.06"                  # L#25 max 6.0% leveraged SL ROI clamp
+min_rr_ratio: "1.20"
+min_cost_multiple: "1.50"               # L#10 & L#37 hard positive net-of-fee floor
+shadow_warn_cost_multiple: "4.00"       # Stage-2 72h shadow calibration warning
+duplicate_order_window_ms: 500
+burst_window_ms: 1000
+max_orders_per_burst_window: 5
+max_market_snapshot_age_ms: 5000
+max_portfolio_state_age_ms: 5000
+
+# 7. Layer 3: Gateway, Kill-Switch & Cross-Process Atomic Ledger
+max_api_messages_per_second: 10
+max_api_messages_per_minute: 300
+cancel_on_disconnect_timeout_ms: 5000
+control_file_path: "data/risk_state.txt"
+ledger_db_path: "data/risk_ledger.db"
+slot_reservation_ttl_ms: 15000
+allow_reduce_only_in_non_desync_halt: true
+
+# 8. Layer 4: Post-Trade Reconciliation
+reconcile_interval_seconds: "10.0"
+qty_mismatch_tolerance_pct: "0.001"
+auto_flatten_phantom_positions: true
+
+# 9. Telemetry & Auditability
+audit_log_dir: "logs/risk_audit"
+log_all_decisions: true

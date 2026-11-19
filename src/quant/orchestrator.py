@@ -461,7 +461,18 @@ class QuantBotOrchestrator:
                     logger.debug("Storm protocol check warning: %s", storm_err)
 
                 if execution_mode == "LIVE":
-                    pos = self.executor.submit_live_bracket_order(decision.ticket)
+                    p_state, m_snap = (None, None)
+                    if getattr(self.executor, "risk_engine", None) is not None and hasattr(self.executor, "fetch_live_risk_snapshots"):
+                        p_state, m_snap = self.executor.fetch_live_risk_snapshots(
+                            symbol=decision.ticket.symbol,
+                            fallback_price=decision.ticket.entry_price,
+                            live_summary=live_summary,
+                        )
+                    pos = self.executor.submit_live_bracket_order(
+                        decision.ticket,
+                        portfolio_state=p_state,
+                        market_snapshot=m_snap,
+                    )
                 else:
                     pos = self.executor.submit_bracket_order(decision.ticket, fill_time_utc=current_time_utc)
                 if pos.state != PositionState.REJECTED:

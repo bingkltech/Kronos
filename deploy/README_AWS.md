@@ -72,6 +72,16 @@ BINANCE_FUTURES_SECRET_KEY=your_binance_secret_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 KRONOS_INSTANCE_TAG=AWS
 PORT=7070
+KRONOS_LIVE_TRADE_CAP=50
+KRONOS_MAX_CONCURRENT_POSITIONS=3
+KRONOS_MAX_MACRO_POSITIONS=2
+KRONOS_MAX_SCALP_POSITIONS=1
+# Automated Session Quota Email Notifications
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+ALERT_RECIPIENT_EMAIL=your_email@gmail.com
 EOF
 ```
 
@@ -128,3 +138,44 @@ AWS_COORDINATOR_URL=http://<YOUR_AWS_PUBLIC_IP>:7070
    Execution Mode  : REAL LIVE TRADING (BINANCE FUTURES)
    ```
 2. Open your local Web UI at `http://localhost:7070`. You can monitor all live positions, balances, and PnL in real time, while the AWS cloud instance safely executes trades 24/7.
+
+---
+
+## Step 7: Fleet Concurrency & 50-Trade Session Quota Guard
+
+### 1. Concurrency Cap: Max 3 Trades (2 Macro + 1 Lightning Scalp)
+To protect capital and guarantee margin safety, the AWS worker enforces a strict fleet ceiling:
+* **Total Simultaneous Positions:** $\le 3$.
+* **Macro Positions:** $\le 2$ (governed by `CapitalRecycler` / `Orchestrator`).
+* **Lightning Scalp Positions:** $\le 1$ (governed by `ApexScalperEngine`).
+* Total active risk across all open positions is strictly bounded to $\le 4.5\%$ of equity.
+
+### 2. 50-Trade Session Quota & Auto-Email Dispatch
+* The live execution worker tracks cumulative completed trades per session.
+* Upon executing the **50th trade**, the worker automatically trips a circuit breaker:
+  1. Sets `live_trading_enabled = false` across all strategy threads.
+  2. Dispatches an automated SMTP email to `ALERT_RECIPIENT_EMAIL` with a full performance summary (Net PnL, Win Rate, Taker Fee Drag, and Sweetspot Duration Compliance).
+  3. Existing open brackets continue to be managed until closed by TP/SL or the temporal sweeper.
+
+### 3. Sweetspot Expiration & Stagnation Sweeper
+* **Lightning Scalp:** Target holding duration is **10 to 12 minutes**. If a scalp remains stagnant after **8 minutes (480s)** with unrealized PnL $< +0.15\%$, it is closed immediately at market to free margin. Hard ceiling is **15 minutes (900s)**.
+* **Macro Trades:** Stagnation cutoff at **90 minutes**; absolute hard ceiling at **4 hours**.
+
+---
+
+## Step 8: Advisory Consultant & Multi-Perspective Audit
+
+The AWS deployment includes the **Specialized Advisory Consultant Engine** (`src/quant/advisory_consultant.py`), which calculates the **Tri-Perspective Adversarial Conviction Ratio ($ACR$)**:
+
+$$ACR = \frac{C_{\text{bull}} \times (1 - P_{\text{bear}})}{1 + R_{\text{drag}}}$$
+
+Run an out-of-band market audit directly on AWS or your local workstation at any time:
+```bash
+# Audit a specific candidate
+python scripts/run_consultant_assessment.py --symbol SOLUSDT
+
+# Audit full core universe
+python scripts/run_consultant_assessment.py --all
+```
+The consultant runs completely decoupled from the 24/7 live trading loop, ensuring zero latency or disruption to active order execution.
+

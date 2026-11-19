@@ -54,6 +54,14 @@ from src.quant.capital_recycler import (
     RecyclerDecision,
     TradeHealthEvaluation
 )
+from src.quant.execution_realism import (
+    DEFAULT_FRICTION_CONFIG,
+    TickQuote,
+    evaluate_causal_breakout_entry,
+    evaluate_pessimistic_bracket_exit,
+    evaluate_market_flatten_exit,
+    calculate_exact_trade_pnl,
+)
 
 # Configure structured console logging
 logging.basicConfig(
@@ -64,7 +72,7 @@ logging.basicConfig(
 logger = logging.getLogger("tiger_worker")
 
 NOTIONAL_PER_TRADE = Decimal("100.00")  # $20 margin x 5x leverage
-FEE_FRICTION_PCT = Decimal("0.0009")    # 0.09% roundtrip (VIP0 maker/taker + slippage)
+FEE_FRICTION_PCT = Decimal("0.0022")    # 0.22% roundtrip (0.08% VIP0 taker + 0.14% realistic micro-cap slippage)
 
 
 def fetch_live_binance_tickers() -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
@@ -165,7 +173,7 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
     print(f"  STALKING TIGER (STRATEGY #3) — REAL-TIME LIVE FORWARD PAPER TRADING ENGINE")
     print(f"  Environment: Local High-Performance PC | Exchange: Binance USD(S)-M Futures")
     print(f"  Rate Budget: 2,400 weight/min | Sieve Scan Cadence: 30s | Sniper Slots: 5 Hot Prey")
-    print(f"  Capital/Trade: $20 Margin x 5x Leverage ($100 Notional) | Fees: 0.09% Roundtrip")
+    print(f"  Capital/Trade: $20 Margin x 5x Leverage ($100 Max Notional) | Friction: 0.22% Roundtrip (Fees+Slippage)")
     print(f"  Temporal Discipline: 90s Signal TTL | 8-12-15m Temporal Decay Ladder")
     print(f"  Forensics Database: data/tiger_trades.db | Learning Rules: data/tiger_distilled_rules.json")
     print("=" * 92 + "\n")
@@ -178,10 +186,45 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
     ws_manager = TigerWebSocketManager(config=cfg)
     ws_manager.start()
 
+    # Wire Real-Money Integrity Standard (v3) Sovereign Risk Engine sharing data/risk_ledger.db & data/risk_state.txt
+    from dataclasses import replace as _dc_replace
+    from risk_engine import (
+        DEFAULT_CONFIG_PATH,
+        DecisionStatus,
+        OrderSide,
+        OrderType,
+        PortfolioState,
+        PositionSnapshot,
+        ProposedOrder,
+        RiskConfig,
+        RiskEngine,
+        audit_lesson_alignment,
+        build_market_snapshot_from_orderbook,
+    )
+    _t_rcfg = RiskConfig.from_file(DEFAULT_CONFIG_PATH)
+    _t_updates: Dict[str, Any] = {}
+    for _fn in ("control_file_path", "ledger_db_path", "audit_log_dir"):
+        _val = getattr(_t_rcfg, _fn)
+        if _val and not os.path.isabs(_val):
+            _t_updates[_fn] = os.path.join(PROJECT_ROOT, _val)
+    tiger_risk_cfg = _dc_replace(_t_rcfg, **_t_updates) if _t_updates else _t_rcfg
+    _t_align = audit_lesson_alignment(tiger_risk_cfg, lessons_db_path=os.path.join(PROJECT_ROOT, "data", "lessons.db"))
+    logger.info(
+        f"[RISK-ENGINE] Tiger v3 Gatekeeper armed | Aligned={_t_align.is_aligned} "
+        f"({_t_align.mapped_count}/{_t_align.total_lessons_in_db} lessons)"
+    )
+    tiger_risk_engine = RiskEngine(config=tiger_risk_cfg)
+    tiger_equity_usd = Decimal("200.00")
+    tiger_peak_equity_usd = tiger_equity_usd
+    tiger_intraday_start_usd = tiger_equity_usd
+    tiger_equity_day = datetime.datetime.now(datetime.timezone.utc).date()
+
     iteration = 0
     top_5_prey: List[PreyCandidate] = []
     last_hygiene_ts = time.time()
     last_oi_poll_ts = 0.0
+    pos_last_tick_ts_ms: Dict[str, int] = {}
+    symbol_adv_map: Dict[str, Decimal] = {}
 
     try:
         while True:
@@ -219,8 +262,10 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
             if iteration == 1 or (loop_start - scanner.last_scan_ts >= poll_interval):
                 try:
                     universe_150, top_5_prey = scanner.run_sieve(excluded_symbols=excluded_from_hunting)
-                    # Feed isolated prey symbols PLUS any active position symbols into live WebSocket manager
-                    all_monitored = list(set(c.symbol for c in top_5_prey) | active_pos_symbols)
+                    for uc in universe_150:
+                        symbol_adv_map[uc.symbol] = uc.turnover_24h_usd
+                    # Feed isolated prey symbols PLUS active position AND pending signal symbols into live WebSocket manager
+                    all_monitored = list(set(c.symbol for c in top_5_prey) | active_pos_symbols | pending_sig_symbols)
                     ws_manager.update_symbols(all_monitored)
                 except Exception as e:
                     logger.error(f"[SCAN FAILED] Error during bulk ticker scan: {e}")
@@ -248,19 +293,73 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
             for exp_id in expired_signals:
                 logger.info(f"[SIGNAL EXPIRED] 90s TTL reached for signal {exp_id}. Cancelled order.")
 
-            # 3. Monitor & Manage Open Active Positions (Capital Recycler Overseer)
+            # 3. Monitor & Manage Open Active Positions (Truth-Grade Execution + Capital Recycler)
             recycler_evaluations = []
             btc_1m_ret, btc_cvd_z = ws_manager.get_btc_macro_pulse()
 
             for pos_id, pos in list(engine.active_positions.items()):
-                # Fetch latest price
-                klines = fetch_symbol_recent_klines(pos.symbol, limit=2)
+                # Bypass 25s scan cache for active positions (fresh 5s max age)
+                klines = fetch_symbol_recent_klines(pos.symbol, limit=2, max_age_seconds=5.0)
                 if not klines:
                     continue
+                bar_open_ts_ms = int(klines[-1][0])
+                bar_high = Decimal(str(klines[-1][2]))
+                bar_low = Decimal(str(klines[-1][3]))
                 current_price = Decimal(str(klines[-1][4]))
 
-                # 3.1 Capital Recycler Multi-Factor Position Audit
+                # Gather live causal WS ticks & top-of-book depth
                 tracker = ws_manager.get_tracker(pos.symbol)
+                entry_ts_ms = int(pos.entry_time_utc.timestamp() * 1000)
+                since_ms = max(entry_ts_ms, pos_last_tick_ts_ms.get(pos_id, entry_ts_ms))
+                causal_ticks: List[TickQuote] = []
+                live_spread_pct = None
+                best_bid = None
+                best_ask = None
+                if tracker:
+                    if tracker.last_depth:
+                        best_bid = tracker.last_depth.best_bid
+                        best_ask = tracker.last_depth.best_ask
+                        live_spread_pct = tracker.last_depth.spread_pct
+                    for tr in list(tracker.trades):
+                        if tr.timestamp_ms > since_ms:
+                            causal_ticks.append(TickQuote(price=tr.price, timestamp_ms=tr.timestamp_ms))
+                    if causal_ticks:
+                        pos_last_tick_ts_ms[pos_id] = max(t.timestamp_ms for t in causal_ticks)
+                        current_price = causal_ticks[-1].price
+
+                # Update MFE/MAE trajectory extremes using real ticks (and post-entry bar extremes)
+                extreme_prices = [current_price] + [t.price for t in causal_ticks]
+                if bar_open_ts_ms >= entry_ts_ms:
+                    extreme_prices.extend([bar_high, bar_low])
+                interval_high = max(extreme_prices)
+                interval_low = min(extreme_prices)
+                if pos.side == "BUY":
+                    pos.highest_favorable_price = max(pos.highest_favorable_price or pos.entry_price, interval_high)
+                    pos.lowest_adverse_price = min(pos.lowest_adverse_price or pos.entry_price, interval_low)
+                else:
+                    pos.highest_favorable_price = min(pos.highest_favorable_price or pos.entry_price, interval_low)
+                    pos.lowest_adverse_price = max(pos.lowest_adverse_price or pos.entry_price, interval_high)
+
+                adv_usd = symbol_adv_map.get(pos.symbol, Decimal("50000000"))
+
+                # 3.1 Truth-Grade Bracket Check FIRST (Hard TP cap + WS/wick SL + pessimistic tie-breaker)
+                bracket_res = evaluate_pessimistic_bracket_exit(
+                    side=pos.side,
+                    take_profit=pos.take_profit,
+                    stop_loss=pos.stop_loss,
+                    symbol=pos.symbol,
+                    ordered_ticks=causal_ticks,
+                    interval_high=interval_high if bar_open_ts_ms >= entry_ts_ms else None,
+                    interval_low=interval_low if bar_open_ts_ms >= entry_ts_ms else None,
+                    current_price=current_price,
+                    live_spread_pct=live_spread_pct,
+                    notional_usd=pos.notional_usd,
+                    adv_24h_usd=adv_usd,
+                    require_tp_penetration=True,
+                    cfg=DEFAULT_FRICTION_CONFIG,
+                )
+
+                # 3.2 Capital Recycler Multi-Factor Position Audit
                 cand_cvd_z = tracker.compute_cvd_metrics()[1] if tracker else None
                 eval_res = capital_recycler.evaluate(
                     pos,
@@ -282,8 +381,8 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                     "action_reason": eval_res.action_reason
                 })
 
-                # 3.2 Dynamic Breakeven Ratchet Reflex
-                if eval_res.should_ratchet and not pos.is_breakeven_ratcheted:
+                # 3.3 Dynamic Breakeven Ratchet Reflex (only if bracket wasn't already hit)
+                if not bracket_res.triggered and eval_res.should_ratchet and not pos.is_breakeven_ratcheted:
                     capital_recycler.execute_ratchet(pos, eval_res)
                     engine.ratchet_to_breakeven(pos_id, new_sl=eval_res.recommended_new_sl)
                     logger.info(
@@ -291,41 +390,102 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                         f"({eval_res.recommended_new_sl}) | {eval_res.action_reason}"
                     )
 
-                # 3.3 Check Lifecycle & Move-On Decisions
-                action, reason = engine.evaluate_temporal_lifecycle(
-                    position_id=pos_id,
-                    current_price=current_price,
-                    current_time_utc=now_utc,
-                    fee_friction_pct=FEE_FRICTION_PCT
-                )
+                # 3.4 Determine Final Exit Action & Truth-Grade Fill Price/Fees
+                action = "HOLD"
+                reason = None
+                actual_exit_price = current_price
+                exit_fee_pct = DEFAULT_FRICTION_CONFIG.taker_fee_pct
 
-                if eval_res.should_exit:
-                    action = eval_res.decision.value
-                    reason = f"CAPITAL_RECYCLER: {eval_res.action_reason}"
+                if bracket_res.triggered:
+                    action = bracket_res.action
+                    actual_exit_price = bracket_res.exit_price
+                    exit_fee_pct = bracket_res.exit_fee_pct
+                    reason = bracket_res.reason
+                else:
+                    action, reason = engine.evaluate_temporal_lifecycle(
+                        position_id=pos_id,
+                        current_price=current_price,
+                        current_time_utc=now_utc,
+                        fee_friction_pct=FEE_FRICTION_PCT
+                    )
+                    if eval_res.should_exit:
+                        action = eval_res.decision.value
+                        reason = f"CAPITAL_RECYCLER: {eval_res.action_reason}"
+
+                    if action in ("TAKE_PROFIT", "STOP_LOSS"):
+                        # Enforce hard TP cap / SL slippage even if lifecycle triggered
+                        if action == "TAKE_PROFIT":
+                            actual_exit_price = pos.take_profit
+                            exit_fee_pct = DEFAULT_FRICTION_CONFIG.maker_fee_pct
+                        else:
+                            sl_res = evaluate_pessimistic_bracket_exit(
+                                side=pos.side,
+                                take_profit=pos.take_profit,
+                                stop_loss=pos.stop_loss,
+                                symbol=pos.symbol,
+                                current_price=current_price,
+                                live_spread_pct=live_spread_pct,
+                                notional_usd=pos.notional_usd,
+                                adv_24h_usd=adv_usd,
+                                cfg=DEFAULT_FRICTION_CONFIG,
+                            )
+                            actual_exit_price = sl_res.exit_price if sl_res.triggered else current_price
+                            exit_fee_pct = DEFAULT_FRICTION_CONFIG.taker_fee_pct
+                    elif action in ("STALL_SCRATCH", "HARD_KILL") or eval_res.should_exit:
+                        flat_res = evaluate_market_flatten_exit(
+                            side=pos.side,
+                            current_price=current_price,
+                            symbol=pos.symbol,
+                            best_bid=best_bid,
+                            best_ask=best_ask,
+                            live_spread_pct=live_spread_pct,
+                            notional_usd=pos.notional_usd,
+                            adv_24h_usd=adv_usd,
+                            action_label=action,
+                            reason_prefix=reason or action,
+                            cfg=DEFAULT_FRICTION_CONFIG,
+                        )
+                        actual_exit_price = flat_res.exit_price
+                        exit_fee_pct = flat_res.exit_fee_pct
+                        reason = flat_res.reason
 
                 if action in ("TAKE_PROFIT", "STOP_LOSS", "STALL_SCRATCH", "HARD_KILL") or eval_res.should_exit:
                     # Execute Move-On via Capital Recycler (Zero-Orphan Contract + Quarantine + Autopsy)
                     capital_recycler.execute_move_on(
                         pos,
                         eval_res,
-                        current_price=current_price,
+                        current_price=actual_exit_price,
                         current_time_utc=now_utc,
                         on_slot_liberated=lambda pid, sym: logger.info(
                             f"[SLOT LIBERATED] Capital Recycler freed slot from {sym} for fresh prey."
                         )
                     )
 
-                    # Close position in engine
+                    # Exact VIP0 maker/taker fee accounting (entry is breakout taker 0.05% + exit maker/taker)
+                    entry_fee_pct = DEFAULT_FRICTION_CONFIG.taker_fee_pct
+                    total_fee_pct = entry_fee_pct + exit_fee_pct
+                    pnl_bd = calculate_exact_trade_pnl(
+                        side=pos.side,
+                        entry_price=pos.entry_price,
+                        exit_price=actual_exit_price,
+                        notional_usd=pos.notional_usd,
+                        entry_fee_pct=entry_fee_pct,
+                        exit_fee_pct=exit_fee_pct,
+                    )
+
+                    # Close position in engine (evaluating true net-of-friction win/loss)
                     close_info = engine.close_position(
                         position_id=pos_id,
-                        exit_price=current_price,
+                        exit_price=actual_exit_price,
                         exit_time_utc=now_utc,
-                        reason=reason or action
+                        reason=reason or action,
+                        fee_friction_pct=total_fee_pct
                     )
-                    gross_ret = Decimal(close_info["pnl_pct"])
-                    net_ret = gross_ret - FEE_FRICTION_PCT
+                    pos_last_tick_ts_ms.pop(pos_id, None)
+                    net_ret = pnl_bd.net_return_pct
                     notional_traded = pos.notional_usd
-                    net_usd = notional_traded * net_ret
+                    net_usd = pnl_bd.net_pnl_usd
+                    net_is_win = pnl_bd.is_net_win
                     duration_s = int((now_utc - pos.entry_time_utc).total_seconds())
 
                     mfe_pct = Decimal("0")
@@ -341,9 +501,9 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                         if pos.lowest_adverse_price:
                             mae_pct = (pos.lowest_adverse_price - pos.entry_price) / pos.entry_price
 
-                    # Classify trade autopsy outcome
+                    # Classify trade autopsy outcome (strictly net of fees & slippage)
                     auto_code = classify_trade_autopsy(
-                        is_win=close_info["is_win"],
+                        is_win=net_is_win,
                         mfe_pct=mfe_pct,
                         mae_pct=mae_pct,
                         net_pnl_usd=net_usd,
@@ -357,13 +517,13 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                         symbol=pos.symbol,
                         side=pos.side,
                         entry_price=pos.entry_price,
-                        exit_price=current_price,
+                        exit_price=actual_exit_price,
                         notional_usd=notional_traded,
                         net_pnl_usd=net_usd.quantize(Decimal("0.01")),
                         net_pnl_pct=net_ret.quantize(Decimal("0.0001")),
                         duration_seconds=duration_s,
                         exit_reason=close_info["reason"],
-                        is_win=close_info["is_win"],
+                        is_win=net_is_win,
                         mfe_pct=mfe_pct.quantize(Decimal("0.0001")),
                         mae_pct=mae_pct.quantize(Decimal("0.0001")),
                         wick_ratio=Decimal("0.45"),
@@ -375,36 +535,177 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                         autopsy_code=auto_code
                     )
                     learning.record_trade(forensics)
+                    tiger_equity_usd += net_usd
+                    if tiger_equity_usd > tiger_peak_equity_usd:
+                        tiger_peak_equity_usd = tiger_equity_usd
+                    if now_utc.date() != tiger_equity_day:
+                        tiger_equity_day = now_utc.date()
+                        tiger_intraday_start_usd = tiger_equity_usd
 
                     # Trigger autonomous learning distillation
                     distilled = learning.run_learning_distillation()
                     if distilled:
                         logger.info(f"[LEARNING AUDIT] Rules updated! Win Rate: {distilled.win_rate_pct}% | PF: {distilled.profit_factor}")
 
-            # 4. Process Pending Signals: Check for Limit Entry Fills
+            # 4. Process Pending Signals: Causal Breakout Entry Fills (Zero Same-Candle Lookahead + Dynamic Slippage)
             for sig_id, sig in list(engine.pending_signals.items()):
                 if sig.status == "PENDING":
-                    klines = fetch_symbol_recent_klines(sig.symbol, limit=2)
+                    klines = fetch_symbol_recent_klines(sig.symbol, limit=2, max_age_seconds=5.0)
                     if not klines:
                         continue
+                    latest_bar_open_ms = int(klines[-1][0])
                     latest_high = Decimal(str(klines[-1][2]))
                     latest_low = Decimal(str(klines[-1][3]))
 
-                    filled = False
-                    fill_price = sig.entry_trigger_price
-                    if sig.action == "SELL" and latest_low <= sig.entry_trigger_price:
-                        filled = True
-                    elif sig.action == "BUY" and latest_high >= sig.entry_trigger_price:
-                        filled = True
+                    sig_created_ms = int(sig.created_at_utc.timestamp() * 1000)
+                    tracker = ws_manager.get_tracker(sig.symbol)
+                    ticks_after: List[TickQuote] = []
+                    best_bid = None
+                    best_ask = None
+                    live_spread_pct = None
+                    if tracker:
+                        if tracker.last_depth:
+                            best_bid = tracker.last_depth.best_bid
+                            best_ask = tracker.last_depth.best_ask
+                            live_spread_pct = tracker.last_depth.spread_pct
+                        for tr in list(tracker.trades):
+                            if tr.timestamp_ms > sig_created_ms:
+                                ticks_after.append(TickQuote(price=tr.price, timestamp_ms=tr.timestamp_ms))
 
-                    if filled:
+                    adv_usd = symbol_adv_map.get(sig.symbol, Decimal("50000000"))
+                    est_notional = NOTIONAL_PER_TRADE
+                    if cfg.brackets.volatility_parity_enabled:
+                        est_notional, _ = engine.calculate_volatility_parity_sizing(sig.entry_trigger_price, sig.stop_loss_price)
+
+                    entry_res = evaluate_causal_breakout_entry(
+                        side=sig.action,
+                        trigger_price=sig.entry_trigger_price,
+                        signal_created_ts_ms=sig_created_ms,
+                        symbol=sig.symbol,
+                        ticks_after_signal=ticks_after,
+                        fallback_bar_open_ts_ms=latest_bar_open_ms,
+                        fallback_bar_high=latest_high,
+                        fallback_bar_low=latest_low,
+                        best_bid=best_bid,
+                        best_ask=best_ask,
+                        live_spread_pct=live_spread_pct,
+                        notional_usd=est_notional,
+                        adv_24h_usd=adv_usd,
+                        cfg=DEFAULT_FRICTION_CONFIG,
+                    )
+
+                    if entry_res.filled:
+                        fill_price = entry_res.fill_price
+                        # Guard against inverted bracket if extreme gap slipped past SL/TP
+                        invalid_gap = (
+                            (sig.action == "BUY" and (fill_price <= sig.stop_loss_price or fill_price >= sig.take_profit_price))
+                            or (sig.action == "SELL" and (fill_price >= sig.stop_loss_price or fill_price <= sig.take_profit_price))
+                        )
+                        if invalid_gap:
+                            logger.warning(
+                                f"[TIGER GAP VETO] {sig.symbol} {sig.action} slipped fill {fill_price} breached bracket "
+                                f"(TP:{sig.take_profit_price}, SL:{sig.stop_loss_price}). Signal cancelled."
+                            )
+                            sig.status = "EXPIRED"
+                            del engine.pending_signals[sig_id]
+                            engine.save_state()
+                            continue
+
                         if cfg.brackets.volatility_parity_enabled:
                             notional_usd, qty = engine.calculate_volatility_parity_sizing(fill_price, sig.stop_loss_price)
                         else:
                             notional_usd = NOTIONAL_PER_TRADE
                             qty = (notional_usd / fill_price).quantize(Decimal("0.001"))
-                        engine.fill_signal(sig_id, fill_price=fill_price, quantity=qty, fill_time_utc=now_utc, notional_usd=notional_usd)
-                        logger.info(f"[TIGER POUNCE FILLED] {sig.symbol} {sig.action} filled at {fill_price} (TP: {sig.take_profit_price}, SL: {sig.stop_loss_price}) | Notional: ${notional_usd:.2f} (Locked Risk: ${cfg.brackets.risk_budget_per_trade_usd})")
+
+                        # Synchronous Sovereign RiskEngine Gatekeeper clearance (v3)
+                        if now_utc.date() != tiger_equity_day:
+                            tiger_equity_day = now_utc.date()
+                            tiger_intraday_start_usd = tiger_equity_usd
+                        now_ms_eval = int(now_utc.timestamp() * 1000)
+                        tiger_pos_snaps = {
+                            ap.symbol: PositionSnapshot(
+                                symbol=ap.symbol,
+                                side=OrderSide.coerce(ap.side),
+                                quantity=ap.quantity,
+                                entry_price=ap.entry_price,
+                                mark_price=ap.entry_price,
+                                leverage=Decimal(str(ap.leverage)),
+                                stop_loss=ap.stop_loss,
+                            )
+                            for ap in engine.active_positions.values()
+                        }
+                        tiger_portfolio = PortfolioState(
+                            equity_usd=tiger_equity_usd,
+                            peak_equity_usd=tiger_peak_equity_usd,
+                            intraday_start_equity_usd=tiger_intraday_start_usd,
+                            free_margin_usd=tiger_equity_usd,
+                            positions=tiger_pos_snaps,
+                            timestamp_ms=now_ms_eval,
+                        )
+                        eff_bid = best_bid if (best_bid and best_bid > Decimal("0")) else fill_price * Decimal("0.9998")
+                        eff_ask = best_ask if (best_ask and best_ask > Decimal("0")) else fill_price * Decimal("1.0002")
+                        est_depth_usd = Decimal("25000.00")
+                        if tracker and tracker.last_depth:
+                            b_d = getattr(tracker.last_depth, "bid_depth_usd", None)
+                            a_d = getattr(tracker.last_depth, "ask_depth_usd", None)
+                            if b_d and a_d and Decimal(str(b_d)) > Decimal("0") and Decimal(str(a_d)) > Decimal("0"):
+                                est_depth_usd = Decimal(str(b_d))
+                                ask_d_val = Decimal(str(a_d))
+                            else:
+                                ask_d_val = est_depth_usd
+                        else:
+                            ask_d_val = est_depth_usd
+                        tiger_market = build_market_snapshot_from_orderbook(
+                            symbol=sig.symbol,
+                            mark_price=fill_price,
+                            best_bid=eff_bid,
+                            best_ask=eff_ask,
+                            bid_depth_usd=est_depth_usd,
+                            ask_depth_usd=ask_d_val,
+                            step_size=Decimal("0.001"),
+                            min_qty=Decimal("0.001"),
+                            min_notional_usd=Decimal("5.00"),
+                            now_ms=now_ms_eval,
+                        )
+                        proposed_tiger = ProposedOrder(
+                            symbol=sig.symbol,
+                            side=OrderSide.coerce(sig.action),
+                            order_type=OrderType.MARKET,
+                            quantity=qty,
+                            price=fill_price,
+                            stop_loss=sig.stop_loss_price,
+                            take_profit=sig.take_profit_price,
+                            conviction=Decimal("0.80"),
+                            leverage=Decimal("5"),
+                            client_order_id=sig_id,
+                            timestamp_ms=now_ms_eval,
+                        )
+                        risk_dec = tiger_risk_engine.evaluate_order(
+                            proposed_order=proposed_tiger,
+                            portfolio_state=tiger_portfolio,
+                            market_snapshot=tiger_market,
+                            now_ms=now_ms_eval,
+                        )
+                        if not risk_dec.is_executable:
+                            logger.warning(
+                                f"[RISK-VETO] Tiger entry {sig.symbol} {sig.action} blocked ({risk_dec.status.value}): {risk_dec.reason_codes}"
+                            )
+                            sig.status = "CANCELLED"
+                            del engine.pending_signals[sig_id]
+                            engine.save_state()
+                            continue
+                        if risk_dec.status == DecisionStatus.RESIZED:
+                            qty = risk_dec.approved_qty
+                            notional_usd = (qty * fill_price).quantize(Decimal("0.01"))
+
+                        pos_obj = engine.fill_signal(sig_id, fill_price=fill_price, quantity=qty, fill_time_utc=now_utc, notional_usd=notional_usd)
+                        if pos_obj:
+                            pos_last_tick_ts_ms[pos_obj.position_id] = int(now_utc.timestamp() * 1000)
+                        logger.info(
+                            f"[TIGER POUNCE FILLED] {sig.symbol} {sig.action} filled at {fill_price:.6f} "
+                            f"(Trigger: {sig.entry_trigger_price}, Slip: {entry_res.slippage_pct*10000:.1f}bps via {entry_res.fill_source} | "
+                            f"TP: {sig.take_profit_price}, SL: {sig.stop_loss_price}) | Notional: ${notional_usd:.2f}"
+                        )
 
             # 5. Scan Active Targets for New Trapped Trader Absorption Setups
             total_committed = len(engine.active_positions) + len(engine.pending_signals)

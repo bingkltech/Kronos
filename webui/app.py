@@ -1011,6 +1011,7 @@ from src.quant.binance_execution import BinanceAtomicExecutor, PositionState
 from src.quant.kev_risk_arbiter import TradeTicket
 from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
 from src.quant.apex_scalper import ApexScalperEngine, ActiveScalpState
+from src.quant.quota_notifier import quota_mgr
 
 # Global singleton quant orchestrator
 quant_bot = QuantBotOrchestrator(
@@ -1215,7 +1216,7 @@ def _save_bot_settings():
         }
         temp_file = f"{BOT_SETTINGS_FILE}.tmp"
         with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+            json.dump(payload, f, indent=2, default=str)
         if os.path.exists(BOT_SETTINGS_FILE):
             os.replace(temp_file, BOT_SETTINGS_FILE)
         else:
@@ -1391,6 +1392,106 @@ def _execute_live_bot_cycle():
     except Exception as e:
         logger.warning("Error running purge_orphaned_algo_orders in live cycle: %s", e)
 
+    # 1. Trade Quota Auto-Pause Check:
+    global live_trading_enabled
+    if not quota_mgr.has_quota_remaining:
+        print(f">> [LIVE TRADE QUOTA] Session trade cap ({quota_mgr.session_trades}/{quota_mgr.trade_cap}) reached. Auto-pausing live macro trading.")
+        live_trading_enabled = False
+        summary = {
+            "success": True,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "macro_regime": "QUOTA_PAUSED",
+            "breadth_pct": "0.0%",
+            "evaluated_count": 0,
+            "dispatched_count": 0,
+            "decisions": [],
+            "dispatched_trades": [],
+            "live_account": {
+                "total_wallet_balance_usd": float(live_summary.get("total_wallet_balance_usd", Decimal("0.00"))),
+                "available_balance_usd": float(live_summary.get("available_balance_usd", Decimal("0.00"))),
+                "unrealized_pnl_usd": float(live_summary.get("unrealized_pnl_usd", Decimal("0.00"))),
+                "margin_ratio_pct": float(live_summary.get("margin_ratio_pct", Decimal("0.00"))),
+                "active_positions": live_summary.get("positions", [])
+            },
+            "quota_status": {
+                "cap_reached": True,
+                "session_trades": quota_mgr.session_trades,
+                "trade_cap": quota_mgr.trade_cap
+            }
+        }
+        live_last_cycle_summary = summary
+        live_trading_last_scan = datetime.datetime.now(datetime.timezone.utc)
+        live_trading_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=live_trading_interval)
+        _save_bot_settings()
+        return summary
+
+    # 2. Portfolio Concurrency & Strategy Allocation Checks (Max 3 total: 2 Macro + 1 Scalp)
+    active_positions = live_summary.get("positions", [])
+    active_symbols = set(p.get("symbol") for p in active_positions)
+    scalp_active_symbols = quant_bot.executor.scalp_active_symbols
+    macro_positions = [
+        p for p in active_positions
+        if p.get("symbol") not in scalp_active_symbols
+    ]
+
+    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    if len(active_positions) >= max_portfolio_positions:
+        print(f">> [PORTFOLIO CONCURRENCY] Maximum concurrent positions held ({len(active_positions)}/{max_portfolio_positions}: {active_symbols}). Holding.")
+        summary = {
+            "success": True,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "macro_regime": "CONCURRENCY_HELD",
+            "breadth_pct": "0.0%",
+            "evaluated_count": 0,
+            "dispatched_count": 0,
+            "decisions": [],
+            "dispatched_trades": [],
+            "live_account": {
+                "total_wallet_balance_usd": float(live_summary.get("total_wallet_balance_usd", Decimal("0.00"))),
+                "available_balance_usd": float(live_summary.get("available_balance_usd", Decimal("0.00"))),
+                "unrealized_pnl_usd": float(live_summary.get("unrealized_pnl_usd", Decimal("0.00"))),
+                "margin_ratio_pct": float(live_summary.get("margin_ratio_pct", Decimal("0.00"))),
+                "active_positions": active_positions
+            }
+        }
+        live_last_cycle_summary = summary
+        live_trading_last_scan = datetime.datetime.now(datetime.timezone.utc)
+        live_trading_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=live_trading_interval)
+        _save_bot_settings()
+        return summary
+
+    max_macro_positions = int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2"))
+    if len(macro_positions) >= max_macro_positions:
+        print(f">> [STRATEGY ALLOCATION] Macro slots full ({len(macro_positions)}/{max_macro_positions} occupied: {[p.get('symbol') for p in macro_positions]}). Holding for exit before new macro entry.")
+        summary = {
+            "success": True,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "macro_regime": "MACRO_SLOTS_FULL",
+            "breadth_pct": "0.0%",
+            "evaluated_count": 0,
+            "dispatched_count": 0,
+            "decisions": [],
+            "dispatched_trades": [],
+            "live_account": {
+                "total_wallet_balance_usd": float(live_summary.get("total_wallet_balance_usd", Decimal("0.00"))),
+                "available_balance_usd": float(live_summary.get("available_balance_usd", Decimal("0.00"))),
+                "unrealized_pnl_usd": float(live_summary.get("unrealized_pnl_usd", Decimal("0.00"))),
+                "margin_ratio_pct": float(live_summary.get("margin_ratio_pct", Decimal("0.00"))),
+                "active_positions": active_positions
+            }
+        }
+        live_last_cycle_summary = summary
+        live_trading_last_scan = datetime.datetime.now(datetime.timezone.utc)
+        live_trading_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=live_trading_interval)
+        _save_bot_settings()
+        return summary
+
+    # 3. Macro Entry Cap:
+    remaining_quota = quota_mgr.trades_remaining if quota_mgr.trades_remaining is not None else 1
+    macro_available = max_macro_positions - len(macro_positions)
+    portfolio_available = max_portfolio_positions - len(active_positions)
+    macro_entry_cap = min(remaining_quota, macro_available, portfolio_available)
+
     data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
     lookbacks = {}
     for sym in list(ALL_SUPPORTED_SYMBOLS.keys())[:5]:
@@ -1404,7 +1505,8 @@ def _execute_live_bot_cycle():
     report = quant_bot.run_scan_cycle(
         account_equity=account_equity,
         lookback_data_map=lookbacks if lookbacks else None,
-        execution_mode="LIVE"
+        execution_mode="LIVE",
+        max_new_entries=macro_entry_cap
     )
     live_trading_last_scan = report.timestamp_utc
     live_trading_next_scan_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=live_trading_interval)
@@ -1444,6 +1546,11 @@ def _execute_live_bot_cycle():
     ]
 
     fresh_account = quant_bot.executor.get_live_account_summary()
+
+    for p in report.dispatched_trades:
+        quota_mgr.record_dispatch(p.symbol, "MACRO", account_summary=fresh_account)
+    if not quota_mgr.is_active:
+        live_trading_enabled = False
 
     summary = {
         "success": True,
@@ -1598,6 +1705,7 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     1. If slot occupied: fetches current price, updates MAE/MFE, checks TP/SL or 45m timeout.
     2. If slot free: scores Top-10 coins, picks #1 apex candidate, and opens bracket.
     """
+    global live_trading_enabled
     if account_equity is None:
         account_equity = quant_bot.executor.get_current_equity()
 
@@ -1676,12 +1784,15 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 hit_tp = (pos.side == "BUY" and curr_price >= pos.take_profit) or (pos.side == "SELL" and curr_price <= pos.take_profit)
                 hit_sl = (pos.side == "BUY" and curr_price <= pos.stop_loss) or (pos.side == "SELL" and curr_price >= pos.stop_loss)
                 timed_out = duration_sec >= pos.max_duration_seconds
+                is_stalled, stall_reason = apex_scalper.evaluate_stagnation(now_utc)
 
-                if hit_tp or hit_sl or timed_out:
+                if hit_tp or hit_sl or timed_out or is_stalled:
                     if hit_tp:
                         reason = "TAKE_PROFIT_HIT"
                     elif hit_sl:
                         reason = "STOP_LOSS_HIT"
+                    elif is_stalled:
+                        reason = "STAGNATION_EXPIRATION"
                     else:
                         reason = "TIME_EXPIRATION"
 
@@ -1693,7 +1804,7 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                             quant_bot.executor._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": pos.symbol})
                         except Exception:
                             pass
-                        if reason in ("FAST_PROFIT_SNATCH", "TIME_EXPIRATION"):
+                        if reason in ("FAST_PROFIT_SNATCH", "TIME_EXPIRATION", "STAGNATION_EXPIRATION"):
                             try:
                                 flat_side = "SELL" if pos.side == "BUY" else "BUY"
                                 quant_bot.executor._signed_request("POST", "/fapi/v1/order", {
@@ -1722,6 +1833,39 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     # If the scalper slot is free, evaluate fresh microstructure candidates directly.
     # Note: We strictly avoid heuristic position adoption (e.g. leverage >= 3) to prevent
     # mistakenly hijacking and liquidating macro swing trades.
+
+    # Quota check
+    if not quota_mgr.has_quota_remaining:
+        if live_trading_enabled:
+            print(f">> [LIVE TRADE QUOTA] Session trade cap ({quota_mgr.session_trades}/{quota_mgr.trade_cap}) reached. Auto-pausing live scalp trading.")
+            live_trading_enabled = False
+        return
+
+    # Concurrency Clamp: Max 3 positions across entire portfolio
+    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    all_active_symbols = set()
+    scalp_active_symbols = quant_bot.executor.scalp_active_symbols
+    if live_trading_enabled:
+        try:
+            live_acc_check = quant_bot.executor.get_live_account_summary()
+            if live_acc_check.get("connected"):
+                all_active_symbols = set(p.get("symbol") for p in live_acc_check.get("positions", []))
+        except Exception:
+            pass
+    else:
+        for p in quant_bot.executor.active_positions.values():
+            if p.state == PositionState.BRACKETS_ACTIVE:
+                all_active_symbols.add(p.symbol)
+        if apex_scalper.active_scalp:
+            all_active_symbols.add(apex_scalper.active_scalp.symbol)
+
+    if len(all_active_symbols) >= max_portfolio_positions:
+        return
+
+    # Dedicated Scalp Allocation: Strictly 1 Scalp slot
+    active_scalps = all_active_symbols.intersection(scalp_active_symbols)
+    if len(active_scalps) >= 1 or not apex_scalper.is_slot_available:
+        return
 
     # 3. Slot is Free: Institutional Microstructure & Order Flow Screening
     candidates = []
@@ -1842,6 +1986,9 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
                 if live_res.stop_loss_order_id:
                     quant_bot.executor.record_scalp_order(live_res.stop_loss_order_id)
                 print(f">> [REAL LIVE APEX SCALP DISPATCHED TO BINANCE]{ct_tag} {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} OrderID={live_res.entry_order_id}")
+                quota_mgr.record_dispatch(apex.symbol, "SCALP", account_summary=live_acc)
+                if not quota_mgr.is_active:
+                    live_trading_enabled = False
             else:
                 print(f">> [Paper Apex Scalper Dispatched]{ct_tag} {apex.symbol} ({apex.side}) {new_pos.leverage}x Lev Margin=${float(new_pos.initial_margin_usd):.2f} Notional=${float(new_pos.notional_usd):.2f} Entry=${float(apex.entry_price):.4f} TP=${float(apex.take_profit):.4f} SL=${float(apex.stop_loss):.4f}")
 
@@ -2637,6 +2784,19 @@ def get_live_status():
                 "last_scan_utc": live_trading_last_scan.isoformat() if live_trading_last_scan else None,
                 "next_scan_seconds": next_sec
             },
+            "trade_quota": {
+                "trade_cap": quota_mgr.trade_cap,
+                "session_trades": quota_mgr.session_trades,
+                "macro_trades": quota_mgr.macro_trades,
+                "scalp_trades": quota_mgr.scalp_trades,
+                "trades_remaining": quota_mgr.trades_remaining,
+                "cap_reached_utc": quota_mgr.cap_reached_utc.isoformat() if quota_mgr.cap_reached_utc else None,
+                "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3")),
+                "allocation": {
+                    "macro": int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2")),
+                    "scalp": 1
+                }
+            },
             "confidence_multiplier": float(calib.confidence_multiplier),
             "last_cycle": live_last_cycle_summary
         })
@@ -2651,10 +2811,18 @@ def toggle_live_trading():
     try:
         data = request.get_json(silent=True) or {}
         with live_account_lock, bot_autopilot_lock:
+            if "trade_cap" in data:
+                cap_val = data["trade_cap"]
+                quota_mgr.trade_cap = int(cap_val) if cap_val is not None and int(cap_val) > 0 else 50
+            if data.get("reset_trade_count") or data.get("reset_quota"):
+                quota_mgr.reset_quota(quota_mgr.trade_cap)
             if "enabled" in data:
                 live_trading_enabled = bool(data["enabled"])
             else:
                 live_trading_enabled = not live_trading_enabled
+
+            if live_trading_enabled and not quota_mgr.has_quota_remaining:
+                quota_mgr.reset_quota(quota_mgr.trade_cap)
 
             if "interval_seconds" in data:
                 live_trading_interval = max(10, int(data["interval_seconds"]))
@@ -2662,7 +2830,7 @@ def toggle_live_trading():
             # Strict Mutual Exclusion:
             if live_trading_enabled:
                 bot_autopilot_enabled = False
-                msg = "Real Live Trading ACTIVATED on Binance Futures. Paper Trading has been PAUSED."
+                msg = f"Real Live Trading ACTIVATED on Binance Futures (Cap: {quota_mgr.session_trades}/{quota_mgr.trade_cap}). Paper Trading has been PAUSED."
             else:
                 msg = "Real Live Trading PAUSED. System standing by."
 
@@ -2673,10 +2841,33 @@ def toggle_live_trading():
             "live_trading_enabled": live_trading_enabled,
             "paper_autopilot_enabled": bot_autopilot_enabled,
             "interval_seconds": live_trading_interval,
+            "trade_cap": quota_mgr.trade_cap,
+            "session_trades": quota_mgr.session_trades,
             "message": msg
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/reset-quota', methods=['POST'])
+def reset_live_quota():
+    """Reset the 50-trade session quota counter and re-arm auto-pause."""
+    data = request.get_json(silent=True) or {}
+    new_cap = int(data.get("trade_cap", 50))
+    quota_mgr.reset_quota(new_cap=new_cap)
+    return jsonify({
+        "success": True,
+        "message": f"Live trade session quota reset to 0/{new_cap}. System re-armed.",
+        "trade_quota": {
+            "trade_cap": quota_mgr.trade_cap,
+            "session_trades": quota_mgr.session_trades,
+            "macro_trades": quota_mgr.macro_trades,
+            "scalp_trades": quota_mgr.scalp_trades,
+            "trades_remaining": quota_mgr.trades_remaining,
+            "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3")),
+            "allocation": {"macro": 2, "scalp": 1}
+        }
+    })
 
 
 @app.route('/api/live/scan', methods=['POST'])
@@ -3137,46 +3328,102 @@ def _rolling_12_months_utc(now_utc: datetime.datetime) -> List[Dict[str, Any]]:
     return months
 
 
-def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False) -> Dict[str, Any]:
+def _days_in_month_utc(year: int, month: int, today_utc: datetime.date) -> List[Dict[str, Any]]:
+    """Returns every calendar day of (year, month) for full-month Daily heatmap view."""
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+    dt_first = datetime.datetime(year, month, 1, tzinfo=datetime.timezone.utc)
+    mon_abbr = dt_first.strftime("%b")
+    short_yr = dt_first.strftime("'%y")
+    days = []
+    for d in range(1, num_days + 1):
+        day_date = datetime.date(year, month, d)
+        days.append({
+            "key": f"{year:04d}-{month:02d}-{d:02d}",
+            "label": str(d),
+            "short_year": f"{mon_abbr} {short_yr}",
+            "is_current": (day_date == today_utc),
+        })
+    return days
+
+
+def _build_yearly_asset_matrix(
+    source: str = "live",
+    timeframe: str = "1y",
+    target_month: Optional[str] = None,
+    force_refresh: bool = False,
+) -> Dict[str, Any]:
     """
-    Aggregates 1-year rolling monthly Bought/Sold counts & Decimal-exact Net PnL per asset.
+    Aggregates Bought/Sold counts & Decimal-exact Net PnL per asset across either:
+      - timeframe='1y'    : 12 rolling UTC months + 1Y total
+      - timeframe='daily' : All calendar days (1..28/30/31) of the current (or selected) UTC month + MTD total
     Strictly adheres to AGENTS.md Invariant 1 (Zero Float Financial Math).
     """
     src = source.lower().strip() if source else "live"
     if src not in ("live", "tiger", "paper"):
         src = "live"
 
+    tf = timeframe.lower().strip() if timeframe else "1y"
+    if tf in ("month", "day", "days", "daily"):
+        tf = "daily"
+    else:
+        tf = "1y"
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    rolling_months = _rolling_12_months_utc(now_utc)
+    current_month_key = rolling_months[-1]["key"]
+    current_month_label = f"{rolling_months[-1]['label']} {rolling_months[-1]['short_year']}"
+
+    sel_month = current_month_key
+    if tf == "daily" and target_month:
+        tm = str(target_month).strip()
+        if len(tm) == 7 and tm[4] == "-" and tm[:4].isdigit() and tm[5:7].isdigit():
+            m_num = int(tm[5:7])
+            if 1 <= m_num <= 12:
+                sel_month = tm
+
+    cache_key = f"{src}:{tf}:{sel_month if tf == 'daily' else '1y'}"
     now_ts = time.time()
-    cached = _yearly_matrix_cache.get(src)
+    cached = _yearly_matrix_cache.get(cache_key)
     if not force_refresh and cached is not None and (now_ts - cached[0]) < 60:
         return cached[1]
 
-    now_utc = datetime.datetime.now(datetime.timezone.utc)
-    months = _rolling_12_months_utc(now_utc)
-    month_keys = [m["key"] for m in months]
-    month_set = set(month_keys)
-    current_month_key = months[-1]["key"]
-    range_label = f"{months[0]['label']} {months[0]['short_year']} to {months[-1]['label']} {months[-1]['short_year']} · 12-month rolling"
+    if tf == "daily":
+        sel_y, sel_m = int(sel_month[:4]), int(sel_month[5:7])
+        sel_dt = datetime.datetime(sel_y, sel_m, 1, tzinfo=datetime.timezone.utc)
+        sel_label = f"{sel_dt.strftime('%b')} {sel_dt.strftime('%Y')}"
+        columns = _days_in_month_utc(sel_y, sel_m, now_utc.date())
+        col_keys = [c["key"] for c in columns]
+        col_set = set(col_keys)
+        range_label = f"{sel_dt.strftime('%b')} 1 – {len(columns)}, {sel_y} · Full-month daily"
+        summary_col_label = "MTD" if sel_month == current_month_key else sel_dt.strftime("%b").upper()
+    else:
+        columns = rolling_months
+        col_keys = [c["key"] for c in columns]
+        col_set = set(col_keys)
+        range_label = f"{columns[0]['label']} {columns[0]['short_year']} to {columns[-1]['label']} {columns[-1]['short_year']} · 12-month rolling"
+        summary_col_label = "1Y"
+        sel_label = current_month_label
 
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ZERO = Decimal("0")
-    # cell_map[symbol][month_key] = {"buys": int, "sells": int, "gross_pnl": Decimal, "fees": Decimal, "net_pnl": Decimal}
+    # cell_map[symbol][bucket_key] = {"buys": int, "sells": int, "gross_pnl": Decimal, "fees": Decimal, "net_pnl": Decimal}
     cell_map: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
-    def _ensure_cell(sym: str, mkey: str) -> Dict[str, Any]:
+    def _ensure_cell(sym: str, bkey: str) -> Dict[str, Any]:
         if sym not in cell_map:
             cell_map[sym] = {}
-        if mkey not in cell_map[sym]:
-            cell_map[sym][mkey] = {
+        if bkey not in cell_map[sym]:
+            cell_map[sym][bkey] = {
                 "buys": 0,
                 "sells": 0,
                 "gross_pnl": ZERO,
                 "fees": ZERO,
                 "net_pnl": ZERO,
             }
-        return cell_map[sym][mkey]
+        return cell_map[sym][bkey]
 
-    def _parse_month_key(ts_str: str) -> Optional[str]:
+    def _parse_bucket_key(ts_str: str) -> Optional[str]:
         if not ts_str:
             return None
         try:
@@ -3185,6 +3432,8 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
                 dt = dt.replace(tzinfo=datetime.timezone.utc)
             else:
                 dt = dt.astimezone(datetime.timezone.utc)
+            if tf == "daily":
+                return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}"
             return f"{dt.year:04d}-{dt.month:02d}"
         except Exception:
             return None
@@ -3203,14 +3452,14 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
         for f in all_fills:
             sym = str(f.get("symbol", "")).upper()
             oid = str(f.get("order_id", "") or f.get("trade_id", ""))
-            mkey = _parse_month_key(f.get("time", ""))
-            if not sym or not mkey or mkey not in month_set:
+            bkey = _parse_bucket_key(f.get("time", ""))
+            if not sym or not bkey or bkey not in col_set:
                 continue
             k = (sym, oid)
             if k not in orders_agg:
                 orders_agg[k] = {
                     "symbol": sym,
-                    "month": mkey,
+                    "bucket": bkey,
                     "side": str(f.get("side", "BUY")).upper(),
                     "gross_pnl": ZERO,
                     "fees": ZERO,
@@ -3220,7 +3469,7 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
             seen_order_ids.add(k)
 
         for o in orders_agg.values():
-            c = _ensure_cell(o["symbol"], o["month"])
+            c = _ensure_cell(o["symbol"], o["bucket"])
             if o["side"] in ("BUY", "LONG"):
                 c["buys"] += 1
             else:
@@ -3241,11 +3490,11 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
                     oid = str(t.get("order_id", ""))
                     if not sym or (sym, oid) in seen_order_ids:
                         continue
-                    mkey = _parse_month_key(t.get("exit_time") or t.get("entry_time") or "")
-                    if not mkey or mkey not in month_set:
+                    bkey = _parse_bucket_key(t.get("exit_time") or t.get("entry_time") or "")
+                    if not bkey or bkey not in col_set:
                         continue
                     seen_order_ids.add((sym, oid))
-                    c = _ensure_cell(sym, mkey)
+                    c = _ensure_cell(sym, bkey)
                     side = str(t.get("side", "BUY")).upper()
                     if side in ("BUY", "LONG"):
                         c["buys"] += 1
@@ -3271,10 +3520,10 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
                 ).fetchall()
                 con.close()
                 for sym, side, npnl, closed_at, created_at in rows:
-                    mkey = _parse_month_key(closed_at or created_at or "")
-                    if not sym or not mkey or mkey not in month_set:
+                    bkey = _parse_bucket_key(closed_at or created_at or "")
+                    if not sym or not bkey or bkey not in col_set:
                         continue
-                    c = _ensure_cell(str(sym).upper(), mkey)
+                    c = _ensure_cell(str(sym).upper(), bkey)
                     if str(side).upper() in ("BUY", "LONG"):
                         c["buys"] += 1
                     else:
@@ -3297,10 +3546,10 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
                 pass
         for t in paper_rows:
             sym = str(t.get("symbol", "")).upper()
-            mkey = _parse_month_key(t.get("close_time") or t.get("exit_time_utc") or t.get("entry_time") or t.get("entry_time_utc") or "")
-            if not sym or not mkey or mkey not in month_set:
+            bkey = _parse_bucket_key(t.get("close_time") or t.get("exit_time_utc") or t.get("entry_time") or t.get("entry_time_utc") or "")
+            if not sym or not bkey or bkey not in col_set:
                 continue
-            c = _ensure_cell(sym, mkey)
+            c = _ensure_cell(sym, bkey)
             side = str(t.get("side", "BUY")).upper()
             if side in ("BUY", "LONG"):
                 c["buys"] += 1
@@ -3313,7 +3562,7 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
             c["fees"] += fe
             c["net_pnl"] += npnl
 
-    # Ensure core Top symbols always appear neatly even if 0 trades (only when live/paper has few assets)
+    # Ensure core Top symbols always appear neatly even if 0 trades in live view
     if src == "live" and not cell_map:
         for sym in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "1000PEPEUSDT"):
             cell_map[sym] = {}
@@ -3344,29 +3593,29 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
         }
 
     # Build Portfolio Summary row + per-asset rows
-    summary_months_raw: Dict[str, Dict[str, Any]] = {
-        mk: {"buys": 0, "sells": 0, "gross_pnl": ZERO, "fees": ZERO, "net_pnl": ZERO}
-        for mk in month_keys
+    summary_cols_raw: Dict[str, Dict[str, Any]] = {
+        ck: {"buys": 0, "sells": 0, "gross_pnl": ZERO, "fees": ZERO, "net_pnl": ZERO}
+        for ck in col_keys
     }
-    summary_1y = {"buys": 0, "sells": 0, "gross_pnl": ZERO, "fees": ZERO, "net_pnl": ZERO}
+    summary_total = {"buys": 0, "sells": 0, "gross_pnl": ZERO, "fees": ZERO, "net_pnl": ZERO}
 
     asset_rows = []
     max_abs_cell_pnl = Decimal("0.01")
 
     for idx, sym in enumerate(sorted(cell_map.keys())):
-        m_dict = {}
-        yr = {"buys": 0, "sells": 0, "gross_pnl": ZERO, "fees": ZERO, "net_pnl": ZERO}
-        for mk in month_keys:
-            raw_c = cell_map[sym].get(mk)
-            m_dict[mk] = _serialize_cell(raw_c)
+        c_dict = {}
+        tot = {"buys": 0, "sells": 0, "gross_pnl": ZERO, "fees": ZERO, "net_pnl": ZERO}
+        for ck in col_keys:
+            raw_c = cell_map[sym].get(ck)
+            c_dict[ck] = _serialize_cell(raw_c)
             if raw_c:
-                yr["buys"] += raw_c["buys"]
-                yr["sells"] += raw_c["sells"]
-                yr["gross_pnl"] += raw_c["gross_pnl"]
-                yr["fees"] += raw_c["fees"]
-                yr["net_pnl"] += raw_c["net_pnl"]
+                tot["buys"] += raw_c["buys"]
+                tot["sells"] += raw_c["sells"]
+                tot["gross_pnl"] += raw_c["gross_pnl"]
+                tot["fees"] += raw_c["fees"]
+                tot["net_pnl"] += raw_c["net_pnl"]
 
-                sm = summary_months_raw[mk]
+                sm = summary_cols_raw[ck]
                 sm["buys"] += raw_c["buys"]
                 sm["sells"] += raw_c["sells"]
                 sm["gross_pnl"] += raw_c["gross_pnl"]
@@ -3377,11 +3626,11 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
                 if abs_v > max_abs_cell_pnl:
                     max_abs_cell_pnl = abs_v
 
-        summary_1y["buys"] += yr["buys"]
-        summary_1y["sells"] += yr["sells"]
-        summary_1y["gross_pnl"] += yr["gross_pnl"]
-        summary_1y["fees"] += yr["fees"]
-        summary_1y["net_pnl"] += yr["net_pnl"]
+        summary_total["buys"] += tot["buys"]
+        summary_total["sells"] += tot["sells"]
+        summary_total["gross_pnl"] += tot["gross_pnl"]
+        summary_total["fees"] += tot["fees"]
+        summary_total["net_pnl"] += tot["net_pnl"]
 
         short_name = sym.replace("1000", "").replace("USDT", "")
         dot_color = _ASSET_DOT_PALETTE.get(sym, _FALLBACK_DOT_COLORS[idx % len(_FALLBACK_DOT_COLORS)])
@@ -3389,48 +3638,66 @@ def _build_yearly_asset_matrix(source: str = "live", force_refresh: bool = False
             "symbol": sym,
             "short_name": short_name,
             "color": dot_color,
-            "months": m_dict,
-            "yearly": _serialize_cell(yr),
-            "_sort_total": yr["buys"] + yr["sells"],
+            "months": c_dict,
+            "yearly": _serialize_cell(tot),
+            "_sort_total": tot["buys"] + tot["sells"],
         })
 
-    # Sort assets by total 1Y activity descending (most active assets at top)
+    # Sort assets by total activity descending
     asset_rows.sort(key=lambda r: (-r["_sort_total"], r["symbol"]))
     for r in asset_rows:
         r.pop("_sort_total", None)
 
-    summary_months_serialized = {mk: _serialize_cell(summary_months_raw[mk]) for mk in month_keys}
-    for mk in month_keys:
-        abs_s = abs(summary_months_raw[mk]["net_pnl"])
+    summary_cols_serialized = {ck: _serialize_cell(summary_cols_raw[ck]) for ck in col_keys}
+    for ck in col_keys:
+        abs_s = abs(summary_cols_raw[ck]["net_pnl"])
         if abs_s > max_abs_cell_pnl:
             max_abs_cell_pnl = abs_s
+
+    available_months = [
+        {"key": m["key"], "label": f"{m['label']} {m['short_year']}", "is_current": m["is_current"]}
+        for m in reversed(rolling_months)
+    ]
 
     payload = {
         "success": True,
         "source": src,
-        "range_label": range_label,
+        "timeframe": tf,
+        "selected_month": sel_month,
+        "selected_month_label": sel_label,
         "current_month": current_month_key,
-        "months": months,
+        "current_month_label": current_month_label,
+        "summary_col_label": summary_col_label,
+        "range_label": range_label,
+        "available_months": available_months,
+        "months": columns,
         "summary_row": {
             "label": "Portfolio",
-            "months": summary_months_serialized,
-            "yearly": _serialize_cell(summary_1y),
+            "months": summary_cols_serialized,
+            "yearly": _serialize_cell(summary_total),
         },
         "rows": asset_rows,
         "max_abs_pnl": str(max_abs_cell_pnl.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
         "updated_at_utc": now_utc.isoformat(),
     }
-    _yearly_matrix_cache[src] = (now_ts, payload)
+    _yearly_matrix_cache[cache_key] = (now_ts, payload)
     return payload
 
 
 @app.route('/api/analytics/yearly-matrix', methods=['GET'])
 def get_yearly_asset_matrix():
-    """Returns 1-year rolling monthly Bought/Sold & Net PnL matrix per asset for the Dashboard."""
+    """Returns 1-year monthly or full-month daily Bought/Sold & Net PnL matrix per asset for the Dashboard."""
     try:
         source = request.args.get("source", "live")
+        timeframe = request.args.get("timeframe", "1y")
+        month = request.args.get("month")
         force = request.args.get("refresh", "false").lower() in ("1", "true", "yes")
-        data = _build_yearly_asset_matrix(source=source, force_refresh=force)
+        data = _build_yearly_asset_matrix(
+            source=source,
+            timeframe=timeframe,
+            target_month=month,
+            force_refresh=force,
+        )
         return jsonify(data)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

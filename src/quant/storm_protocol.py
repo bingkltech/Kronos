@@ -86,7 +86,7 @@ class StormProtocolManager:
         default_storm_minutes: int = 60,
         default_pause_minutes: int = 15,
         elevated_confidence_pct: float = 75.0,
-        normal_macro_cap: int = 3,
+        normal_macro_cap: int = 2,
         storm_macro_cap: int = 1,
         normal_scalp_cap: int = 1,
         storm_scalp_cap: int = 1,

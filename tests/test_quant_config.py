@@ -61,10 +61,10 @@ def test_zero_float_invariants():
 def test_price_and_quantity_quantization():
     """Verify rounding down on quantity and round-half-up on prices."""
     btc = TOP_10_SYMBOLS["BTCUSDT"]
-    # BTC price precision is 2 decimals
+    # BTC price precision is 1 decimal on live Binance Futures (tickSize 0.1)
     raw_price = Decimal("67432.146")
     quantized_price = btc.quantize_price(raw_price)
-    assert quantized_price == Decimal("67432.15")
+    assert quantized_price == Decimal("67432.1")
 
     # BTC quantity precision is 3 decimals (stepSize 0.001)
     raw_qty = Decimal("0.123999")

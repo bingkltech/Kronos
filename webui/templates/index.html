@@ -541,15 +541,20 @@
             </div>
         </div>
 
-        <!-- 1-Year Rolling Monthly Asset Activity (Bought / Sold) & Profitability Matrix -->
+        <!-- 1-Year Rolling Monthly & Full-Month Daily Asset Activity (Bought / Sold) & Profitability Matrix -->
         <div class="ym-card" id="yearly-asset-matrix-card">
             <div class="ym-header">
                 <div class="ym-title-group">
-                    <span class="ym-title">Monthly asset returns &amp; volume</span>
-                    <span class="ym-subtitle">Bought / Sold count per month · Green if profitable</span>
+                    <span class="ym-title" id="ym-card-title">Monthly asset returns &amp; volume</span>
+                    <span class="ym-subtitle" id="ym-card-subtitle">Bought / Sold count per month · Green if profitable</span>
                 </div>
                 <div class="ym-controls">
                     <span class="ym-range-label" id="ym-range-label">Loading 12-month window...</span>
+                    <div class="ym-seg-group" title="Timeframe: 1-Year Months or Full-Month Daily">
+                        <button class="ym-seg-btn active" data-ym-tf="1y" onclick="setYearlyMatrixTimeframe('1y')">1Y (Months)</button>
+                        <button class="ym-seg-btn" id="ym-btn-daily" data-ym-tf="daily" onclick="setYearlyMatrixTimeframe('daily')">Daily (Month)</button>
+                    </div>
+                    <select id="ym-month-select" class="ym-month-select" style="display: none;" onchange="setYearlyMatrixMonth(this.value)" title="Select month for daily breakdown"></select>
                     <div class="ym-seg-group" title="Data source">
                         <button class="ym-seg-btn active" data-ym-source="live" onclick="setYearlyMatrixSource('live')">Live</button>
                         <button class="ym-seg-btn" data-ym-source="tiger" onclick="setYearlyMatrixSource('tiger')">Tiger</button>
@@ -560,7 +565,7 @@
                         <button class="ym-seg-btn" data-ym-mode="bs" onclick="setYearlyMatrixMode('bs')">B/S</button>
                         <button class="ym-seg-btn" data-ym-mode="pnl" onclick="setYearlyMatrixMode('pnl')">PnL $</button>
                     </div>
-                    <button class="ym-refresh-btn" onclick="refreshYearlyMatrix()" title="Refresh 1-year report">🔄</button>
+                    <button class="ym-refresh-btn" onclick="refreshYearlyMatrix()" title="Refresh report">🔄</button>
                 </div>
             </div>
 

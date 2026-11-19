@@ -44,6 +44,16 @@ from src.quant.apex_scalper import ApexScalperEngine
 from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
 from src.quant.kronos_onnx_engine import KronosTrajectoryEngine
 from src.quant.binance_execution import PositionState, TradeTicket, BinanceAtomicExecutor
+from src.quant.quota_notifier import QuotaNotifier
+from dataclasses import replace as _dc_replace
+from risk_engine import (
+    DEFAULT_CONFIG_PATH,
+    BinanceExecutorReconciliationAdapter,
+    RiskConfig,
+    RiskEngine,
+    StateReconciler,
+    audit_lesson_alignment,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,12 +62,61 @@ logging.basicConfig(
 )
 logger = logging.getLogger("KronosHeadless")
 
-# Instantiate singletons with live execution enabled and lean headless trajectory
+
+def _build_workspace_risk_config() -> RiskConfig:
+    cfg = RiskConfig.from_file(DEFAULT_CONFIG_PATH)
+    updates: Dict[str, Any] = {}
+    for field_name in ("control_file_path", "ledger_db_path", "audit_log_dir"):
+        val = getattr(cfg, field_name)
+        if val and not os.path.isabs(val):
+            updates[field_name] = os.path.join(WORKSPACE_ROOT, val)
+    # Enforce portfolio concurrency cap (Max 3 trades total: 2 macro + 1 scalp)
+    max_conc = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    updates["max_concurrent_positions"] = max_conc
+    return _dc_replace(cfg, **updates) if updates else cfg
+
+
+# Instantiate Real-Money Integrity Standard (v3) Sovereign Risk Engine
+risk_cfg = _build_workspace_risk_config()
+_lesson_report = audit_lesson_alignment(
+    risk_cfg, lessons_db_path=os.path.join(WORKSPACE_ROOT, "data", "lessons.db")
+)
+if _lesson_report.is_aligned:
+    logger.info(
+        "[RISK-ENGINE] Lesson alignment PASSED (%d/%d lessons mapped, %d structural invariants verified).",
+        _lesson_report.mapped_count,
+        _lesson_report.total_lessons_in_db,
+        _lesson_report.structural_invariants_passed,
+    )
+else:
+    logger.error("[RISK-ENGINE] Lesson alignment warnings/errors: %s", _lesson_report.issues)
+
 executor = BinanceAtomicExecutor(dry_run=False, realistic_friction=True, symbols_config=ALL_SUPPORTED_SYMBOLS)
+risk_engine = RiskEngine(
+    config=risk_cfg,
+    on_cancel_all_orders=lambda reason: (
+        logger.critical("[RISK-KILL] Cancelling/purging resting orders: %s", reason),
+        executor.purge_orphaned_algo_orders(),
+    ),
+    on_flatten_all_positions=lambda reason: (
+        logger.critical("[RISK-KILL] Flattening all live positions: %s", reason),
+        executor.flatten_all_live_positions(),
+    ),
+)
+executor.risk_engine = risk_engine
+state_reconciler = StateReconciler(
+    adapter=BinanceExecutorReconciliationAdapter(executor),
+    config=risk_cfg,
+    on_kill_switch=lambda reason: risk_engine.trigger_kill_switch(reason, flatten_positions=True),
+)
 trajectory_engine = KronosTrajectoryEngine(service_url="", symbols_config=ALL_SUPPORTED_SYMBOLS)
+runtime_risk_cfg = _dc_replace(
+    DEFAULT_RISK_CONFIG,
+    max_concurrent_positions=int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+)
 quant_bot = QuantBotOrchestrator(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
-    risk_config=DEFAULT_RISK_CONFIG,
+    risk_config=runtime_risk_cfg,
     executor=executor,
     trajectory_engine=trajectory_engine,
     enable_volume_profile_veto=True,
@@ -65,16 +124,18 @@ quant_bot = QuantBotOrchestrator(
 )
 apex_scalper = ApexScalperEngine(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
-    risk_config=DEFAULT_RISK_CONFIG,
+    risk_config=runtime_risk_cfg,
     min_score_threshold=Decimal("0.35")
 )
 gemini_arbiter = GeminiStrategyArbiter()
 
 # Operational state & persistent trade-cap auto-pause guard
 QUOTA_STATE_PATH = os.path.join(WORKSPACE_ROOT, "data", "aws_trade_quota.json")
+quota_mgr = QuotaNotifier(quota_path=QUOTA_STATE_PATH)
 running = True
 live_trading_enabled = True
-live_trade_cap: Optional[int] = int(os.getenv("KRONOS_LIVE_TRADE_CAP")) if os.getenv("KRONOS_LIVE_TRADE_CAP", "").isdigit() else None
+raw_trade_cap = os.getenv("KRONOS_LIVE_TRADE_CAP", "50").strip()
+live_trade_cap: Optional[int] = int(raw_trade_cap) if raw_trade_cap.isdigit() else 50
 live_session_trades: int = 0
 live_cap_reached_utc: Optional[datetime.datetime] = None
 scan_interval_sec = int(os.getenv("KRONOS_SCAN_INTERVAL", "60"))
@@ -114,7 +175,7 @@ def _load_quota_state() -> None:
         if "live_trading_enabled" in d:
             live_trading_enabled = bool(d["live_trading_enabled"])
         if "live_trade_cap" in d:
-            live_trade_cap = int(d["live_trade_cap"]) if d["live_trade_cap"] is not None else None
+            live_trade_cap = int(d["live_trade_cap"]) if d["live_trade_cap"] is not None else 50
         if "live_session_trades" in d:
             live_session_trades = max(0, int(d["live_session_trades"]))
         if d.get("live_cap_reached_utc"):
@@ -127,7 +188,7 @@ def _load_quota_state() -> None:
 
 
 def _record_live_trade_dispatch(symbol: str, source: str) -> None:
-    """Increment live session trade counter and auto-pause immediately when quota is reached."""
+    """Increment live session trade counter, auto-pause immediately, and dispatch email when quota is reached."""
     global live_session_trades, live_trading_enabled, live_cap_reached_utc
     with state_lock:
         live_session_trades += 1
@@ -141,6 +202,15 @@ def _record_live_trade_dispatch(symbol: str, source: str) -> None:
                 live_session_trades,
                 live_trade_cap,
             )
+            try:
+                fresh_summary = quant_bot.executor.get_live_account_summary()
+                quota_mgr.session_trades = live_session_trades
+                quota_mgr.trade_cap = live_trade_cap
+                quota_mgr.is_active = False
+                quota_mgr.cap_reached_utc = live_cap_reached_utc
+                quota_mgr.dispatch_completion_email(account_summary=fresh_summary)
+            except Exception as mail_err:
+                logger.error("[EMAIL NOTIFICATION ERROR] %s", mail_err)
         _save_quota_state()
 
 
@@ -163,6 +233,30 @@ def execute_live_cycle():
     if not live_summary.get("connected"):
         logger.warning("Binance connection unavailable: %s", live_summary.get("error"))
         return
+
+    # Refresh Layer-3 Cancel-on-Disconnect heartbeat & Layer-4 State Reconciliation
+    risk_engine.record_gateway_heartbeat()
+    try:
+        from risk_engine import PositionSnapshot, OrderSide
+        internal_pos_map = {
+            pos.symbol: PositionSnapshot(
+                symbol=pos.symbol,
+                side=OrderSide.coerce(pos.side),
+                quantity=pos.quantity,
+                entry_price=pos.entry_price,
+                mark_price=pos.entry_price,
+                stop_loss=pos.stop_loss,
+            )
+            for pos in quant_bot.executor.active_positions.values()
+            if pos.state == PositionState.BRACKETS_ACTIVE
+        }
+        # Only flag phantoms when local tracking is populated (avoid false flatten on cold restart adopting live positions)
+        if internal_pos_map:
+            rec_report = state_reconciler.reconcile_once(internal_pos_map)
+            if not rec_report.is_synchronized:
+                logger.warning("[RISK-RECONCILER] Discrepancies resolved: %s", rec_report.actions_taken)
+    except Exception as rec_err:
+        logger.warning("Layer-4 StateReconciler warning: %s", rec_err)
 
     equity = live_summary.get("total_wallet_balance_usd", Decimal("0.00"))
     if equity <= Decimal("0"):
@@ -209,12 +303,46 @@ def execute_live_cycle():
     if not live_trading_enabled or not _has_trade_quota_remaining():
         return
 
-    remaining_quota = (live_trade_cap - live_session_trades) if live_trade_cap is not None else None
+    # Concurrency and dedicated strategy allocation gates (2 trades max: 1 Macro + 1 Scalp)
+    active_positions = live_summary.get("positions", [])
+    active_symbols = [p.get("symbol") for p in active_positions if p.get("symbol")]
+    scalp_active_symbols = quant_bot.executor.scalp_active_symbols
+    macro_positions = [
+        p for p in active_positions
+        if p.get("symbol") not in scalp_active_symbols
+    ]
+
+    # Global Concurrency Clamp: Max 3 positions total across entire portfolio
+    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    if len(active_positions) >= max_portfolio_positions:
+        logger.info(
+            "[PORTFOLIO CONCURRENCY] Maximum concurrent positions held (%d/%d: %s). Holding.",
+            len(active_positions),
+            max_portfolio_positions,
+            active_symbols
+        )
+        return
+
+    # Dedicated Strategy Allocation: Strictly max 2 Macro trades (3 total: 2 Macro + 1 Scalp)
+    max_macro_positions = int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2"))
+    if len(macro_positions) >= max_macro_positions:
+        logger.info(
+            "[STRATEGY ALLOCATION] Macro slots full (%d/%d occupied: %s). Holding for exit before new macro entry.",
+            len(macro_positions),
+            max_macro_positions,
+            [p.get("symbol") for p in macro_positions]
+        )
+        return
+
+    remaining_quota = (live_trade_cap - live_session_trades) if live_trade_cap is not None else 1
+    macro_available = max_macro_positions - len(macro_positions)
+    portfolio_available = max_portfolio_positions - len(active_positions)
+    macro_entry_cap = min(remaining_quota, macro_available, portfolio_available)
     report = quant_bot.run_scan_cycle(
         account_equity=equity,
         lookback_data_map=lookbacks if lookbacks else None,
         execution_mode="LIVE",
-        max_new_entries=remaining_quota
+        max_new_entries=macro_entry_cap
     )
 
     last_scan_utc = report.timestamp_utc
@@ -318,9 +446,10 @@ def execute_apex_scalp_step():
                 hit_tp = (pos.side == "BUY" and curr_price >= pos.take_profit) or (pos.side == "SELL" and curr_price <= pos.take_profit)
                 hit_sl = (pos.side == "BUY" and curr_price <= pos.stop_loss) or (pos.side == "SELL" and curr_price >= pos.stop_loss)
                 timed_out = duration_sec >= max_duration_sec
+                is_stalled, stall_reason = apex_scalper.evaluate_stagnation(now_utc)
 
-                if hit_tp or hit_sl or timed_out:
-                    reason = "TAKE_PROFIT_HIT" if hit_tp else ("STOP_LOSS_HIT" if hit_sl else "TIME_EXPIRATION")
+                if hit_tp or hit_sl or timed_out or is_stalled:
+                    reason = "TAKE_PROFIT_HIT" if hit_tp else ("STOP_LOSS_HIT" if hit_sl else ("STAGNATION_EXPIRATION" if is_stalled else "TIME_EXPIRATION"))
                     fee_usd = pos.notional_usd * (friction_pct / Decimal("100"))
 
                     # Cancel algo orders and flatten if necessary
@@ -328,7 +457,7 @@ def execute_apex_scalp_step():
                         quant_bot.executor._signed_request("DELETE", "/fapi/v1/algoOpenOrders", {"symbol": pos.symbol})
                     except Exception:
                         pass
-                    if reason in ("TIME_EXPIRATION", "STOP_LOSS_HIT"):
+                    if reason in ("TIME_EXPIRATION", "STAGNATION_EXPIRATION", "STOP_LOSS_HIT"):
                         try:
                             flat_side = "SELL" if pos.side == "BUY" else "BUY"
                             quant_bot.executor._signed_request("POST", "/fapi/v1/order", {
@@ -373,6 +502,17 @@ def execute_apex_scalp_step():
             return
 
         active_symbols = {p.get("symbol") for p in live_acc.get("positions", [])}
+
+        # Global Concurrency Clamp: Max 3 positions total across portfolio
+        max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+        if len(active_symbols) >= max_portfolio_positions:
+            return
+
+        # Dedicated Strategy Allocation: Strictly 1 Scalp trade
+        scalp_active_symbols = quant_bot.executor.scalp_active_symbols
+        active_scalps = active_symbols.intersection(scalp_active_symbols)
+        if len(active_scalps) >= 1 or not apex_scalper.is_slot_available:
+            return
 
         # Dynamic Post-Exit Quarantine Reflex:
         # Detect any position that was active in the previous check and has now been closed/exited
@@ -446,7 +586,7 @@ def execute_apex_scalp_step():
             # Tsunami Storm Protocol Gate
             try:
                 from src.quant.storm_protocol import StormProtocolManager
-                storm_mgr = StormProtocolManager()
+                storm_mgr = StormProtocolManager(normal_macro_cap=2, normal_scalp_cap=1)
                 btc_cand_klines = quant_bot.index_engine.fetch_recent_klines("BTCUSDT", interval="5m", limit=3)
                 storm_mgr.evaluate_market_wave(
                     btc_klines=btc_cand_klines,
@@ -491,7 +631,18 @@ def execute_apex_scalp_step():
                     net_expected_gain_pct=apex.expected_net_drift_pct,
                     is_scalp=True
                 )
-                live_res = quant_bot.executor.submit_live_bracket_order(ticket)
+                p_state, m_snap = quant_bot.executor.fetch_live_risk_snapshots(
+                    symbol=ticket.symbol,
+                    fallback_price=ticket.entry_price,
+                    realized_vol=(apex.atr_5m / apex.entry_price) if apex.entry_price > Decimal("0") else Decimal("0.015"),
+                    atr_pct=(apex.atr_5m / apex.entry_price) if apex.entry_price > Decimal("0") else None,
+                    live_summary=live_summary,
+                )
+                live_res = quant_bot.executor.submit_live_bracket_order(
+                    ticket,
+                    portfolio_state=p_state,
+                    market_snapshot=m_snap,
+                )
                 if live_res.state == PositionState.REJECTED:
                     logger.warning("Apex scalp entry rejected: %s", live_res.close_reason)
                     apex_scalper.active_scalp = None
@@ -625,6 +776,11 @@ def live_status():
             "session_trades": live_session_trades,
             "trades_remaining": max(0, live_trade_cap - live_session_trades) if live_trade_cap is not None else None,
             "cap_reached_utc": live_cap_reached_utc.isoformat() if live_cap_reached_utc else None,
+            "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3")),
+            "allocation": {
+                "macro": int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2")),
+                "scalp": 1
+            }
         },
         "volume_profile_veto": {
             "enabled": quant_bot.enable_volume_profile_veto,
@@ -665,7 +821,7 @@ def toggle_live():
     with state_lock:
         if "trade_cap" in data:
             cap_val = data["trade_cap"]
-            live_trade_cap = int(cap_val) if cap_val is not None and int(cap_val) > 0 else None
+            live_trade_cap = int(cap_val) if cap_val is not None and int(cap_val) > 0 else 50
         if data.get("reset_trade_count"):
             live_session_trades = 0
             live_cap_reached_utc = None

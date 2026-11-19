@@ -48,6 +48,14 @@ def main():
         print(f" Cloud Guard     : [!] {guard_msg}")
     print(f" Execution Mode  : {exec_mode}")
     print(f" Binance Futures : {'CONNECTED (HTTP 200)' if connected else 'DISCONNECTED'}")
+    quota = data.get("trade_quota", {})
+    if quota and quota.get("trade_cap") is not None:
+        sess = quota.get("session_trades", 0)
+        cap = quota.get("trade_cap", 50)
+        rem = quota.get("trades_remaining", 0)
+        max_conc = quota.get("max_concurrent_positions", 3)
+        print(f" Session Quota   : {sess}/{cap} trades dispatched ({rem} left until Auto-Pause)")
+        print(f" Concurrency Cap : Max {max_conc} positions (2 Macro / 1 Scalp)")
     if error_msg:
         print(f" Connection Note : {error_msg}")
         if "request ip:" in error_msg:

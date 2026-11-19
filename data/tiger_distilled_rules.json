@@ -1,32 +1,29 @@
 {
-  "audit_id": "TIGER_AUDIT_1794968110",
-  "updated_at_utc": "2026-11-18T02:15:10.074225+00:00",
-  "sample_size": 30,
-  "win_rate_pct": "36.7",
+  "audit_id": "TIGER_AUDIT_1795002114",
+  "updated_at_utc": "2026-11-18T11:41:54.550043+00:00",
+  "sample_size": 32,
+  "win_rate_pct": "37.5",
   "profit_factor": "0.70",
-  "avg_mfe_pct": "0.0056",
-  "avg_mae_pct": "0.0069",
+  "avg_mfe_pct": "0.0055",
+  "avg_mae_pct": "0.0065",
   "calibrated_min_wick_ratio": "0.48",
   "calibrated_min_cvd_zscore": "2.4",
   "calibrated_slow_tp_pct": "0.0080",
   "calibrated_slow_sl_pct": "0.0055",
   "quarantined_symbols": [
-    "SOXLUSDT",
-    "SNXXUSDT",
+    "BULLAUSDT",
     "MMTUSDT",
     "FHEUSDT",
-    "BLESSUSDT",
-    "BULLAUSDT"
+    "BLESSUSDT"
   ],
   "best_performing_symbols": [
-    "EVAAUSDT",
     "KORUUSDT",
-    "SOXSUSDT",
-    "RAREUSDT"
+    "EVAAUSDT",
+    "SOXSUSDT"
   ],
-  "paper_sample_size": 30,
+  "paper_sample_size": 32,
   "live_sample_size": 0,
-  "paper_win_rate_pct": "36.7",
+  "paper_win_rate_pct": "37.5",
   "live_win_rate_pct": "0.0",
   "quarantine_registry": {
     "AGTUSDT": {
@@ -108,7 +105,7 @@
       "reason": "PAPER_TOXIC_STREAK",
       "strike_count": 1,
       "execution_mode": "PAPER",
-      "status": "ACTIVE"
+      "status": "GRADUATED"
     },
     "SNXXUSDT": {
       "symbol": "SNXXUSDT",
@@ -117,34 +114,7 @@
       "reason": "PAPER_TOXIC_STREAK",
       "strike_count": 1,
       "execution_mode": "PAPER",
-      "status": "ACTIVE"
-    },
-    "MMTUSDT": {
-      "symbol": "MMTUSDT",
-      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
-      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
-      "reason": "PAPER_TOXIC_STREAK",
-      "strike_count": 1,
-      "execution_mode": "PAPER",
-      "status": "ACTIVE"
-    },
-    "FHEUSDT": {
-      "symbol": "FHEUSDT",
-      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
-      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
-      "reason": "PAPER_TOXIC_STREAK",
-      "strike_count": 1,
-      "execution_mode": "PAPER",
-      "status": "ACTIVE"
-    },
-    "BLESSUSDT": {
-      "symbol": "BLESSUSDT",
-      "quarantined_at_utc": "2026-11-18T02:15:10.074225+00:00",
-      "expiry_utc": "2026-11-18T14:15:10.074225+00:00",
-      "reason": "PAPER_TOXIC_STREAK",
-      "strike_count": 1,
-      "execution_mode": "PAPER",
-      "status": "ACTIVE"
+      "status": "GRADUATED"
     },
     "BULLAUSDT": {
       "symbol": "BULLAUSDT",
@@ -154,13 +124,40 @@
       "strike_count": 1,
       "execution_mode": "PAPER",
       "status": "ACTIVE"
+    },
+    "MMTUSDT": {
+      "symbol": "MMTUSDT",
+      "quarantined_at_utc": "2026-11-18T11:41:54.550043+00:00",
+      "expiry_utc": "2026-11-18T23:41:54.550043+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "FHEUSDT": {
+      "symbol": "FHEUSDT",
+      "quarantined_at_utc": "2026-11-18T11:41:54.550043+00:00",
+      "expiry_utc": "2026-11-18T23:41:54.550043+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
+    },
+    "BLESSUSDT": {
+      "symbol": "BLESSUSDT",
+      "quarantined_at_utc": "2026-11-18T11:41:54.550043+00:00",
+      "expiry_utc": "2026-11-18T23:41:54.550043+00:00",
+      "reason": "PAPER_TOXIC_STREAK",
+      "strike_count": 1,
+      "execution_mode": "PAPER",
+      "status": "ACTIVE"
     }
   },
   "autopsy_breakdown": {
-    "WIN_SQUEEZE": 11,
+    "STOP_OUT": 4,
+    "WIN_SQUEEZE": 12,
     "ZERO_MFE_LIQ_FLUSH": 9,
     "MFE_REVERSAL": 3,
-    "STOP_OUT": 3,
     "STEAMROLLER_OUTLIER": 4
   }
 }

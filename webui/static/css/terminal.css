@@ -1464,3 +1464,79 @@
             vertical-align: middle;
             margin-right: 5px;
         }
+
+        /* Full-Month Daily View (Days 1..30/31) with sticky Asset & MTD columns */
+        .ym-month-select {
+            background: var(--bg-base);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 7px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .ym-month-select:focus {
+            border-color: var(--border-active);
+        }
+
+        .ym-table.ym-table-daily {
+            min-width: 1780px;
+            border-spacing: 3px 5px;
+        }
+
+        .ym-table.ym-table-daily thead th.ym-col-asset {
+            width: 96px;
+            position: sticky;
+            left: 0;
+            z-index: 4;
+            background: var(--bg-surface);
+        }
+
+        .ym-table.ym-table-daily tbody td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: var(--bg-surface);
+        }
+
+        .ym-table.ym-table-daily thead th.ym-col-1y {
+            width: 82px;
+            position: sticky;
+            right: 0;
+            z-index: 4;
+            background: var(--bg-surface);
+        }
+
+        .ym-table.ym-table-daily tbody td.ym-td-1y {
+            position: sticky;
+            right: 0;
+            z-index: 3;
+            background: var(--bg-surface);
+        }
+
+        .ym-table.ym-table-daily .ym-pill {
+            min-height: 34px;
+            padding: 2px 2px;
+            border-radius: 7px;
+        }
+
+        .ym-table.ym-table-daily .ym-pill-primary {
+            font-size: 10px;
+        }
+
+        .ym-table.ym-table-daily .ym-pill-sub {
+            font-size: 9px;
+        }
+
+        .ym-th-clickable {
+            cursor: pointer;
+            transition: color 0.12s ease;
+        }
+
+        .ym-th-clickable:hover {
+            color: #58a6ff;
+            text-decoration: underline;
+        }

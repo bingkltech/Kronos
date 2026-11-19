@@ -1,0 +1,37 @@
+[
+  {
+    "timestamp_utc": "2026-11-19 06:48:02 UTC",
+    "session_trades": 5,
+    "trade_cap": 5,
+    "recipient": "",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  },
+  {
+    "timestamp_utc": "2026-11-19 06:51:07 UTC",
+    "session_trades": 5,
+    "trade_cap": 5,
+    "recipient": "",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  },
+  {
+    "timestamp_utc": "2026-11-19 06:54:30 UTC",
+    "session_trades": 0,
+    "trade_cap": 50,
+    "recipient": "test@example.com",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  },
+  {
+    "timestamp_utc": "2026-11-19 06:54:50 UTC",
+    "session_trades": 5,
+    "trade_cap": 5,
+    "recipient": "",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  },
+  {
+    "timestamp_utc": "2026-11-19 07:43:29 UTC",
+    "session_trades": 5,
+    "trade_cap": 5,
+    "recipient": "",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  }
+]

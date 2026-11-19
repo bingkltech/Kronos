@@ -146,6 +146,69 @@ class QuantFlawAuditor:
                     remediation="Verify entry price was not pre-crossed at time of submission."
                 ))
 
+        # 4. Phantom Take-Profit Overshoot (Limit TP cannot fill better than TP target)
+        tp_target_raw = trade.get("take_profit")
+        max_tp_pct_raw = trade.get("max_tp_pct")
+        reason_u = str(reason).upper()
+        is_tp_exit = ("TARGET HIT" in reason_u) or ("TAKE_PROFIT" in reason_u)
+        if is_tp_exit and entry > Decimal("0") and exit_px > Decimal("0"):
+            if tp_target_raw is not None:
+                tp_target = Decimal(str(tp_target_raw))
+                if tp_target > Decimal("0"):
+                    overshoot_ratio = (
+                        (exit_px - tp_target) / tp_target
+                        if side in ("BUY", "LONG")
+                        else (tp_target - exit_px) / tp_target
+                    )
+                    if overshoot_ratio > Decimal("0.0005"):  # > 5 bps favorable overshoot
+                        flaws.append(QuantFlaw(
+                            code="FLAW_PHANTOM_TP_OVERSHOOT",
+                            severity=FlawSeverity.CRITICAL_HALLUCINATION,
+                            title="Phantom Take-Profit Overshoot",
+                            description=(
+                                "Resting limit Take-Profit filled significantly past TP target. "
+                                "Real exchange limit orders cap at TP and do not capture spike overshoot."
+                            ),
+                            observed_value=f"Exit: {exit_px} vs TP: {tp_target} (+{overshoot_ratio*100:.2f}%)",
+                            institutional_bound="<= +0.05% tick tolerance above/below TP",
+                            remediation="Cap Take-Profit exits strictly at pos.take_profit via execution_realism."
+                        ))
+            elif max_tp_pct_raw is not None:
+                max_tp_pct = Decimal(str(max_tp_pct_raw))
+                realized_move = (
+                    (exit_px - entry) / entry
+                    if side in ("BUY", "LONG")
+                    else (entry - exit_px) / entry
+                )
+                if realized_move > (max_tp_pct + Decimal("0.0015")):  # > 15 bps above max configured TP
+                    flaws.append(QuantFlaw(
+                        code="FLAW_PHANTOM_TP_OVERSHOOT",
+                        severity=FlawSeverity.CRITICAL_HALLUCINATION,
+                        title="Phantom Take-Profit Overshoot (Exceeds Max Configured TP)",
+                        description=(
+                            f"Take-Profit realized +{realized_move*100:.2f}%, exceeding maximum configured TP "
+                            f"of +{max_tp_pct*100:.2f}%. Caused by polling/cache lag closing at market instead of TP."
+                        ),
+                        observed_value=f"+{realized_move*100:.2f}% vs max TP +{max_tp_pct*100:.2f}%",
+                        institutional_bound=f"<= +{max_tp_pct*100:.2f}%",
+                        remediation="Use evaluate_pessimistic_bracket_exit to cap TP fills strictly at pos.take_profit."
+                    ))
+
+        # 5. Risk Budget Breach (Loss > 2.5x budgeted risk per trade)
+        risk_budget_raw = trade.get("risk_budget_usd")
+        if risk_budget_raw is not None and pnl < Decimal("0"):
+            risk_budget = Decimal(str(risk_budget_raw))
+            if risk_budget > Decimal("0") and abs(pnl) > (risk_budget * Decimal("2.5")):
+                flaws.append(QuantFlaw(
+                    code="FLAW_RISK_BUDGET_BREACH",
+                    severity=FlawSeverity.WARNING,
+                    title="Single-Trade Risk Budget Breach (>2.5x)",
+                    description="Realized loss significantly exceeded configured per-trade dollar risk budget.",
+                    observed_value=f"-${abs(pnl):.2f} vs budget ${risk_budget:.2f}",
+                    institutional_bound=f"<= ${risk_budget * Decimal('2.5'):.2f}",
+                    remediation="Audit volatility-parity sizing and stop-loss execution latency."
+                ))
+
         return flaws
 
     def audit_performance_summary(

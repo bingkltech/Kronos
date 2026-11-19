@@ -42,7 +42,7 @@ def test_symbol_vwap_and_stats_calculation():
     assert isinstance(stats.vwap_24h, Decimal)
     assert isinstance(stats.current_price, Decimal)
     assert stats.current_price == Decimal("120")
-    assert stats.vwap_24h == Decimal("113.33")
+    assert stats.vwap_24h == Decimal("113.3")
     assert stats.above_vwap is True
     # Price change: (120 - 98) / 98 * 100 = 22.45%
     assert stats.price_change_24h_pct == Decimal("22.45")

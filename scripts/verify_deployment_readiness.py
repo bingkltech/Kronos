@@ -172,12 +172,12 @@ class DeploymentAuditor:
             f"SL confirmation timeout is {timeout}ms before emergency market flatten."
         )
 
-        # 4.2 12-Hour Stale-Trade Temporal Expiry
+        # 4.2 Stale-Trade Temporal Expiry (1-12 Hours)
         stale_hours = DEFAULT_RISK_CONFIG.stale_trade_hours
-        stale_passed = stale_hours == 12
+        stale_passed = 1 <= stale_hours <= 12
         self.log_check(
             "Pillar 4: Execution State Machine",
-            "12-Hour Temporal Stale-Trade Expiry",
+            "Temporal Stale-Trade Expiry",
             stale_passed,
             f"Stale trades automatically swept and closed at market after {stale_hours} hours."
         )
