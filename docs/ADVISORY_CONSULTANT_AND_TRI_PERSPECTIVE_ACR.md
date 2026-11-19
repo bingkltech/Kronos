@@ -50,9 +50,10 @@ The **Specialized Advisory Consultant** solves this paradox by decoupling **deli
 ```
 
 ### Key Principles
-1. **Zero Execution Latency:** The consultant operates strictly out-of-band as an audit and deliberation layer. Real-time microsecond order execution on AWS remains unaffected.
-2. **Zero IEEE-754 Float Math:** All mathematical calculations, probability products, fee drags, and alpha metrics are computed using Python `decimal.Decimal`.
-3. **Deterministic Formulations:** Conceptual multi-agent debates (Bull vs. Bear vs. Risk) are distilled into closed-form mathematical equations rather than prompt-based LLM chats.
+1. **Advisor, Not Commander (Zero Live Battle Authority):** The consultant is strictly an assessment, intelligence, and post-battle audit engine. It has **no right or command over live order dispatch**, cannot modify or cancel active orders, and never intercepts live sub-second order routing. Active battle command belongs 100% to the production execution engines (`ApexScalperEngine`, `Orchestrator`) on AWS.
+2. **Zero Execution Latency Impact:** Because the consultant operates out-of-band as an asynchronous deliberation layer, real-time microsecond order execution on AWS remains completely unaffected.
+3. **Zero IEEE-754 Float Math:** All mathematical calculations, probability products, fee drags, and alpha metrics are computed using Python `decimal.Decimal`.
+4. **Deterministic Formulations:** Conceptual multi-agent debates (Bull vs. Bear vs. Risk) are distilled into closed-form mathematical equations rather than prompt-based LLM chats.
 
 ---
 
