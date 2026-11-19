@@ -344,7 +344,17 @@ class GatewayKillSwitchLayer:
     - Split Pod-Shop Drawdown Clocks: Intraday (-3%/-6%) & Rolling (-6%/-12%)
     """
 
-    VALID_CONTROL_STATES = {"ACTIVE", "NORMAL", "REDUCE_ONLY", "HALT", "HALTED", "FLATTEN", "KILL"}
+    VALID_CONTROL_STATES = {
+        "ACTIVE",
+        "NORMAL",
+        "RUN",
+        "RUNNING",
+        "REDUCE_ONLY",
+        "HALT",
+        "HALTED",
+        "FLATTEN",
+        "KILL",
+    }
 
     def __init__(self, config: RiskConfig, ledger: Optional[RiskLedger] = None):
         self.config = config
