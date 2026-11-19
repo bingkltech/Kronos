@@ -26,6 +26,7 @@ from src.quant.tiger_config import (
     TigerTemporalConfig,
     TigerOrderflowConfig,
     TigerBracketConfig,
+    DEFAULT_TIGER_CONFIG,
 )
 from src.quant.tiger_scanner import (
     BinanceRateLimitWatchdog,
@@ -52,7 +53,7 @@ def test_tiger_config_decimal_serialization():
     
     # Check that all decimal values were serialized as strings
     assert isinstance(d["sieve"]["min_24h_turnover_usd"], str)
-    assert d["sieve"]["min_24h_turnover_usd"] == "30000000.00"
+    assert d["sieve"]["min_24h_turnover_usd"] == "50000000.00"
     assert d["brackets"]["slow_vol_tp_price_pct"] == "0.0101"
     assert d["brackets"]["slow_vol_sl_price_pct"] == "0.0066"
     assert d["brackets"]["consecutive_loss_pause_count"] == 5
@@ -60,7 +61,7 @@ def test_tiger_config_decimal_serialization():
     # Reconstruct from dict
     reconstructed = TigerMasterConfig.from_dict(d)
     assert isinstance(reconstructed.sieve.min_24h_turnover_usd, Decimal)
-    assert reconstructed.sieve.min_24h_turnover_usd == Decimal("30000000.00")
+    assert reconstructed.sieve.min_24h_turnover_usd == Decimal("50000000.00")
     assert reconstructed.brackets.slow_vol_tp_price_pct == Decimal("0.0101")
     assert reconstructed.brackets.slow_vol_sl_price_pct == Decimal("0.0066")
     assert reconstructed.brackets.max_sl_roi_pct == Decimal("5.5")
@@ -1072,7 +1073,7 @@ def test_tiger_sieve_active_trade_and_quarantine_exclusion():
         {"symbol": "COIN4USDT", "quoteVolume": "70000000", "highPrice": "2.00", "lowPrice": "1.30", "lastPrice": "1.50", "priceChangePercent": "4.0"},    # Vol: 0.467 (Rank 4)
         {"symbol": "COIN5USDT", "quoteVolume": "60000000", "highPrice": "2.00", "lowPrice": "1.40", "lastPrice": "1.50", "priceChangePercent": "2.0"},    # Vol: 0.400 (Rank 5)
         {"symbol": "COIN6USDT", "quoteVolume": "50000000", "highPrice": "2.00", "lowPrice": "1.50", "lastPrice": "1.50", "priceChangePercent": "1.0"},    # Vol: 0.333 (Rank 6)
-        {"symbol": "COIN7USDT", "quoteVolume": "40000000", "highPrice": "2.00", "lowPrice": "1.60", "lastPrice": "1.50", "priceChangePercent": "0.5"},    # Vol: 0.267 (Rank 7)
+        {"symbol": "COIN7USDT", "quoteVolume": "55000000", "highPrice": "2.00", "lowPrice": "1.60", "lastPrice": "1.50", "priceChangePercent": "0.5"},    # Vol: 0.267 (Rank 7)
     ]
     scanner.set_fetcher(lambda: (mock_tickers, {"x-mbx-used-weight-1m": "100"}))
 
@@ -1171,6 +1172,46 @@ def test_close_position_net_of_friction_win_truth():
         assert res["is_win"] is False
         assert engine.total_wins_count == 0
         assert engine.consecutive_losses == 1
+
+
+def test_tiger_30s_zero_mfe_abort_and_asymmetric_sieve():
+    """Validates Lesson #49: 30s Zero-MFE Sanity Circuit Breaker and Asymmetric BUY Wick Sieve."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state_file = os.path.join(tmpdir, "tiger_abort_state.json")
+        cfg = DEFAULT_TIGER_CONFIG
+        
+        # 1. Verify Config invariants
+        assert cfg.sieve.min_24h_turnover_usd == Decimal("50000000.00")
+        assert cfg.orderflow.buy_absorption_wick_min_ratio == Decimal("0.60")
+        assert cfg.orderflow.absorption_wick_min_ratio == Decimal("0.45")
+        assert cfg.temporal.zero_mfe_abort_seconds == 30
+
+        engine = TigerExecutionEngine(config=cfg, state_file=state_file)
+        t0 = datetime.datetime(2026, 11, 19, 10, 0, 0, tzinfo=datetime.timezone.utc)
+
+        # 2. Create and fill a BUY position
+        mock_sig = AbsorptionSignal(
+            symbol="PEPEUSDT", action="BUY", entry_trigger_price=Decimal("1.0000"),
+            invalidation_stop_price=Decimal("0.9900"), cvd_zscore=Decimal("-2.5"),
+            micro_price_skew_bps=Decimal("0.30"), ofi_score=Decimal("0.55"),
+            wick_ratio=Decimal("0.65"), absorption_density=Decimal("0.85"),
+            is_steamroller_vetoed=False, is_valid=True, reason="Test Long"
+        )
+        sig = engine.create_signal_from_absorption(mock_sig, atr_pct=Decimal("0.0080"), current_time_utc=t0)
+        assert sig is not None
+        pos = engine.fill_signal(sig.signal_id, fill_price=Decimal("1.0000"), quantity=Decimal("100"), fill_time_utc=t0)
+
+        # At t0 + 20s: Price drops -0.30% (0.9970), but elapsed is < 30s -> HOLD
+        t20 = t0 + datetime.timedelta(seconds=20)
+        action, _ = engine.evaluate_temporal_lifecycle(pos.position_id, current_price=Decimal("0.9970"), current_time_utc=t20)
+        assert action == "HOLD"
+
+        # At t0 + 35s: Price still at 0.9970 (-0.30% loss) and MFE was 0.00% -> ZERO_MFE_ABORT!
+        t35 = t0 + datetime.timedelta(seconds=35)
+        action, reason = engine.evaluate_temporal_lifecycle(pos.position_id, current_price=Decimal("0.9970"), current_time_utc=t35)
+        assert action == "ZERO_MFE_ABORT"
+        assert "30s Zero-MFE Circuit Breaker" in reason
+
 
 
 

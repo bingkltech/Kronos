@@ -364,6 +364,22 @@ class TigerExecutionEngine:
         if pos.side == "SELL" and current_price >= pos.stop_loss:
             return "STOP_LOSS", f"Stop Hit: {pnl_pct*100:.2f}%"
 
+        # 2.1 The 30-Second Zero-MFE Sanity Circuit Breaker (Anti-Liquidation Flush Shield - Lesson #49)
+        # Prevents knife-catch flushes with zero bounce from developing into full stop-loss hits during initial 3m window.
+        elapsed_sec = (current_time_utc - pos.entry_time_utc).total_seconds()
+        zero_abort_sec = getattr(temp_cfg, "zero_mfe_abort_seconds", 30)
+        if zero_abort_sec <= elapsed_sec < 180:
+            mfe = Decimal("0")
+            if pos.side == "BUY" and pos.highest_favorable_price and pos.highest_favorable_price > pos.entry_price:
+                mfe = (pos.highest_favorable_price - pos.entry_price) / pos.entry_price
+            elif pos.side == "SELL" and pos.highest_favorable_price and pos.highest_favorable_price < pos.entry_price:
+                mfe = (pos.entry_price - pos.highest_favorable_price) / pos.entry_price
+
+            max_fav = getattr(temp_cfg, "zero_mfe_max_favorable_pct", Decimal("0.0005"))
+            max_loss = getattr(temp_cfg, "zero_mfe_max_loss_pct", Decimal("-0.0025"))
+            if mfe <= max_fav and pnl_pct <= max_loss:
+                return "ZERO_MFE_ABORT", f"30s Zero-MFE Circuit Breaker: Favorable movement stalled at {mfe*100:.3f}% and PnL {pnl_pct*100:.2f}% <= {max_loss*100:.2f}%. Immediate market scratch."
+
         # 3. Minute 8 Velocity Check or Profit Cushion Lock (Breakeven Cushion Ratchet)
         should_ratchet = False
         ratchet_reason = ""

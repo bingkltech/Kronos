@@ -28,7 +28,7 @@ class TigerApiRateLimitConfig:
 @dataclass(frozen=True)
 class TigerUniverseSieveConfig:
     """Universe filtering parameters to identify the Top 150 and narrow to Top 5 active prey."""
-    min_24h_turnover_usd: Decimal = Decimal("30000000.00")  # Minimum $30M 24h turnover
+    min_24h_turnover_usd: Decimal = Decimal("50000000.00")  # Minimum $50M 24h turnover (quarantines illiquid meme traps)
     max_universe_size: int = 150                           # Top 150 scanned by 24h volatility score
     active_sniper_slots: int = 5                           # Top 5 active targets in WebSocket pool
     min_volatility_score: Decimal = Decimal("0.020")       # Minimum 2.0% 24h amplitude
@@ -41,6 +41,9 @@ class TigerTemporalConfig:
     """Speed, Signal TTL, and Temporal Expiration rules (8-12-15 Minute Decay Ladder)."""
     signal_ttl_seconds: int = 90                           # 90s max: cancel stale un-triggered orders
     max_analysis_window_minutes: int = 15                  # 15m maximum structural analysis horizon
+    zero_mfe_abort_seconds: int = 30                       # 30s Zero-MFE Sanity Circuit Breaker (stops knife catch flushes)
+    zero_mfe_max_loss_pct: Decimal = Decimal("-0.0025")    # -0.25% loss cutoff if MFE has failed to bounce
+    zero_mfe_max_favorable_pct: Decimal = Decimal("0.0005") # +0.05% max favorable excursion threshold
     velocity_check_minutes: int = 8                       # Minute 8: verify momentum velocity
     velocity_min_gain_pct: Decimal = Decimal("0.0050")     # +0.50% price move triggers BE ratchet
     stall_scratch_minutes: int = 12                       # Minute 12: momentum stall scratch check
@@ -61,7 +64,7 @@ class TigerOrderflowConfig:
     ofi_threshold: Decimal = Decimal("0.45")               # Cont-Kukanov-Stoikov OFI trigger cutoff
     micro_price_skew_bps: Decimal = Decimal("0.20")        # 0.20 bps Stoikov Micro-Price skew filter
     cvd_divergence_sigma: Decimal = Decimal("2.0")         # 2.0 sigma CVD delta divergence
-    absorption_wick_min_ratio: Decimal = Decimal("0.40")   # 40% wick ratio for trapped liquidity candle
+    absorption_wick_min_ratio: Decimal = Decimal("0.45")   # 45% wick ratio for trapped liquidity candle (SELL setups)
     steamroller_vol_multiplier: Decimal = Decimal("4.5")   # Veto: volume > 4.5x average is a freight train
     max_spread_pct: Decimal = Decimal("0.0005")            # 0.05% max bid-ask spread tolerance
     min_trapped_trader_density: Decimal = Decimal("0.65")  # 65% minimum absorption density score
@@ -73,8 +76,8 @@ class TigerOrderflowConfig:
     delta_oi_filter_enabled: bool = True                   # Trapped Trader Open Interest (ΔOI) Climax Gate
     min_delta_oi_pct: Decimal = Decimal("0.0001")          # Minimum +0.01% OI expansion during absorption window
     oi_lookback_seconds: int = 180                         # 180s window for measuring ΔOI trend
-    falling_knife_guard_enabled: bool = True               # Anti-Falling-Knife Guard for BUY setups (Lesson #43)
-    buy_absorption_wick_min_ratio: Decimal = Decimal("0.50") # 50% minimum lower wick for BUY setups (stricter than SELL)
+    falling_knife_guard_enabled: bool = True               # Anti-Falling-Knife Guard for BUY setups (Lesson #43 & #49)
+    buy_absorption_wick_min_ratio: Decimal = Decimal("0.60") # 60% minimum lower wick for BUY setups (strictly higher than SELL 45%)
     buy_max_24h_drop_abs_pct: Decimal = Decimal("10.0")    # Veto BUY if coin 24h change <= -10.0%
 
 

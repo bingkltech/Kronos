@@ -6,7 +6,7 @@
   "profit_factor": "0.70",
   "avg_mfe_pct": "0.0055",
   "avg_mae_pct": "0.0065",
-  "calibrated_min_wick_ratio": "0.48",
+  "calibrated_min_wick_ratio": 0.45,
   "calibrated_min_cvd_zscore": "2.4",
   "calibrated_slow_tp_pct": "0.0080",
   "calibrated_slow_sl_pct": "0.0055",
@@ -160,5 +160,9 @@
     "ZERO_MFE_LIQ_FLUSH": 9,
     "MFE_REVERSAL": 3,
     "STEAMROLLER_OUTLIER": 4
-  }
+  },
+  "calibrated_min_buy_wick_ratio": 0.6,
+  "zero_mfe_abort_seconds": 30,
+  "min_24h_turnover_usd": 50000000.0,
+  "remedy": "Enforce Lesson #49: Asymmetric BUY wick ratio >= 0.60, min  turnover floor, and 30s Zero-MFE abort circuit breaker to prevent instant liquidation flushes."
 }

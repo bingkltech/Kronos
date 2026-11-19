@@ -9,7 +9,7 @@
     "ws_ping_interval_seconds": 60
   },
   "sieve": {
-    "min_24h_turnover_usd": "30000000.00",
+    "min_24h_turnover_usd": "50000000.00",
     "max_universe_size": 150,
     "active_sniper_slots": 5,
     "min_volatility_score": "0.020",
@@ -30,13 +30,16 @@
     "plateau_ratchet_enabled": true,
     "plateau_ratchet_minutes": 5,
     "plateau_min_mfe_pct": "0.0020",
-    "plateau_be_buffer_pct": "-0.0010"
+    "plateau_be_buffer_pct": "-0.0010",
+    "zero_mfe_abort_seconds": 30,
+    "zero_mfe_max_loss_pct": "-0.0025",
+    "zero_mfe_max_favorable_pct": "0.0005"
   },
   "orderflow": {
     "ofi_threshold": "0.45",
     "micro_price_skew_bps": "0.20",
     "cvd_divergence_sigma": "2.0",
-    "absorption_wick_min_ratio": "0.40",
+    "absorption_wick_min_ratio": "0.45",
     "steamroller_vol_multiplier": "4.5",
     "max_spread_pct": "0.0005",
     "min_trapped_trader_density": "0.65",
@@ -49,7 +52,7 @@
     "min_delta_oi_pct": "0.0001",
     "oi_lookback_seconds": 180,
     "falling_knife_guard_enabled": true,
-    "buy_absorption_wick_min_ratio": "0.50",
+    "buy_absorption_wick_min_ratio": "0.60",
     "buy_max_24h_drop_abs_pct": "10.0"
   },
   "brackets": {

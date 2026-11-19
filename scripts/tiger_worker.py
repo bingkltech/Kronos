@@ -431,7 +431,7 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True) ->
                             )
                             actual_exit_price = sl_res.exit_price if sl_res.triggered else current_price
                             exit_fee_pct = DEFAULT_FRICTION_CONFIG.taker_fee_pct
-                    elif action in ("STALL_SCRATCH", "HARD_KILL") or eval_res.should_exit:
+                    elif action in ("STALL_SCRATCH", "HARD_KILL", "ZERO_MFE_ABORT") or eval_res.should_exit:
                         flat_res = evaluate_market_flatten_exit(
                             side=pos.side,
                             current_price=current_price,
