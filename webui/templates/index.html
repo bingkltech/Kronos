@@ -12,6 +12,7 @@
     <script src="/static/js/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="/static/css/terminal.css">
     <link rel="stylesheet" href="/static/css/swarm_deck.css">
+    <link rel="stylesheet" href="/static/css/tiger_radar.css">
 </head>
 <body>
 
@@ -40,6 +41,9 @@
                 </button>
                 <button class="nav-tab" id="tab-scalper" onclick="switchAppView('scalper')">
                     <span style="color: #ff9800;">⚡🐅</span> Scalping Arena
+                </button>
+                <button class="nav-tab" id="tab-tiger" onclick="switchAppView('tiger')">
+                    <span style="color: #00f0ff;">🐅⚡</span> Stalking Tiger
                 </button>
             </div>
         </div>
@@ -2658,11 +2662,195 @@
         </div> <!-- Close scalper-pane-lightning -->
 
     </div> <!-- Close view-scalper -->
+
+    <!-- ======================================================================= -->
+    <!-- VIEW 6: STALKING TIGER — MICROSTRUCTURAL PREY RADAR COCKPIT             -->
+    <!-- ======================================================================= -->
+    <div id="view-tiger" class="app-view" style="display: none;">
+        <!-- Master Header Strip -->
+        <div class="tiger-header-bar">
+            <div class="tiger-title-group">
+                <div class="tiger-title-icon">🐅⚡</div>
+                <div>
+                    <div class="tiger-title-text">STALKING TIGER — MICROSTRUCTURAL PREY RADAR</div>
+                    <div class="tiger-title-sub">REAL-TIME BIOMECHANIC PREDATOR STREAM · ZERO-WEIGHT WEBSOCKET TENTACLES</div>
+                </div>
+            </div>
+
+            <div class="tiger-metrics-strip">
+                <div class="tiger-metric-pill" style="border-left: 3px solid #00f0ff;">
+                    <span class="tiger-metric-label">Daemon Host</span>
+                    <span class="tiger-metric-val" style="color: #00f0ff;">● EC2 13.63.158.94</span>
+                </div>
+                <div class="tiger-metric-pill" style="border-left: 3px solid #ffd700;">
+                    <span class="tiger-metric-label">Live Balance</span>
+                    <span class="tiger-metric-val" id="tiger-bal-val" style="color: #ffd700;">$194.28 USDT</span>
+                </div>
+                <div class="tiger-metric-pill" style="border-left: 3px solid #bd00ff;">
+                    <span class="tiger-metric-label">WS Ingestion</span>
+                    <span class="tiger-metric-val" id="tiger-ticks-val" style="color: #bd00ff;">58,240 ticks</span>
+                </div>
+                <div class="tiger-metric-pill" style="border-left: 3px solid #00ff88;">
+                    <span class="tiger-metric-label">BTC Macro Tide</span>
+                    <span class="tiger-metric-val" id="tiger-btc-val" style="color: #00ff88;">+0.02% · CVD 0.4σ</span>
+                </div>
+                <div class="tiger-metric-pill" style="border-left: 3px solid #58a6ff;">
+                    <span class="tiger-metric-label">Binance Weight</span>
+                    <span class="tiger-metric-val" id="tiger-weight-val" style="color: #58a6ff;">14 / 1200</span>
+                </div>
+
+                <!-- Web Audio API Synthesizer Toggle -->
+                <button type="button" class="tiger-audio-btn" id="tigerAudioToggleBtn" title="Toggle Synthesized Web Audio Sound FX">
+                    <span>🔈</span> AUDIO SFX: MUTED
+                </button>
+
+                <button type="button" class="btn-secondary" style="font-size: 11px; padding: 6px 12px;" onclick="fetchTigerRadarData()">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Master Grid -->
+        <div class="tiger-main-grid">
+            <!-- Left: 60 FPS HTML5 Canvas Radar -->
+            <div class="tiger-radar-card">
+                <div class="tiger-radar-header">
+                    <div class="tiger-radar-title">
+                        <span>⚡</span> DYNAMIC PREY RADAR (POLAR INVERTED STRIKE ORBIT)
+                    </div>
+                    <div style="font-size: 11px; font-family: var(--font-mono); color: #8b949e;">
+                        <span>Sweep: <b>30s Sonar</b></span> · <span>Frame: <b style="color: #00ff88;">60 FPS</b></span>
+                    </div>
+                </div>
+
+                <div class="tiger-canvas-wrap">
+                    <canvas id="tigerRadarCanvas"></canvas>
+
+                    <!-- Overlay Legend -->
+                    <div class="tiger-hud-legend">
+                        <div class="tiger-legend-item">
+                            <span class="tiger-legend-dot" style="background: #00f0ff; box-shadow: 0 0 6px #00f0ff;"></span>
+                            <span>Bézier Tentacle (Active Lock)</span>
+                        </div>
+                        <div class="tiger-legend-item">
+                            <span class="tiger-legend-dot" style="background: #ffd700; box-shadow: 0 0 6px #ffd700;"></span>
+                            <span>Lightning Arc (CVD > 1.5σ)</span>
+                        </div>
+                        <div class="tiger-legend-item">
+                            <span class="tiger-legend-dot" style="background: #ff2255; box-shadow: 0 0 6px #ff2255;"></span>
+                            <span>Electric Perimeter (Quarantine)</span>
+                        </div>
+                    </div>
+
+                    <!-- Overlay Live Stats -->
+                    <div class="tiger-hud-radar-stats">
+                        <span style="color: #00f0ff; font-weight: 800;">RADIUS CONTRACT: r ∝ (1 - S)</span>
+                        <span style="color: #8b949e;">Closer = Imminent Strike</span>
+                    </div>
+
+                    <!-- Hover / Click Tooltip -->
+                    <div id="tigerTooltip" class="tiger-tooltip"></div>
+                </div>
+            </div>
+
+            <!-- Right: Tactical Deck -->
+            <div class="tiger-tactical-deck">
+                <!-- Card 1: 5 Hot Prey Leaderboard -->
+                <div class="tiger-card" style="border-top: 3px solid #00f0ff;">
+                    <div class="tiger-card-header">
+                        <div class="tiger-card-title">
+                            <span>🎯</span> 5 HOT PREY POOL (LIVE STALKING)
+                        </div>
+                        <span class="badge" style="background: rgba(0, 240, 255, 0.15); color: #00f0ff; font-size: 10px; font-weight: 800; padding: 2px 6px;">
+                            ZERO-WEIGHT WS
+                        </span>
+                    </div>
+                    <div class="tiger-card-body">
+                        <div class="tiger-prey-list" id="tigerPreyListContainer">
+                            <div style="color: #6e7681; font-size: 11px; text-align: center; padding: 15px;">Loading live prey...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Specialized Advisory Consultant (ACR) Monitor -->
+                <div class="tiger-card" style="border-top: 3px solid #ffd700;">
+                    <div class="tiger-card-header">
+                        <div class="tiger-card-title" style="color: #ffd700;">
+                            <span>⚖️</span> ADVISORY CONSULTANT (ACR) MONITOR
+                        </div>
+                        <span class="badge" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; font-size: 10px; font-weight: 800; padding: 2px 6px;">
+                            ARMED
+                        </span>
+                    </div>
+                    <div class="tiger-card-body">
+                        <div class="tiger-adv-grid">
+                            <div class="tiger-adv-item">
+                                <div class="tiger-adv-label">Zero-MFE Circuit</div>
+                                <div class="tiger-adv-val" id="tiger-adv-zero-mfe" style="color: #00ff88;">30s - 180s ARMED</div>
+                            </div>
+                            <div class="tiger-adv-item">
+                                <div class="tiger-adv-label">Asymmetric Wick Floor</div>
+                                <div class="tiger-adv-val" id="tiger-adv-wicks" style="color: #ffd700;">BUY ≥ 0.60 | SELL ≥ 0.45</div>
+                            </div>
+                            <div class="tiger-adv-item">
+                                <div class="tiger-adv-label">Turnover Floor</div>
+                                <div class="tiger-adv-val" id="tiger-adv-turnover-floor" style="color: #00f0ff;">$50M USD</div>
+                            </div>
+                            <div class="tiger-adv-item">
+                                <div class="tiger-adv-label">Execution Quota</div>
+                                <div class="tiger-adv-val" style="color: #ff9800;">5 Consecutive Real $</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Quarantine Perimeter Vault -->
+                <div class="tiger-card" style="border-top: 3px solid #ff2255;">
+                    <div class="tiger-card-header">
+                        <div class="tiger-card-title" style="color: #ff2255;">
+                            <span>⛔</span> QUARANTINE ELECTRIC PERIMETER
+                        </div>
+                        <span class="badge" style="background: rgba(255, 34, 85, 0.15); color: #ff2255; font-size: 10px; font-weight: 800; padding: 2px 6px;">
+                            REPELLED
+                        </span>
+                    </div>
+                    <div class="tiger-card-body">
+                        <div style="font-size: 10px; color: #8b949e; margin-bottom: 8px;">
+                            High-beta / Negative Expectancy assets barred beyond outer electric ring (Rule #49):
+                        </div>
+                        <div class="tiger-quarantine-box" id="tigerQuarantineList">
+                            <span class="tiger-quarantine-pill">⛔ ETHUSDT</span>
+                            <span class="tiger-quarantine-pill">⛔ SOLUSDT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-Time Microstructural Event Tape -->
+        <div class="tiger-tape-card">
+            <div class="tiger-card-header" style="background: rgba(0,0,0,0.4);">
+                <div class="tiger-card-title">
+                    <span>📡</span> REAL-TIME MICROSTRUCTURAL EVENT TAPE (POPS, SCANS & DISCHARGES)
+                </div>
+                <span style="font-size: 10px; font-family: var(--font-mono); color: #8b949e;">Sub-Second WebSocket Feed</span>
+            </div>
+            <div class="tiger-tape-feed" id="tigerTapeFeed">
+                <div class="tiger-tape-entry">
+                    <span class="tiger-tape-time">--:--:--</span>
+                    <span class="tiger-tape-tag tiger-tape-tag-ws">[STREAM]</span>
+                    <span class="tiger-tape-msg">Initializing Stalking Tiger microstructural telemetry stream...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="status-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; max-width: 400px;"></div>
 
     <script src="/static/js/terminal.js"></script>
     <script src="/static/scalper.js"></script>
     <script src="/static/js/swarm_deck.js"></script>
     <script src="/static/js/yearly_matrix.js"></script>
+    <script src="/static/js/tiger_radar.js"></script>
 </body>
 </html>

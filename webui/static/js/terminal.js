@@ -69,6 +69,13 @@
                 if (typeof loadScalperPage === 'function') {
                     loadScalperPage();
                 }
+            } else if (viewName === 'tiger') {
+                if (typeof initTigerRadar === 'function') {
+                    initTigerRadar();
+                }
+                if (typeof fetchTigerRadarData === 'function') {
+                    fetchTigerRadarData();
+                }
             }
         }
 
@@ -1397,6 +1404,8 @@
 
             if (window._INITIAL_VIEW === 'scalper' || window.location.pathname.includes('/scalper') || window.location.hash === '#scalper') {
                 setTimeout(() => { switchAppView('scalper'); }, 100);
+            } else if (window._INITIAL_VIEW === 'tiger' || window.location.pathname.includes('/tiger') || window.location.hash === '#tiger') {
+                setTimeout(() => { switchAppView('tiger'); }, 100);
             }
 
             // Real-time reactive polling for autonomous bot scans and telemetry
@@ -1407,6 +1416,8 @@
                     loadBotDashboard();
                 } else if (currentActiveView === 'scalper') {
                     if (typeof loadScalperTelemetry === 'function') loadScalperTelemetry();
+                } else if (currentActiveView === 'tiger') {
+                    if (typeof fetchTigerRadarData === 'function') fetchTigerRadarData();
                 } else {
                     // Update pill in background
                     if (liveAutopilotActive) loadLiveDashboard();

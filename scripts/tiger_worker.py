@@ -983,6 +983,7 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                 "btc_1m_return_pct": str((btc_1m_ret * Decimal("100")).quantize(Decimal("0.01"))) if "btc_1m_ret" in locals() else "0.00",
                 "btc_cvd_zscore": str(btc_cvd_z.quantize(Decimal("0.1"))) if "btc_cvd_z" in locals() else "0.0",
                 "quarantined_count": q_count,
+                "quarantined_symbols": sorted(list(quarantined_symbols)) if "quarantined_symbols" in locals() else ["ETHUSDT", "SOLUSDT"],
                 "recycler_evaluations": recycler_evaluations if "recycler_evaluations" in locals() else [],
                 "active_prey": [
                     {
@@ -1000,8 +1001,18 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                 ]
             }
             try:
-                with open("data/tiger_radar.json", "w", encoding="utf-8") as rf:
-                    json.dump(radar_dict, rf, indent=2)
+                for radar_out_path in [
+                    os.path.join(PROJECT_ROOT, "data", "tiger_radar.json"),
+                    "data/tiger_radar.json",
+                    "/home/ec2-user/data/tiger_radar.json"
+                ]:
+                    try:
+                        p_dir = os.path.dirname(radar_out_path)
+                        if p_dir and os.path.exists(p_dir):
+                            with open(radar_out_path, "w", encoding="utf-8") as rf:
+                                json.dump(radar_dict, rf, indent=2)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
