@@ -132,6 +132,27 @@ def fetch_symbol_open_interest(symbol: str) -> Optional[Tuple[Decimal, int, Dict
         return None
 
 
+def run_aws_hygiene_check():
+    """Flushes memory buffers, calls Python gc, and truncates bloated log files."""
+    try:
+        import gc
+        gc.collect()
+
+        # Check tiger_live.log size and truncate if > 8MB
+        log_path = os.path.join(PROJECT_ROOT, "logs", "tiger_live.log")
+        if os.path.exists(log_path):
+            size_mb = os.path.getsize(log_path) / (1024 * 1024)
+            if size_mb > 8.0:
+                with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+                trimmed = lines[-12000:]
+                with open(log_path, "w", encoding="utf-8") as f:
+                    f.writelines(trimmed)
+                logger.info(f"[AWS HYGIENE] Truncated bloated log ({size_mb:.1f} MB -> {len(trimmed)} lines kept).")
+    except Exception as e:
+        logger.debug(f"[AWS HYGIENE NOTICE] {e}")
+
+
 def run_scan_once(cfg: TigerMasterConfig) -> None:
     """Execute a single live scan of Binance USD(S)-M Top 150 and print Hot Prey candidates."""
     logger.info("Initializing Live Tiger Sieve against Binance USD(S)-M public endpoint...")
@@ -287,7 +308,10 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
             poll_interval = scanner.watchdog.get_poll_interval_seconds()
             if iteration == 1 or (loop_start - scanner.last_scan_ts >= poll_interval):
                 try:
-                    universe_150, top_5_prey = scanner.run_sieve(excluded_symbols=excluded_from_hunting)
+                    universe_150, top_5_prey = scanner.run_sieve(
+                        excluded_symbols=excluded_from_hunting,
+                        ws_manager=ws_manager
+                    )
                     for uc in universe_150:
                         symbol_adv_map[uc.symbol] = uc.turnover_24h_usd
                     # Feed isolated prey symbols PLUS active position AND pending signal symbols into live WebSocket manager
@@ -993,6 +1017,10 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                         "price_change_pct": str(c.price_change_pct),
                         "turnover_24h_usd": str(c.turnover_24h_usd),
                         "volatility_score": str(c.volatility_score),
+                        "dynamic_strength_pct": str((getattr(c, "dynamic_strength", c.volatility_score) * Decimal("100")).quantize(Decimal("0.1"))),
+                        "stagnation_status": getattr(c, "stagnation_status", "ACTIVE"),
+                        "retention_ratio_pct": str((getattr(c, "retention_ratio", Decimal("1.00")) * Decimal("100")).quantize(Decimal("0.1"))),
+                        "elapsed_seconds": round(getattr(c, "elapsed_seconds", 0.0), 1),
                         "is_quarantined": c.symbol in quarantined_symbols,
                         "open_interest": str(ws_manager.get_tracker(c.symbol).oi_history[-1].open_interest) if ws_manager.get_tracker(c.symbol) and ws_manager.get_tracker(c.symbol).oi_history else "0",
                         "delta_oi_pct": str((ws_manager.get_tracker(c.symbol).compute_delta_oi()[1] * Decimal("100")).quantize(Decimal("0.01"))) if ws_manager.get_tracker(c.symbol) else "0.00"
@@ -1016,8 +1044,12 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
             except Exception:
                 pass
 
-            # Sleep remaining interval to maintain 10-15s cycle
-            sleep_time = max(5.0, 15.0 - elapsed_loop)
+            # Run periodic AWS hygiene check every 30s (GC + log truncation)
+            if iteration % 3 == 0:
+                run_aws_hygiene_check()
+
+            # Sleep remaining interval to maintain 10-12s continuous cycle
+            sleep_time = max(2.0, 10.0 - elapsed_loop)
             time.sleep(sleep_time)
 
     finally:

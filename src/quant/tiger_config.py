@@ -19,7 +19,7 @@ class TigerApiRateLimitConfig:
     max_weight_per_minute: int = 2400          # Hard Binance IP rate limit
     warning_weight_threshold: int = 1200       # 50% cap -> throttles polling to 60s
     critical_weight_threshold: int = 1800      # 75% cap -> pauses all REST polling
-    bulk_ticker_interval_seconds: int = 45     # 1.3 bulk calls/min = 53 weight/min (2.2% budget)
+    bulk_ticker_interval_seconds: int = 12     # Continuous Sieve: 5 bulk calls/min = 200 weight/min (8.3% budget)
     bulk_ticker_weight_cost: int = 40          # Weight cost of GET /fapi/v1/ticker/24hr
     max_ws_reconnect_attempts: int = 5         # Auto-reconnection attempts for WebSockets
     ws_ping_interval_seconds: int = 60         # Keepalive ping interval for persistent streams
@@ -163,7 +163,7 @@ class TigerMasterConfig:
                 max_weight_per_minute=int(p_rate.get("max_weight_per_minute", 2400)),
                 warning_weight_threshold=int(p_rate.get("warning_weight_threshold", 1200)),
                 critical_weight_threshold=int(p_rate.get("critical_weight_threshold", 1800)),
-                bulk_ticker_interval_seconds=int(p_rate.get("bulk_ticker_interval_seconds", 30)),
+                bulk_ticker_interval_seconds=int(p_rate.get("bulk_ticker_interval_seconds", 12)),
                 bulk_ticker_weight_cost=int(p_rate.get("bulk_ticker_weight_cost", 40)),
                 max_ws_reconnect_attempts=int(p_rate.get("max_ws_reconnect_attempts", 5)),
                 ws_ping_interval_seconds=int(p_rate.get("ws_ping_interval_seconds", 60)),

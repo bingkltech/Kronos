@@ -452,6 +452,36 @@
 .tiger-tape-tag-popout { background: rgba(255, 34, 85, 0.2); color: var(--tiger-red); }
 .tiger-tape-tag-cvd { background: rgba(255, 215, 0, 0.2); color: var(--tiger-gold); }
 .tiger-tape-tag-ws { background: rgba(189, 0, 255, 0.2); color: var(--tiger-violet); }
+.tiger-tape-tag-stagnant { background: rgba(255, 165, 0, 0.2); color: #ffa500; }
+.tiger-tape-tag-evict { background: rgba(255, 34, 85, 0.25); color: #ff3366; }
+.tiger-tape-tag-swap { background: rgba(0, 240, 255, 0.25); color: #00f0ff; }
+
+/* Micro Dynamic Strength Meter */
+.tiger-strength-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+}
+.tiger-strength-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.tiger-strength-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+.tiger-strength-pct-label {
+    font-size: 9px;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    min-width: 28px;
+    text-align: right;
+}
 
 .tiger-tape-msg {
     color: #c9d1d9;

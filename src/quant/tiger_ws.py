@@ -59,7 +59,7 @@ class TigerWebSocketManager:
         self.last_tick_time = 0.0
 
     def update_symbols(self, new_symbols: List[str]) -> None:
-        """Dynamically update active prey target symbols."""
+        """Dynamically update active prey target symbols and purge memory of evicted trackers."""
         with self._lock:
             incoming = set(new_symbols)
             if incoming != self.active_symbols:
@@ -68,6 +68,13 @@ class TigerWebSocketManager:
                 for s in incoming:
                     if s not in self.trackers:
                         self.trackers[s] = SymbolOrderflowTracker(s, self.cfg.orderflow)
+
+                # AWS Memory Hygiene: Purge dead trackers of symbols that are no longer monitored
+                dead_symbols = [s for s in list(self.trackers.keys()) if s not in incoming and s != "BTCUSDT"]
+                for s in dead_symbols:
+                    del self.trackers[s]
+                if dead_symbols:
+                    logger.info(f"[AWS PURGE] Flushed {len(dead_symbols)} dead trackers from memory: {dead_symbols}")
                 logger.info(f"[TIGER WS] Updated prey pool to {list(self.active_symbols)}")
 
     def get_tracker(self, symbol: str) -> Optional[SymbolOrderflowTracker]:

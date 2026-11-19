@@ -140,6 +140,8 @@
             this.selectedPrey = null;
             this.hoveredNode = null;
             this.lastKnownSymbols = new Set();
+            this.lastKnownPreyMap = new Map();
+            this.lastStagnationState = new Map();
 
             // Dynamic animations
             this.sonarAngle = 0; // 0 to 2*PI, 30s cycle
@@ -258,6 +260,15 @@
                     const turnoverStr = turnover >= 1e6 ? `$${(turnover / 1e6).toFixed(1)}M` : `$${turnover.toLocaleString()}`;
                     const doi = parseFloat(found.delta_oi_pct || 0);
 
+                    const strPct = found.dynamic_strength_pct !== undefined ? Math.round(found.dynamic_strength_pct) : 100;
+                    let strColor = '#00f0ff';
+                    if (strPct < 45) strColor = '#ff3366';
+                    else if (strPct < 75) strColor = '#ffd700';
+
+                    const stagStatus = found.stagnation_status || 'ACTIVE';
+                    const dwellSec = Math.round(found.elapsed_seconds || 0);
+                    const retPct = Math.round(parseFloat(found.retention_ratio_pct || (found.retention_ratio ? found.retention_ratio * 100 : 100)));
+
                     tooltip.innerHTML = `
                         <div style="display: flex; justify-content: space-between; gap: 10px;">
                             <span style="font-weight: 900; font-size: 13px; color: #00f0ff;">#${found.rank} ${found.symbol}</span>
@@ -268,6 +279,8 @@
                             <div>Turnover: <b style="color: #ffd700;">${turnoverStr}</b></div>
                             <div>Vol Score: <b style="color: #bd00ff;">${parseFloat(found.volatility_score || 0).toFixed(4)}</b></div>
                             <div>ΔOI: <b style="color: ${doi >= 0 ? '#00ff88' : '#ff2255'};">${doi.toFixed(2)}%</b></div>
+                            <div style="color: ${strColor}; margin-top: 3px;">Dynamic Str: <b>${strPct}%</b> (${stagStatus})</div>
+                            <div style="color: #8b949e; font-size: 10px;">Dwell: <b>${dwellSec}s</b> · Retention: <b>${retPct}%</b></div>
                             <div>Stalk Score: <b style="color: #00f0ff;">${(found._stalkScore || 0.85).toFixed(2)}</b></div>
                         </div>
                     `;
@@ -290,10 +303,20 @@
             for (const p of newPreyList) {
                 if (!this.lastKnownSymbols.has(p.symbol)) {
                     this.onPreyPopIn(p);
+                } else {
+                    // Check for Stagnation status changes
+                    const prevStatus = this.lastStagnationState.get(p.symbol) || 'ACTIVE';
+                    const currStatus = p.stagnation_status || 'ACTIVE';
+                    if (currStatus !== prevStatus && (currStatus === 'STAGNANT_1' || currStatus === 'STAGNANT_2')) {
+                        const strPct = p.dynamic_strength_pct !== undefined ? Math.round(p.dynamic_strength_pct) : 100;
+                        this.addTapeLog('STAGNANT', `${p.symbol} waning: strength fell to ${strPct}% (${currStatus})`);
+                    }
                 }
+                this.lastStagnationState.set(p.symbol, p.stagnation_status || 'ACTIVE');
+                this.lastKnownPreyMap.set(p.symbol, { ...p });
             }
 
-            // Detect Pop-Outs (Disqualified assets decaying)
+            // Detect Pop-Outs (Disqualified or Evicted assets decaying)
             for (const sym of this.lastKnownSymbols) {
                 if (!newSymbols.has(sym)) {
                     this.onPreyPopOut(sym);
@@ -367,7 +390,15 @@
 
         onPreyPopOut(symbol) {
             this.audio.playPopOut();
-            this.addTapeLog('POPOUT', `${symbol} dropped from Top-5 (momentum decay)`);
+            const prev = this.lastKnownPreyMap.get(symbol);
+            if (prev && (prev.stagnation_status === 'STAGNANT_2' || (prev.dynamic_strength_pct !== undefined && prev.dynamic_strength_pct < 45))) {
+                const strPct = prev.dynamic_strength_pct !== undefined ? Math.round(prev.dynamic_strength_pct) : 0;
+                this.addTapeLog('EVICT', `${symbol} evicted (stagnant/exhausted: ${strPct}% STR)`);
+            } else if (prev) {
+                this.addTapeLog('SWAP', `${symbol} swapped out for higher-opportunity asset`);
+            } else {
+                this.addTapeLog('POPOUT', `${symbol} dropped from Top-5 (momentum decay)`);
+            }
 
             // Find dying prey coordinates to shatter into embers
             const dead = this.activePrey.find(p => p.symbol === symbol);
@@ -401,6 +432,9 @@
             if (tag === 'POPOUT') tagClass = 'tiger-tape-tag-popout';
             if (tag === 'CVD') tagClass = 'tiger-tape-tag-cvd';
             if (tag === 'SCAN') tagClass = 'tiger-tape-tag-scan';
+            if (tag === 'STAGNANT') tagClass = 'tiger-tape-tag-stagnant';
+            if (tag === 'EVICT') tagClass = 'tiger-tape-tag-evict';
+            if (tag === 'SWAP') tagClass = 'tiger-tape-tag-swap';
 
             entry.innerHTML = `
                 <span class="tiger-tape-time">${timeStr}</span>
@@ -716,22 +750,52 @@
                 const cp2y = this.centerY + dy * 0.66 - ny * wave2;
 
                 const isSelected = (this.selectedPrey === p.symbol);
+                const strPct = (p.dynamic_strength_pct !== undefined) ? p.dynamic_strength_pct : 100;
 
-                // Outer Neon Cyan Glow Pass
+                // Color-code Bézier tentacles based on dynamic strength percentage
+                let tentacleStroke = 'rgba(0, 240, 255, 0.35)';
+                let filamentStroke = '#e0ffff';
+                let tentacleGlow = '#00f0ff';
+                let glowBlur = 10;
+
+                if (isSelected) {
+                    tentacleStroke = 'rgba(255, 215, 0, 0.55)';
+                    filamentStroke = '#ffffff';
+                    tentacleGlow = '#ffd700';
+                    glowBlur = 16;
+                } else if (strPct >= 75) {
+                    // Prime Opportunity (Neon Cyan)
+                    tentacleStroke = 'rgba(0, 240, 255, 0.38)';
+                    filamentStroke = '#c8f9ff';
+                    tentacleGlow = '#00f0ff';
+                } else if (strPct >= 45) {
+                    // Waning / Degrading (Amber / Gold)
+                    tentacleStroke = 'rgba(255, 215, 0, 0.38)';
+                    filamentStroke = '#fff2a8';
+                    tentacleGlow = '#ffd700';
+                } else {
+                    // Stagnant / Near-Eviction (Neon Red / Magenta)
+                    tentacleStroke = 'rgba(255, 34, 85, 0.45)';
+                    filamentStroke = '#ff99aa';
+                    tentacleGlow = '#ff2255';
+                    glowBlur = 14;
+                }
+
+                // Outer Neon Glow Pass
                 ctx.beginPath();
                 ctx.moveTo(this.centerX, this.centerY);
                 ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, px, py);
-                ctx.strokeStyle = isSelected ? 'rgba(255, 215, 0, 0.45)' : 'rgba(0, 240, 255, 0.35)';
+                ctx.strokeStyle = tentacleStroke;
                 ctx.lineWidth = isSelected ? 4.0 : 2.5;
-                ctx.shadowColor = isSelected ? '#ffd700' : '#00f0ff';
-                ctx.shadowBlur = isSelected ? 16 : 10;
+                ctx.shadowColor = tentacleGlow;
+                ctx.shadowBlur = glowBlur;
                 ctx.stroke();
 
                 // Core Bright Filament Line
                 ctx.beginPath();
                 ctx.moveTo(this.centerX, this.centerY);
                 ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, px, py);
-                ctx.strokeStyle = isSelected ? '#ffffff' : '#e0ffff';
+                ctx.strokeStyle = filamentStroke;
                 ctx.lineWidth = isSelected ? 1.8 : 1.2;
                 ctx.shadowBlur = 0;
                 ctx.stroke();
@@ -816,6 +880,19 @@
                 ctx.font = '9px monospace';
                 const turnoverM = (parseFloat(p.turnover_24h_usd || 0) / 1e6).toFixed(0);
                 ctx.fillText(`$${p.last_price} · $${turnoverM}M`, px, py + radius + 11);
+
+                // Dynamic Strength Tag Below Node
+                const strPct = (p.dynamic_strength_pct !== undefined) ? Math.round(p.dynamic_strength_pct) : 100;
+                let strColor = '#00f0ff';
+                if (strPct < 45) strColor = '#ff3366';
+                else if (strPct < 75) strColor = '#ffd700';
+
+                const stagStatus = p.stagnation_status || 'ACTIVE';
+                const stagIcon = stagStatus === 'STAGNANT_2' ? '🛑' : (stagStatus === 'STAGNANT_1' ? '⚠️' : '⚡');
+
+                ctx.fillStyle = strColor;
+                ctx.font = 'bold 9px monospace';
+                ctx.fillText(`${stagIcon} ${strPct}% STR`, px, py + radius + 22);
             });
 
             ctx.restore();
@@ -1043,20 +1120,43 @@
             const turnover = parseFloat(p.turnover_24h_usd || 0);
             const turnoverM = (turnover / 1e6).toFixed(1);
 
+            const strPct = p.dynamic_strength_pct !== undefined ? Math.round(p.dynamic_strength_pct) : 100;
+            let barColor = '#00f0ff';
+            let badgeText = 'STALKING';
+            let badgeStyle = 'background: rgba(0, 240, 255, 0.15); color: #00f0ff; border: 1px solid rgba(0,240,255,0.3);';
+
+            if (p.stagnation_status === 'STAGNANT_1') {
+                barColor = '#ffd700';
+                badgeText = 'WANING';
+                badgeStyle = 'background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3);';
+            } else if (p.stagnation_status === 'STAGNANT_2') {
+                barColor = '#ff3366';
+                badgeText = 'STAGNANT';
+                badgeStyle = 'background: rgba(255, 34, 85, 0.2); color: #ff3366; border: 1px solid rgba(255,34,85,0.4);';
+            } else if (strPct < 75) {
+                barColor = '#ffd700';
+            }
+
             html += `
                 <div class="tiger-prey-row" onclick="selectTigerPrey('${p.symbol}')" id="prey-row-${p.symbol}">
                     <div class="tiger-prey-rank">#${p.rank}</div>
                     <div class="tiger-prey-info">
                         <span class="tiger-prey-symbol">${p.symbol}</span>
                         <span class="tiger-prey-meta">Vol: ${parseFloat(p.volatility_score || 0).toFixed(3)} · $${turnoverM}M</span>
+                        <div class="tiger-strength-bar-wrap">
+                            <div class="tiger-strength-bar">
+                                <div class="tiger-strength-fill" style="width: ${strPct}%; background: ${barColor};"></div>
+                            </div>
+                            <span class="tiger-strength-pct-label" style="color: ${barColor};">${strPct}%</span>
+                        </div>
                     </div>
                     <div class="tiger-prey-price">
                         <div>$${p.last_price}</div>
                         <div style="color: ${chgColor}; font-size: 10px;">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</div>
                     </div>
                     <div>
-                        <span class="tiger-prey-badge" style="background: rgba(0, 240, 255, 0.15); color: #00f0ff; border: 1px solid rgba(0,240,255,0.3);">
-                            STALKING
+                        <span class="tiger-prey-badge" style="${badgeStyle}">
+                            ${badgeText}
                         </span>
                     </div>
                 </div>

@@ -3,7 +3,7 @@
     "max_weight_per_minute": 2400,
     "warning_weight_threshold": 1200,
     "critical_weight_threshold": 1800,
-    "bulk_ticker_interval_seconds": 30,
+    "bulk_ticker_interval_seconds": 12,
     "bulk_ticker_weight_cost": 40,
     "max_ws_reconnect_attempts": 5,
     "ws_ping_interval_seconds": 60

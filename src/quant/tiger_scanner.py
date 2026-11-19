@@ -34,6 +34,10 @@ class PreyCandidate:
     low_price: Decimal
     last_price: Decimal
     rank: int
+    dynamic_strength: Decimal = Decimal("1.00")
+    stagnation_status: str = "ACTIVE"
+    retention_ratio: Decimal = Decimal("1.00")
+    elapsed_seconds: float = 0.0
 
 
 class BinanceRateLimitWatchdog:
@@ -120,6 +124,10 @@ class TigerUniverseScanner:
         self.last_scan_ts: float = 0.0
         self.cached_universe: List[PreyCandidate] = []
         self.cached_top_prey: List[PreyCandidate] = []
+        self.slot_entry_ts: Dict[str, float] = {}
+        self.peak_strength: Dict[str, Decimal] = {}
+        self.stagnant_cooldowns: Dict[str, float] = {}
+        self.last_tick_snapshot: Dict[str, Tuple[float, int]] = {}
 
     def set_fetcher(
         self,
@@ -199,14 +207,28 @@ class TigerUniverseScanner:
 
         return candidates
 
-    def run_sieve(self, excluded_symbols: Optional[Set[str]] = None) -> Tuple[List[PreyCandidate], List[PreyCandidate]]:
+    def run_sieve(
+        self,
+        excluded_symbols: Optional[Set[str]] = None,
+        ws_manager: Optional[Any] = None
+    ) -> Tuple[List[PreyCandidate], List[PreyCandidate]]:
         """
-        Executes the Top 150 Sieve.
+        Executes the Continuous Opportunistic Sieve.
         Optionally excludes symbols that already have active positions, pending orders,
-        cooldowns, or quarantines so that all 5 sniper slots remain 100% dedicated to viable hunting.
+        cooldowns, quarantines, or active stagnation timeouts.
+        Dynamically penalizes decaying/stagnant assets in the sniper pool and
+        replaces them with active breakout candidates.
         Returns:
             (top_150_universe, top_5_active_prey)
         """
+        now = time.time()
+
+        # 1. Purge expired stagnation cooldowns
+        expired_cd = [s for s, expiry in self.stagnant_cooldowns.items() if now >= expiry]
+        for s in expired_cd:
+            del self.stagnant_cooldowns[s]
+
+        # 2. Rate limit budget guard
         if not self.watchdog.can_request(self.cfg.rate_limit.bulk_ticker_weight_cost):
             logger.warning("[TIGER SCANNER] Request blocked by RateLimitWatchdog. Serving cache.")
             return self.cached_universe, self.cached_top_prey
@@ -218,19 +240,102 @@ class TigerUniverseScanner:
         self.watchdog.update_from_headers(headers)
 
         all_candidates = self.parse_raw_tickers(raw_data)
-        
+
         # Slice Top 150 universe
         universe_150 = all_candidates[:self.cfg.sieve.max_universe_size]
-        
-        # Isolate Top 5 "Hot Prey" excluding active trades, orders, cooldowns, or quarantines
-        if excluded_symbols:
-            eligible_universe = [c for c in universe_150 if c.symbol not in excluded_symbols]
-            top_5_prey = eligible_universe[:self.cfg.sieve.active_sniper_slots]
-        else:
-            top_5_prey = universe_150[:self.cfg.sieve.active_sniper_slots]
+
+        # 3. Dynamic Strength Evaluation & Decay for Incumbents
+        full_excluded = set(excluded_symbols or []) | set(self.stagnant_cooldowns.keys())
+        evicted_incumbents: Set[str] = set()
+
+        for cand in universe_150:
+            sym = cand.symbol
+            if sym in self.slot_entry_ts:
+                elapsed = now - self.slot_entry_ts[sym]
+                cand.elapsed_seconds = elapsed
+
+                # Measure tick velocity and micro-orderflow pulse
+                tick_velocity = 10.0
+                has_setup = False
+                if ws_manager:
+                    try:
+                        tracker = ws_manager.get_tracker(sym)
+                        if tracker:
+                            current_ticks = getattr(tracker, "total_ticks_received", len(getattr(tracker, "trades_window", [])))
+                            last_t, last_cnt = self.last_tick_snapshot.get(sym, (now - 1.0, current_ticks))
+                            dt = max(0.5, now - last_t)
+                            tick_velocity = max(0.0, float(current_ticks - last_cnt) / dt)
+                            self.last_tick_snapshot[sym] = (now, current_ticks)
+
+                            # Check for active absorption wicks or CVD surge
+                            if getattr(tracker, "last_wick_ratio", Decimal("0")) >= Decimal("0.40"):
+                                has_setup = True
+                            _, cvd_z = tracker.compute_cvd_metrics(window_seconds=60)
+                            if abs(cvd_z) >= Decimal("1.5"):
+                                has_setup = True
+                    except Exception:
+                        pass
+
+                # Stagnation Decay Ladder
+                decay_factor = Decimal("1.00")
+                status = "ACTIVE"
+                if elapsed > 180.0 and not has_setup:
+                    # > 3 minutes with zero climax formation -> EVICT
+                    decay_factor = Decimal("0.30")
+                    status = "EVICT_EXPIRED"
+                elif elapsed > 120.0 and tick_velocity < 6.0 and not has_setup:
+                    decay_factor = Decimal("0.55")
+                    status = "STAGNANT_DECAY"
+                elif elapsed > 60.0 and tick_velocity < 4.0:
+                    decay_factor = Decimal("0.80")
+                    status = "MOMENTUM_STALL"
+
+                cand.dynamic_strength = (cand.volatility_score * decay_factor).quantize(Decimal("0.0001"))
+                cand.stagnation_status = status
+                peak = self.peak_strength.get(sym, cand.volatility_score)
+                cand.retention_ratio = (cand.dynamic_strength / peak).quantize(Decimal("0.01")) if peak > Decimal("0") else Decimal("1.00")
+
+                # If status is EVICT_EXPIRED or severe decay with dead velocity, evict immediately
+                if status == "EVICT_EXPIRED" or (decay_factor <= Decimal("0.55") and tick_velocity < 5.0):
+                    evicted_incumbents.add(sym)
+                    self.stagnant_cooldowns[sym] = now + 300.0  # 5-minute timeout
+                    logger.info(
+                        "[TIGER EVICTION] %s evicted for lowering strength (Elapsed: %.0fs, Ticks: %.1f/s, Decay: %s). 5m timeout armed.",
+                        sym, elapsed, tick_velocity, decay_factor
+                    )
+            else:
+                cand.dynamic_strength = cand.volatility_score
+                cand.stagnation_status = "ACTIVE"
+                cand.retention_ratio = Decimal("1.00")
+
+        # Exclude evicted incumbents from pool
+        full_excluded |= evicted_incumbents
+
+        # 4. Filter and select Top 5 by Dynamic Strength
+        eligible_universe = [c for c in universe_150 if c.symbol not in full_excluded]
+        eligible_universe.sort(key=lambda c: c.dynamic_strength, reverse=True)
+        top_5_prey = eligible_universe[:self.cfg.sieve.active_sniper_slots]
+
+        for idx, cand in enumerate(top_5_prey):
+            cand.rank = idx + 1
+
+        # 5. Update slot entry times and peak strengths
+        current_top_symbols = {c.symbol for c in top_5_prey}
+        for c in top_5_prey:
+            if c.symbol not in self.slot_entry_ts:
+                self.slot_entry_ts[c.symbol] = now
+                self.peak_strength[c.symbol] = c.volatility_score
+                logger.info("[TIGER POP-IN] New active prey isolated: %s (Strength: %s)", c.symbol, c.dynamic_strength)
+
+        # Clean tracking for symbols that left Top 5
+        left_symbols = [s for s in list(self.slot_entry_ts.keys()) if s not in current_top_symbols]
+        for s in left_symbols:
+            del self.slot_entry_ts[s]
+            if s in self.peak_strength:
+                del self.peak_strength[s]
 
         self.cached_universe = universe_150
         self.cached_top_prey = top_5_prey
-        self.last_scan_ts = time.time()
+        self.last_scan_ts = now
 
         return universe_150, top_5_prey
