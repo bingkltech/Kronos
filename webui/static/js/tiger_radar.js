@@ -982,6 +982,15 @@
                 elBal.textContent = `$${parseFloat(d.wallet_balance).toFixed(2)} USDT`;
             }
 
+            const awsPill = document.getElementById('topbar-aws-tap-pill');
+            if (awsPill) {
+                if (d.aws_tap_active) {
+                    awsPill.innerHTML = '<span class="pulse-dot" style="background: #00f0ff;"></span> 🔒 AWS TAP: ACTIVE (13.63.158.94)';
+                    awsPill.style.color = '#00f0ff';
+                    awsPill.style.borderColor = 'rgba(0, 240, 255, 0.4)';
+                }
+            }
+
             const elTicks = document.getElementById('tiger-ticks-val');
             if (elTicks && radar.ws_ticks !== undefined) {
                 elTicks.textContent = Number(radar.ws_ticks).toLocaleString();

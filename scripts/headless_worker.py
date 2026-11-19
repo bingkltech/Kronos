@@ -855,6 +855,23 @@ def flatten_live():
     return jsonify(res)
 
 
+@app.route('/api/tiger/radar', methods=['GET'])
+def get_headless_tiger_radar():
+    """Serves real-time tiger_radar.json for local PC tap."""
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+    radar_path = os.path.join(data_dir, 'tiger_radar.json')
+    for p in [radar_path, "/home/ec2-user/data/tiger_radar.json"]:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    radar_data = json.load(f)
+                    if radar_data and radar_data.get("active_prey"):
+                        return jsonify({"success": True, "radar": radar_data})
+            except Exception:
+                pass
+    return jsonify({"success": False, "error": "radar not ready"}), 404
+
+
 def shutdown_handler(signum, frame):
     global running
     logger.info("Shutdown signal received (%s). Exiting gracefully...", signum)

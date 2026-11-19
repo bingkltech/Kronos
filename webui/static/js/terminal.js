@@ -828,6 +828,21 @@
                     intSelect.value = String(data.autopilot.interval_seconds);
                 }
 
+                // Update AWS Tap Pill (Zero-Whitelist Relay)
+                const awsPill = document.getElementById('topbar-aws-tap-pill');
+                if (awsPill) {
+                    if (data.aws_tap_active) {
+                        awsPill.style.display = 'inline-flex';
+                        awsPill.innerHTML = '<span class="pulse-dot" style="background: #00f0ff;"></span> 🔒 AWS TAP: ACTIVE (13.63.158.94)';
+                        awsPill.style.color = '#00f0ff';
+                        awsPill.style.borderColor = 'rgba(0, 240, 255, 0.4)';
+                    } else {
+                        awsPill.innerHTML = '<span class="pulse-dot" style="background: #8b949e;"></span> 🔒 AWS TAP: STANDBY';
+                        awsPill.style.color = '#8b949e';
+                        awsPill.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                    }
+                }
+
                 if (liveAutopilotActive) {
                     // Update main Macro Dashboard with fresh live data
                     if (dashPortfolioViewMode === 'LIVE') {

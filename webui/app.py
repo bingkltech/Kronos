@@ -37,6 +37,13 @@ tokenizer = None
 model = None
 predictor = None
 
+# Auto-start AWS Telemetry Bridge (Zero-Whitelist Relay to 13.63.158.94)
+try:
+    from src.quant.aws_telemetry_bridge import aws_bridge
+    aws_bridge.start()
+except Exception as e:
+    print(f">> [AWS Bridge Init Notice] {e}")
+
 # Available model configurations
 AVAILABLE_MODELS = {
     'kronos-base': {
@@ -2723,6 +2730,15 @@ def health_check():
 def get_live_status():
     """Return real Binance Futures account summary, positions, and live autopilot state."""
     try:
+        # Zero-Whitelist Tap: Prioritize direct remote telemetry from AWS EC2
+        if aws_bridge and aws_bridge.is_connected():
+            remote_data = aws_bridge.fetch_remote_json('/api/live/status', timeout=1.8)
+            if remote_data and remote_data.get("success"):
+                remote_data["aws_tap_active"] = True
+                remote_data["aws_ip"] = "13.63.158.94"
+                remote_data["whitelist_bypassed"] = True
+                return jsonify(remote_data)
+
         live_account = quant_bot.executor.get_live_account_summary()
         trade_history = quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else getattr(quant_bot.executor, "_cached_live_trades", [])[:25]
         calib = quant_bot.learning_governor.calculate_brier_calibration()
@@ -2815,6 +2831,11 @@ def toggle_live_trading():
     global live_trading_enabled, live_trading_interval, bot_autopilot_enabled
     try:
         data = request.get_json(silent=True) or {}
+        if aws_bridge and aws_bridge.is_connected():
+            remote_res = aws_bridge.post_remote_json('/api/live/toggle', data)
+            if remote_res and remote_res.get("success"):
+                return jsonify(remote_res)
+
         with live_account_lock, bot_autopilot_lock:
             if "trade_cap" in data:
                 cap_val = data["trade_cap"]
@@ -2889,6 +2910,11 @@ def run_live_scan():
 def flatten_live_positions():
     """Emergency flatten all live positions and cancel open orders on Binance."""
     try:
+        if aws_bridge and aws_bridge.is_connected():
+            remote_res = aws_bridge.post_remote_json('/api/live/flatten', request.get_json(silent=True))
+            if remote_res and "success" in remote_res:
+                return jsonify(remote_res)
+
         with live_account_lock:
             res = quant_bot.executor.flatten_all_live_positions()
         return jsonify(res)
@@ -2993,7 +3019,18 @@ def get_tiger_radar():
     cfg_path = os.path.join(data_dir, 'tiger_config.json')
 
     radar_data = {}
-    if os.path.exists(radar_path):
+    wallet_balance = "195.37"
+
+    # Prioritize live stream from AWS Bridge
+    if aws_bridge and aws_bridge.is_connected():
+        remote_radar = aws_bridge.get_tiger_radar_data()
+        if remote_radar and remote_radar.get("active_prey"):
+            radar_data = remote_radar
+        remote_acct = aws_bridge.get_live_account_summary()
+        if remote_acct and remote_acct.get("total_wallet_balance_usd"):
+            wallet_balance = str(round(float(remote_acct.get("total_wallet_balance_usd")), 2))
+
+    if not radar_data and os.path.exists(radar_path):
         try:
             with open(radar_path, 'r', encoding='utf-8') as f:
                 radar_data = json.load(f)
@@ -3032,7 +3069,9 @@ def get_tiger_radar():
 
     return jsonify({
         "success": True,
-        "wallet_balance": "194.28",
+        "wallet_balance": wallet_balance,
+        "aws_tap_active": bool(aws_bridge and aws_bridge.is_connected()),
+        "aws_ip": "13.63.158.94",
         "radar": radar_data,
         "advisory": {
             "zero_mfe_abort_seconds": 30,
