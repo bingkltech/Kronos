@@ -6,7 +6,7 @@
   "profit_factor": 0.0,
   "realization_tax_drag_bps": 24.0,
   "dominant_root_cause": "FRICTION_BLEED",
-  "recommended_remedy": "Excessive Fee Friction detected. Raised minimum net take-profit hurdle to 1.25% and ratchet trigger to 0.85%. Drawdown survival bias or low win-rate (<55%). Elevated minimum win probability sieve to 70.0%.",
+  "recommended_remedy": "Enforce Lessons 46-48: Mandatory 8m stagnation cutoff, 15m max duration, R_drag <= 0.30 fee hurdle, and Volume Profile pPOC spatial veto. Quarantined ETHUSDT (-.96 fee bleed) and SOLUSDT.",
   "calibrated_parameters": {
     "atr_stop_multiplier": 1.0,
     "fee_hurdle_pct": 1.25,
@@ -14,7 +14,8 @@
     "ratchet_trigger_pct": 0.85
   },
   "quarantined_symbols": [
-    "SOLUSDT"
+    "SOLUSDT",
+    "ETHUSDT"
   ],
   "synced_to_aws": false,
   "aws_sync_notes": ""

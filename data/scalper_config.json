@@ -43,7 +43,8 @@
     "consecutive_loss_quarantine_count": 5,
     "post_exit_cooldown_seconds": 900,
     "quarantined_symbols": [
-      "SOLUSDT"
+      "SOLUSDT",
+      "ETHUSDT"
     ],
     "atr_stop_multiplier": 1.0
   },
