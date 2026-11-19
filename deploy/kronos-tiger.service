@@ -1,0 +1,18 @@
+[Unit]
+Description=Kronos Stalking Tiger Scalp Engine (Strategy #3)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Kronos
+Environment=PYTHONUNBUFFERED=1
+Environment=KRONOS_INSTANCE_TAG=AWS
+ExecStart=/home/ubuntu/kronos-env/bin/python scripts/tiger_worker.py --live --quota 5
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/Kronos/logs/tiger_headless.log
+StandardError=append:/home/ubuntu/Kronos/logs/tiger_headless.log
+
+[Install]
+WantedBy=multi-user.target

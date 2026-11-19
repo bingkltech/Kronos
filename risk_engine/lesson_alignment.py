@@ -150,6 +150,10 @@ LESSON_REGISTRY: Dict[int, LessonBinding] = {
     42: LessonBinding(42, LessonTier.REGIME_HEURISTIC, "orchestrator", "US Open extension (14:00-15:30 UTC), neural gate & 30m directional flip hysteresis", supersedes=(38,)),
     43: LessonBinding(43, LessonTier.REGIME_HEURISTIC, "tiger_orderflow", "Tiger falling-knife guard & buy asymmetry"),
     44: LessonBinding(44, LessonTier.REGIME_HEURISTIC, "tiger_scalper", "Do NOT apply Macro 22:00-02:59 UTC session block to Tiger; tighten Tiger buy wick", supersedes=(38, 43)),
+    46: LessonBinding(46, LessonTier.REGIME_HEURISTIC, "apex_scalper", "15-30m decay valley avoidance & 8m stagnation cutoff"),
+    47: LessonBinding(47, LessonTier.REGIME_HEURISTIC, "apex_scalper", "Dynamic taker fee drag hurdle & breakeven ratchet"),
+    48: LessonBinding(48, LessonTier.REGIME_HEURISTIC, "apex_scalper", "Volume Profile POC ceiling & HVN entrapment veto"),
+    49: LessonBinding(49, LessonTier.REGIME_HEURISTIC, "tiger_scalper", "Asymmetric buy wick ratio (>=0.60) & 30s zero-MFE abort"),
 
     # --- Non-Risk System / Coding / App Lessons ---
     1: LessonBinding(1, LessonTier.NON_RISK_SYSTEM, "kronos_onnx_engine", "512-candle tail slicing contract"),

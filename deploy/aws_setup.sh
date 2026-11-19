@@ -57,17 +57,28 @@ snapshot_download(repo_id='NeoQuasar/Kronos-small', allow_patterns=['*.json', '*
 print('Model cache successfully preheated.')
 "
 
-# 6. Ensure log directory and install Systemd Service
-echo ">> [6/6] Installing systemd daemon (kronos.service)..."
+# 6. Ensure directories and install Systemd Services
+echo ">> [6/6] Installing systemd daemons (kronos.service, kronos-tiger.service, hygiene timer)..."
 mkdir -p "$HOME/Kronos/logs"
 mkdir -p "$HOME/Kronos/data"
 
+# Ensure risk control flag exists with default RUN state
+if [ ! -f "$HOME/Kronos/data/risk_state.txt" ]; then
+    echo "RUN" > "$HOME/Kronos/data/risk_state.txt"
+fi
+
 sudo cp deploy/kronos.service /etc/systemd/system/kronos.service
+sudo cp deploy/kronos-tiger.service /etc/systemd/system/kronos-tiger.service
+sudo cp deploy/kronos-hygiene.service /etc/systemd/system/kronos-hygiene.service
+sudo cp deploy/kronos-hygiene.timer /etc/systemd/system/kronos-hygiene.timer
+
 sudo systemctl daemon-reload
 sudo systemctl enable kronos
+sudo systemctl enable kronos-hygiene.timer
+sudo systemctl start kronos-hygiene.timer
 
 echo "=============================================================================="
-echo ">> [Kronos AWS Setup] SUCCESS! Headless Worker is Ready."
+echo ">> [Kronos AWS Setup] SUCCESS! Headless Workers are Ready."
 echo "=============================================================================="
 echo ""
 echo "Next steps:"
@@ -77,13 +88,18 @@ echo "   BINANCE_FUTURES_SECRET_KEY=your_secret"
 echo "   GEMINI_API_KEY=your_gemini_key"
 echo "   KRONOS_INSTANCE_TAG=AWS"
 echo ""
-echo "2. Start the 24/7 background service:"
+echo "2. Start the primary 24/7 background service (Macro + Lightning Scalp):"
 echo "   sudo systemctl start kronos"
 echo ""
-echo "3. Check live service status:"
+echo "3. (Optional) Start Stalking Tiger Scalp daemon (Strategy #3):"
+echo "   sudo systemctl start kronos-tiger"
+echo "   # Or run via tmux for session quota: ~/kronos-env/bin/python scripts/tiger_worker.py --live --quota 5"
+echo ""
+echo "4. Check live service status:"
 echo "   sudo systemctl status kronos"
+echo "   sudo systemctl status kronos-tiger"
 echo "   python scripts/status.py"
 echo ""
-echo "4. On your Local PC (.env), set the coordinator link so PC becomes passive observer:"
+echo "5. On your Local PC (.env), set the coordinator link so PC becomes passive observer:"
 echo "   AWS_COORDINATOR_URL=http://<YOUR_AWS_PUBLIC_IP>:7070"
 echo "=============================================================================="

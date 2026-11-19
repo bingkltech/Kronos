@@ -103,10 +103,11 @@ This automated script performs:
 
 ---
 
-## Step 5: Start & Monitor the 24/7 Cloud Worker
+## Step 5: Start & Monitor the 24/7 Cloud Workers
 
+### 5.1 Primary Worker: Macro Swing + Lightning Scalper
 ```bash
-# Start the service
+# Start primary engine (Macro + Lightning Scalper)
 sudo systemctl start kronos
 
 # Check service status
@@ -114,6 +115,30 @@ sudo systemctl status kronos
 
 # View live streaming logs
 tail -f logs/kronos_headless.log
+```
+
+### 5.2 Standalone Scalp Worker: Stalking Tiger (Strategy #3)
+You can run Stalking Tiger as a systemd service or interactively in a `tmux` session:
+
+**Option A: Dedicated Systemd Service (24/7 background with 5-trade quota):**
+```bash
+# Start Tiger Scalper
+sudo systemctl start kronos-tiger
+
+# Check service status
+sudo systemctl status kronos-tiger
+
+# View live streaming logs
+tail -f logs/tiger_headless.log
+```
+
+**Option B: Interactive Tmux Session (Best for Quota Runs):**
+```bash
+tmux new -s tiger
+cd ~/Kronos
+~/kronos-env/bin/python scripts/tiger_worker.py --live --quota 5
+# Detach with: Ctrl+B then D (Worker continues 24/7 in background)
+# Re-attach anytime with: tmux attach -t tiger
 ```
 
 You can also run the console status tool on AWS at any time:
