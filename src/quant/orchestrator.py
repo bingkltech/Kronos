@@ -47,6 +47,7 @@ from src.quant.volume_profile import (
     VolumeProfileEngine,
     VolumeProfileSnapshot,
 )
+from src.quant.tiger_scout_bridge import TigerScoutBridge, PreyNanoTelemetry, TigerScoutReport
 
 
 @dataclass(frozen=True)
@@ -80,7 +81,9 @@ class QuantBotOrchestrator:
         cooldown_seconds: int = 900,
         volume_profile_cache: Optional[DailyVolumeProfileCache] = None,
         enable_volume_profile_veto: bool = True,
-        require_neural_model: bool = True
+        require_neural_model: bool = True,
+        tiger_scout_bridge: Optional[TigerScoutBridge] = None,
+        enable_tiger_scout: bool = True
     ):
         self.symbols_config = symbols_config or TOP_10_SYMBOLS
         self.risk_config = risk_config or DEFAULT_RISK_CONFIG
@@ -88,6 +91,8 @@ class QuantBotOrchestrator:
         self.volume_profile_cache = volume_profile_cache or DailyVolumeProfileCache()
         self.enable_volume_profile_veto = enable_volume_profile_veto
         self.require_neural_model = require_neural_model
+        self.enable_tiger_scout = enable_tiger_scout
+        self.tiger_scout_bridge = tiger_scout_bridge or (TigerScoutBridge() if enable_tiger_scout else None)
 
         # Post-Exit Quarantine / Cooldown tracker (symbol -> {expires_utc, reason, ...})
         self.symbol_cooldowns: Dict[str, Dict[str, Any]] = {}
@@ -271,7 +276,48 @@ class QuantBotOrchestrator:
             )
 
         # 6. Evaluate Candidates in Universe
-        for symbol in self.symbols_config.keys():
+        candidate_symbols = list(self.symbols_config.keys())
+
+        # 6a. Stalking Tiger Dynamic Hot Prey Scouting Injection
+        if self.enable_tiger_scout and self.tiger_scout_bridge:
+            try:
+                scouted_prey = self.tiger_scout_bridge.get_scouted_prey_candidates(
+                    existing_universe=candidate_symbols,
+                    max_candidates=2,
+                    min_turnover_usd=Decimal("50000000.00")
+                )
+                for prey in scouted_prey:
+                    sym = prey.symbol
+                    if sym not in candidate_symbols:
+                        # Dynamically resolve precision and register symbol config
+                        p_prec, q_prec = self.executor._resolve_symbol_precision(sym)
+                        dyn_cfg = FuturesSymbolConfig(
+                            symbol=sym,
+                            price_precision=p_prec,
+                            quantity_precision=q_prec,
+                            min_quantity=Decimal("10") ** -q_prec,
+                            min_notional=Decimal("5.0"),
+                            taker_fee_rate=Decimal("0.0005"),
+                            maker_fee_rate=Decimal("0.0002"),
+                            est_slippage_rate=Decimal("0.0003")
+                        )
+                        self.symbols_config[sym] = dyn_cfg
+                        if self.risk_arbiter and hasattr(self.risk_arbiter, "symbols_config"):
+                            self.risk_arbiter.symbols_config[sym] = dyn_cfg
+                        if self.executor and hasattr(self.executor, "symbols_config"):
+                            self.executor.symbols_config[sym] = dyn_cfg
+                        if self.trajectory_engine and hasattr(self.trajectory_engine, "symbols_config"):
+                            self.trajectory_engine.symbols_config[sym] = dyn_cfg
+
+                        candidate_symbols.append(sym)
+                        logger.info(
+                            f"[TIGER-SCOUT] Dynamically injected Hot Prey candidate: {sym} "
+                            f"(Rank #{prey.rank}, 24h Vol: ${prey.turnover_24h_usd:,.0f}, Dynamic Strength: {prey.dynamic_strength_pct}%)"
+                        )
+            except Exception as e:
+                logger.debug("Failed to ingest Tiger scouted prey: %s", e)
+
+        for symbol in candidate_symbols:
             # Skip if already holding a position
             if symbol in active_symbols:
                 continue
@@ -420,6 +466,14 @@ class QuantBotOrchestrator:
                         continue
 
             # Carry Verdict
+            if symbol not in funding_map and not mock_trajectories:
+                try:
+                    dyn_funding = self.carry_specialist.fetch_funding_rates(symbol=symbol)
+                    if dyn_funding and symbol in dyn_funding:
+                        funding_map[symbol] = dyn_funding[symbol]
+                except Exception as e:
+                    logger.debug("Dynamic funding fetch failed for %s: %s", symbol, e)
+
             sym_funding = funding_map.get(symbol, {}).get("funding_rate", Decimal("0.0001"))
             next_funding_time = funding_map.get(symbol, {}).get("next_funding_time")
             carry_verdict = self.carry_specialist.evaluate_carry(
@@ -428,6 +482,25 @@ class QuantBotOrchestrator:
                 funding_rate=sym_funding,
                 next_funding_time=next_funding_time
             )
+
+            # Candidate Confidence Multiplier & Nano-Orderflow Confluence Evaluation
+            candidate_confidence_multiplier = confidence_multiplier
+            nano_adv_note = ""
+            if self.enable_tiger_scout and self.tiger_scout_bridge:
+                try:
+                    _, nano_mult, nano_note = self.tiger_scout_bridge.evaluate_nano_confluence(
+                        symbol=symbol,
+                        proposed_side=trajectory.proposed_side
+                    )
+                    if nano_mult != Decimal("1.00"):
+                        candidate_confidence_multiplier = (candidate_confidence_multiplier * nano_mult).quantize(Decimal("0.0001"))
+                        nano_adv_note = nano_note
+                        logger.info(
+                            f"[NANO-CONFLUENCE] {symbol} {trajectory.proposed_side}: {nano_note} "
+                            f"(Confidence Multiplier: {confidence_multiplier} -> {candidate_confidence_multiplier}x)"
+                        )
+                except Exception as e:
+                    logger.debug("Nano confluence check warning for %s: %s", symbol, e)
 
             # 7. KEV.ai Supreme Veto Gate & Kelly Sizing
             if execution_mode != "LIVE":
@@ -439,9 +512,13 @@ class QuantBotOrchestrator:
                 carry_verdict=carry_verdict,
                 account_equity=account_equity,
                 active_positions=active_symbols,
-                confidence_multiplier=confidence_multiplier,
+                confidence_multiplier=candidate_confidence_multiplier,
                 free_margin=free_margin
             )
+            if nano_adv_note:
+                existing_notes = decision.adversarial_notes or ""
+                updated_notes = f"{existing_notes} | {nano_adv_note}" if existing_notes else nano_adv_note
+                decision = replace(decision, adversarial_notes=updated_notes)
             decisions[symbol] = decision
 
             # 8. Dispatch Approved Trades

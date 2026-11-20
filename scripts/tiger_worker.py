@@ -1006,6 +1006,73 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
             logger.info(heartbeat_msg)
             print(f"\r[{now_utc.strftime('%H:%M:%S')}] {heartbeat_msg}", flush=True)
 
+            # Build enriched orderflow telemetry for active prey candidates
+            active_prey_list = []
+            for c in top_5_prey:
+                tracker = ws_manager.get_tracker(c.symbol) if "ws_manager" in locals() and ws_manager else None
+                oi_str = "0"
+                doi_pct = Decimal("0.00")
+                cvd_z = Decimal("0.0")
+                micro_skew = Decimal("0.0")
+                ofi = Decimal("0.0")
+                spread_bps = Decimal("0.0")
+                abs_signal = "NONE"
+
+                if tracker:
+                    if tracker.oi_history:
+                        oi_str = str(tracker.oi_history[-1].open_interest)
+                    _, raw_doi_pct = tracker.compute_delta_oi()
+                    doi_pct = (raw_doi_pct * Decimal("100")).quantize(Decimal("0.01"))
+
+                    try:
+                        _, raw_cvd_z = tracker.compute_cvd_metrics()
+                        cvd_z = raw_cvd_z.quantize(Decimal("0.1"))
+                    except Exception:
+                        pass
+
+                    try:
+                        ofi = getattr(tracker, "last_ofi", Decimal("0.0")).quantize(Decimal("0.01"))
+                    except Exception:
+                        pass
+
+                    try:
+                        ob_micro = tracker.get_order_book_microstructure()
+                        if ob_micro:
+                            micro_skew = ob_micro.micro_skew_bps.quantize(Decimal("0.01"))
+                            if ob_micro.best_bid > Decimal("0") and ob_micro.best_ask > Decimal("0"):
+                                mid = (ob_micro.best_bid + ob_micro.best_ask) / Decimal("2")
+                                if mid > Decimal("0"):
+                                    spread_bps = (((ob_micro.best_ask - ob_micro.best_bid) / mid) * Decimal("10000")).quantize(Decimal("0.1"))
+                    except Exception:
+                        pass
+
+                if "cycle_qualified_signals" in locals() and cycle_qualified_signals:
+                    for s_item in cycle_qualified_signals:
+                        if s_item[0].symbol == c.symbol:
+                            abs_signal = s_item[1].action
+                            break
+
+                active_prey_list.append({
+                    "rank": c.rank,
+                    "symbol": c.symbol,
+                    "last_price": str(c.last_price),
+                    "price_change_pct": str(c.price_change_pct),
+                    "turnover_24h_usd": str(c.turnover_24h_usd),
+                    "volatility_score": str(c.volatility_score),
+                    "dynamic_strength_pct": str((getattr(c, "dynamic_strength", c.volatility_score) * Decimal("100")).quantize(Decimal("0.1"))),
+                    "stagnation_status": getattr(c, "stagnation_status", "ACTIVE"),
+                    "retention_ratio_pct": str((getattr(c, "retention_ratio", Decimal("1.00")) * Decimal("100")).quantize(Decimal("0.1"))),
+                    "elapsed_seconds": round(getattr(c, "elapsed_seconds", 0.0), 1),
+                    "is_quarantined": c.symbol in quarantined_symbols if "quarantined_symbols" in locals() else False,
+                    "open_interest": oi_str,
+                    "delta_oi_pct": str(doi_pct),
+                    "cvd_zscore": str(cvd_z),
+                    "micro_skew_bps": str(micro_skew),
+                    "ofi_score": str(ofi),
+                    "spread_bps": str(spread_bps),
+                    "absorption_signal": abs_signal,
+                })
+
             # Dump live radar snapshot for WebUI visualization
             radar_dict = {
                 "updated_at_utc": now_utc.isoformat(),
@@ -1016,24 +1083,7 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                 "quarantined_count": q_count,
                 "quarantined_symbols": sorted(list(quarantined_symbols)) if "quarantined_symbols" in locals() else ["ETHUSDT", "SOLUSDT"],
                 "recycler_evaluations": recycler_evaluations if "recycler_evaluations" in locals() else [],
-                "active_prey": [
-                    {
-                        "rank": c.rank,
-                        "symbol": c.symbol,
-                        "last_price": str(c.last_price),
-                        "price_change_pct": str(c.price_change_pct),
-                        "turnover_24h_usd": str(c.turnover_24h_usd),
-                        "volatility_score": str(c.volatility_score),
-                        "dynamic_strength_pct": str((getattr(c, "dynamic_strength", c.volatility_score) * Decimal("100")).quantize(Decimal("0.1"))),
-                        "stagnation_status": getattr(c, "stagnation_status", "ACTIVE"),
-                        "retention_ratio_pct": str((getattr(c, "retention_ratio", Decimal("1.00")) * Decimal("100")).quantize(Decimal("0.1"))),
-                        "elapsed_seconds": round(getattr(c, "elapsed_seconds", 0.0), 1),
-                        "is_quarantined": c.symbol in quarantined_symbols,
-                        "open_interest": str(ws_manager.get_tracker(c.symbol).oi_history[-1].open_interest) if ws_manager.get_tracker(c.symbol) and ws_manager.get_tracker(c.symbol).oi_history else "0",
-                        "delta_oi_pct": str((ws_manager.get_tracker(c.symbol).compute_delta_oi()[1] * Decimal("100")).quantize(Decimal("0.01"))) if ws_manager.get_tracker(c.symbol) else "0.00"
-                    }
-                    for c in top_5_prey
-                ]
+                "active_prey": active_prey_list
             }
             try:
                 for radar_out_path in [

@@ -51,3 +51,11 @@ Before modifying architecture, financial logic, or PyTorch pipelines, consult th
 python scripts/lessons.py query --category coding --search "<keyword>"
 ```
 Apply verified historical fixes before inventing new patterns.
+
+---
+
+## 7. Proactive Context Saturation & Conversation Lifespan Alerts
+To prevent cognitive degradation, hallucination, and convoluted context windows:
+- **Proactive Early Warning:** When a conversation reaches ~50+ turns, when tool/skill exclusions occur due to context budget limits, or when tasks drift into multiple disparate domains, the agent MUST proactively alert the user.
+- **Actionable Remediation:** Advise the user to execute `/compact` to condense session history in place, or transition to a fresh conversation for focused execution.
+
