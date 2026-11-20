@@ -5,11 +5,12 @@
  */
 
 (function () {
-    let ymSource = "live";
-    let ymTimeframe = "1y";      // "1y" | "daily"
-    let ymSelectedMonth = null;  // null -> auto current UTC month (Nov '26, Dec '26, ...)
-    let ymMode = "both";         // "both" | "bs" | "pnl"
+    let ymSource = localStorage.getItem("kronos_ym_source") || "live";
+    let ymTimeframe = localStorage.getItem("kronos_ym_timeframe") || "daily";      // "1y" | "daily" (default to daily)
+    let ymSelectedMonth = localStorage.getItem("kronos_ym_month") || null;  // null -> auto current UTC month (Nov '26, Dec '26, ...)
+    let ymMode = localStorage.getItem("kronos_ym_mode") || "both";         // "both" | "bs" | "pnl"
     let ymLastData = null;
+    let ymIsLoading = false;
 
     function formatSignedUsd(valStr) {
         const num = parseFloat(valStr || "0");
@@ -128,7 +129,8 @@
         syncMonthControls(data);
 
         if (rangeEl) {
-            rangeEl.textContent = data.range_label || "";
+            const timeStr = new Date().toLocaleTimeString();
+            rangeEl.innerHTML = `${data.range_label || ""} <span style="display:inline-block;margin-left:8px;padding:2px 7px;border-radius:4px;background:rgba(34,197,94,0.14);border:1px solid rgba(34,197,94,0.35);color:#4ade80;font-size:10px;font-weight:600;letter-spacing:0.4px;" title="Auto-refreshed via AWS Bridge">⚡ LIVE · ${timeStr}</span>`;
         }
 
         const isDaily = data.timeframe === "daily";
@@ -240,6 +242,7 @@
 
     window.setYearlyMatrixSource = function (src) {
         ymSource = src;
+        try { localStorage.setItem("kronos_ym_source", src); } catch (e) {}
         document.querySelectorAll("[data-ym-source]").forEach((btn) => {
             btn.classList.toggle("active", btn.getAttribute("data-ym-source") === src);
         });
@@ -248,6 +251,7 @@
 
     window.setYearlyMatrixTimeframe = function (tf) {
         ymTimeframe = tf;
+        try { localStorage.setItem("kronos_ym_timeframe", tf); } catch (e) {}
         if (tf === "daily" && !ymSelectedMonth && ymLastData && ymLastData.current_month) {
             ymSelectedMonth = ymLastData.current_month;
         }
@@ -260,6 +264,10 @@
     window.setYearlyMatrixMonth = function (monthKey) {
         ymSelectedMonth = monthKey;
         ymTimeframe = "daily";
+        try {
+            localStorage.setItem("kronos_ym_month", monthKey);
+            localStorage.setItem("kronos_ym_timeframe", "daily");
+        } catch (e) {}
         document.querySelectorAll("[data-ym-tf]").forEach((btn) => {
             btn.classList.toggle("active", btn.getAttribute("data-ym-tf") === "daily");
         });
@@ -272,6 +280,7 @@
 
     window.setYearlyMatrixMode = function (mode) {
         ymMode = mode;
+        try { localStorage.setItem("kronos_ym_mode", mode); } catch (e) {}
         document.querySelectorAll("[data-ym-mode]").forEach((btn) => {
             btn.classList.toggle("active", btn.getAttribute("data-ym-mode") === mode);
         });
@@ -280,17 +289,40 @@
         }
     };
 
-    window.refreshYearlyMatrix = function () {
-        loadYearlyMatrix(true);
+    window.refreshYearlyMatrix = function (force = true) {
+        return loadYearlyMatrix(force);
     };
 
     document.addEventListener("DOMContentLoaded", function () {
+        // Sync button states on load
+        document.querySelectorAll("[data-ym-tf]").forEach((btn) => {
+            btn.classList.toggle("active", btn.getAttribute("data-ym-tf") === ymTimeframe);
+        });
+        document.querySelectorAll("[data-ym-source]").forEach((btn) => {
+            btn.classList.toggle("active", btn.getAttribute("data-ym-source") === ymSource);
+        });
+        document.querySelectorAll("[data-ym-mode]").forEach((btn) => {
+            btn.classList.toggle("active", btn.getAttribute("data-ym-mode") === ymMode);
+        });
+
         loadYearlyMatrix(false);
+
+        // Auto-refresh every 12 seconds
         setInterval(function () {
             const dash = document.getElementById("view-dashboard");
             if (dash && dash.style.display !== "none") {
                 loadYearlyMatrix(false);
             }
-        }, 90000);
+        }, 12000);
+
+        // Instant refresh on tab/window focus
+        document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) {
+                loadYearlyMatrix(false);
+            }
+        });
+        window.addEventListener("focus", function () {
+            loadYearlyMatrix(false);
+        });
     });
 })();

@@ -2956,7 +2956,7 @@ def flatten_live_positions():
 def get_live_trades():
     """Fetch recent live executed trade history with real fees and PnL."""
     try:
-        limit = min(100, int(request.args.get("limit", 50)))
+        limit = min(1000, max(1, int(request.args.get("limit", 100))))
         if aws_bridge and aws_bridge.is_connected():
             remote_trades = aws_bridge.fetch_remote_json(f'/api/live/trades?limit={limit}')
             if remote_trades and remote_trades.get("success"):
@@ -3580,7 +3580,7 @@ def _build_yearly_asset_matrix(
     cache_key = f"{src}:{tf}:{sel_month if tf == 'daily' else '1y'}"
     now_ts = time.time()
     cached = _yearly_matrix_cache.get(cache_key)
-    if not force_refresh and cached is not None and (now_ts - cached[0]) < 60:
+    if not force_refresh and cached is not None and (now_ts - cached[0]) < 10:
         return cached[1]
 
     if tf == "daily":
@@ -3636,15 +3636,52 @@ def _build_yearly_asset_matrix(
     if src == "live":
         # 1. Fetch live Binance Futures fills across all symbols (full cached fill history)
         seen_order_ids = set()
+        all_fills = []
+
+        # A. Priority 1: Direct remote fills from AWS EC2 Telemetry Bridge (primary execution gateway)
+        if aws_bridge:
+            try:
+                # Check cached live status trades first
+                cached_st = getattr(aws_bridge, "_cached_live_status", None)
+                if cached_st and isinstance(cached_st, dict) and cached_st.get("trade_history"):
+                    all_fills.extend(cached_st.get("trade_history") or [])
+
+                # Query full live trades over SSH tunnel
+                remote_resp = aws_bridge.fetch_remote_json('/api/live/trades?limit=1000', timeout=3.5)
+                if remote_resp and isinstance(remote_resp, dict) and remote_resp.get("success"):
+                    rem_trades = remote_resp.get("trades") or []
+                    all_fills.extend(rem_trades)
+            except Exception as e:
+                logger.warning(f"[YearlyMatrix] Failed to pull AWS live fills: {e}")
+
+        # B. Priority 2: Merge local executor fills if running or cached
         try:
-            quant_bot.executor.get_live_trade_history(limit=1000, force_refresh=force_refresh)
-            all_fills = list(getattr(quant_bot.executor, "_cached_live_trades", []) or [])
+            loc_trades = quant_bot.executor.get_live_trade_history(limit=500, force_refresh=force_refresh)
+            if loc_trades:
+                all_fills.extend(loc_trades)
+            cached_loc = getattr(quant_bot.executor, "_cached_live_trades", []) or []
+            if cached_loc:
+                all_fills.extend(cached_loc)
         except Exception:
-            all_fills = []
+            pass
+
+        # Deduplicate raw fills by (symbol, trade_id) or (symbol, order_id, time)
+        deduped_fills = []
+        seen_fill_keys = set()
+        for f in all_fills:
+            sym = str(f.get("symbol", "")).upper()
+            tid = str(f.get("trade_id") or f.get("id") or "")
+            oid = str(f.get("order_id") or f.get("orderId") or "")
+            t_str = str(f.get("time") or "")
+            fkey = (sym, tid) if tid else (sym, oid, t_str)
+            if fkey in seen_fill_keys:
+                continue
+            seen_fill_keys.add(fkey)
+            deduped_fills.append(f)
 
         # Group fills by (symbol, order_id) so partial fills count as 1 BUY or 1 SELL order
         orders_agg: Dict[Tuple[str, str], Dict[str, Any]] = {}
-        for f in all_fills:
+        for f in deduped_fills:
             sym = str(f.get("symbol", "")).upper()
             oid = str(f.get("order_id", "") or f.get("trade_id", ""))
             bkey = _parse_bucket_key(f.get("time", ""))

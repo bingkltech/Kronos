@@ -991,7 +991,7 @@ def get_headless_tiger_state():
 def live_trades():
     """Serves live executed trade history with whitelisted IP access."""
     try:
-        limit = min(100, int(request.args.get("limit", 50)))
+        limit = min(1000, max(1, int(request.args.get("limit", 100))))
         trades = quant_bot.executor.get_live_trade_history(limit=limit)
         return jsonify({"success": True, "trades": trades})
     except Exception as e:

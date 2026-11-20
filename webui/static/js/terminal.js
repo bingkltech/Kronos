@@ -85,6 +85,7 @@
                 loadMacroOverview();
                 setTimeout(() => {
                     if (typeof window.resizeSwarmCanvas === 'function') window.resizeSwarmCanvas();
+                    if (typeof window.refreshYearlyMatrix === 'function') window.refreshYearlyMatrix(false);
                 }, 50);
             } else if (viewName === 'bot') {
                 loadBotDashboard();
@@ -1103,6 +1104,9 @@
                         if (window._lastLiveTradesSig !== tradesSig) {
                             window._lastLiveTradesSig = tradesSig;
                             window._lastLiveTradesCount = trades.length;
+                            if (typeof window.refreshYearlyMatrix === 'function') {
+                                window.refreshYearlyMatrix(false);
+                            }
                             tradesTbody.innerHTML = '';
                             if (trades.length === 0) {
                                 tradesTbody.innerHTML = `
