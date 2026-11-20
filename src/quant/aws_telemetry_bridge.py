@@ -58,6 +58,8 @@ class AWSTelemetryBridge:
         self._last_health_check = 0.0
         self._cached_live_status = None
         self._cached_tiger_radar = None
+        self._cached_tiger_state = None
+        self._cached_live_trades = []
         self._thread = None
         self._sync_thread = None
         self._initialized = True
@@ -161,6 +163,23 @@ class AWSTelemetryBridge:
                                 json.dump(self._cached_tiger_radar, f, indent=2)
                         except Exception:
                             pass
+
+                    # 3. Fetch tiger state and sync to local data/tiger_state.json
+                    state_data = self.fetch_remote_json("/api/tiger/state")
+                    if state_data and state_data.get("success"):
+                        self._cached_tiger_state = state_data.get("state", {})
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                        local_sf = os.path.join(project_root, "data", "tiger_state.json")
+                        try:
+                            with open(local_sf, "w", encoding="utf-8") as f:
+                                json.dump(self._cached_tiger_state, f, indent=2)
+                        except Exception:
+                            pass
+
+                    # 4. Fetch live trades for local cache
+                    trades_data = self.fetch_remote_json("/api/live/trades?limit=50")
+                    if trades_data and trades_data.get("success"):
+                        self._cached_live_trades = trades_data.get("trades", [])
                 except Exception as e:
                     logger.debug("Sync poll error: %s", e)
             time.sleep(2.0)
@@ -207,6 +226,14 @@ class AWSTelemetryBridge:
     def get_tiger_radar_data(self) -> dict:
         """Returns the real-time tiger radar data from AWS EC2."""
         return self._cached_tiger_radar or {}
+
+    def get_live_trades(self, limit: int = 50) -> list:
+        """Returns the real-time trade history from AWS EC2."""
+        return (self._cached_live_trades or [])[:limit]
+
+    def get_tiger_state(self) -> dict:
+        """Returns real-time tiger worker state from AWS EC2."""
+        return self._cached_tiger_state or {}
 
 
 # Singleton helper instance

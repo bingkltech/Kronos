@@ -189,7 +189,7 @@ class GlobalRiskConfig:
     breadth_bear_threshold: Decimal = Decimal("0.40")   # <= 40% coins above VWAP
     
     # Funding Rate Safety Guard
-    max_prohibitive_funding_rate: Decimal = Decimal("0.0003") # 0.03% 8h funding rate veto ceiling
+    max_prohibitive_funding_rate: Decimal = Decimal("0.00075") # 0.075% 8h funding rate veto ceiling (~82% APR)
 
     # Micro-Trading & Small Account Safe-Guards
     micro_trading_mode: bool = True                        # Enable micro-lot sizing for small accounts

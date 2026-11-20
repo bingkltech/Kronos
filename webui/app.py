@@ -1328,6 +1328,8 @@ def _check_remote_cloud_instance() -> Tuple[bool, str]:
     Configured via AWS_COORDINATOR_URL in .env (e.g. AWS_COORDINATOR_URL=http://<aws_ip>:7070).
     """
     aws_url = os.getenv("AWS_COORDINATOR_URL", "").strip().rstrip("/")
+    if not aws_url and aws_bridge and aws_bridge.is_connected():
+        aws_url = f"http://127.0.0.1:{aws_bridge.local_port}"
     if not aws_url:
         return False, ""
     try:
@@ -1351,7 +1353,8 @@ def _execute_live_bot_cycle():
     if is_remote_active:
         print(f">> [Distributed Multi-Instance Guard] {remote_msg}")
         print(">> [Distributed Multi-Instance Guard] Local PC in PASSIVE OBSERVER mode — order dispatch suppressed.")
-        fresh_account = quant_bot.executor.get_live_account_summary()
+        # Zero-Whitelist Tap: Do not query Binance from PC; use live telemetry kicked from AWS
+        fresh_account = aws_bridge.get_live_account_summary() if (aws_bridge and aws_bridge.is_connected()) else {}
         summary = {
             "success": True,
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -1718,6 +1721,10 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     2. If slot free: scores Top-10 coins, picks #1 apex candidate, and opens bracket.
     """
     global live_trading_enabled
+    # Suppress local scalp order execution if remote AWS instance is active
+    is_remote_active, _ = _check_remote_cloud_instance()
+    if is_remote_active:
+        return
     if account_equity is None:
         account_equity = quant_bot.executor.get_current_equity()
 
@@ -2732,12 +2739,20 @@ def get_live_status():
     try:
         # Zero-Whitelist Tap: Prioritize direct remote telemetry from AWS EC2
         if aws_bridge and aws_bridge.is_connected():
-            remote_data = aws_bridge.fetch_remote_json('/api/live/status', timeout=1.8)
+            cached = aws_bridge._cached_live_status
+            if cached and cached.get("success"):
+                res = dict(cached)
+                res["aws_tap_active"] = True
+                res["aws_ip"] = "13.63.158.94"
+                res["whitelist_bypassed"] = True
+                return jsonify(res)
+            remote_data = aws_bridge.fetch_remote_json('/api/live/status', timeout=2.5)
             if remote_data and remote_data.get("success"):
-                remote_data["aws_tap_active"] = True
-                remote_data["aws_ip"] = "13.63.158.94"
-                remote_data["whitelist_bypassed"] = True
-                return jsonify(remote_data)
+                res = dict(remote_data)
+                res["aws_tap_active"] = True
+                res["aws_ip"] = "13.63.158.94"
+                res["whitelist_bypassed"] = True
+                return jsonify(res)
 
         live_account = quant_bot.executor.get_live_account_summary()
         trade_history = quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else getattr(quant_bot.executor, "_cached_live_trades", [])[:25]
@@ -2880,6 +2895,8 @@ def reset_live_quota():
     """Reset the 50-trade session quota counter and re-arm auto-pause."""
     data = request.get_json(silent=True) or {}
     new_cap = int(data.get("trade_cap", 50))
+    if aws_bridge and aws_bridge.is_connected():
+        aws_bridge.post_remote_json('/api/live/toggle', {"reset_trade_count": True, "trade_cap": new_cap})
     quota_mgr.reset_quota(new_cap=new_cap)
     return jsonify({
         "success": True,
@@ -2900,6 +2917,10 @@ def reset_live_quota():
 def run_live_scan():
     """Trigger an immediate live scan and potential order dispatch."""
     try:
+        if aws_bridge and aws_bridge.is_connected():
+            remote_res = aws_bridge.post_remote_json('/api/live/scan', {})
+            if remote_res and "success" in remote_res:
+                return jsonify(remote_res)
         summary = _execute_live_bot_cycle()
         return jsonify(summary)
     except Exception as e:
@@ -2927,6 +2948,10 @@ def get_live_trades():
     """Fetch recent live executed trade history with real fees and PnL."""
     try:
         limit = min(100, int(request.args.get("limit", 50)))
+        if aws_bridge and aws_bridge.is_connected():
+            remote_trades = aws_bridge.fetch_remote_json(f'/api/live/trades?limit={limit}')
+            if remote_trades and remote_trades.get("success"):
+                return jsonify(remote_trades)
         trades = quant_bot.executor.get_live_trade_history(limit=limit)
         return jsonify({"success": True, "trades": trades})
     except Exception as e:
@@ -2938,6 +2963,10 @@ def place_live_order():
     """Manually dispatch a real live bracket order with KEV.ai safeguards."""
     try:
         req_data = request.get_json() or {}
+        if aws_bridge and aws_bridge.is_connected():
+            remote_res = aws_bridge.post_remote_json('/api/live/place-order', req_data)
+            if remote_res and "success" in remote_res:
+                return jsonify(remote_res)
         symbol = req_data.get("symbol", "BTCUSDT")
         side = req_data.get("side", "SELL").upper()
         if side not in ("BUY", "SELL"):

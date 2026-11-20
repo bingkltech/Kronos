@@ -103,7 +103,7 @@ class RiskConfig:
     # --- 7. Layer 3: Gateway, Kill-Switch & Cross-Process Ledger ---
     max_api_messages_per_second: int = 10
     max_api_messages_per_minute: int = 300
-    cancel_on_disconnect_timeout_ms: int = 5000
+    cancel_on_disconnect_timeout_ms: int = 120000
     control_file_path: Optional[str] = None                   # e.g. "data/risk_state.txt"
     ledger_db_path: Optional[str] = None                      # e.g. "data/risk_ledger.db" (atomic multi-worker lock)
     slot_reservation_ttl_ms: int = 15000

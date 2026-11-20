@@ -348,6 +348,7 @@ class QuantBotOrchestrator:
                 continue
 
             # Directional Flip Hysteresis (Lesson #41): Veto opposite-direction entries within 30m of a loss
+            # Exception: Systemic regime surge (breadth >= 70% in BULL_EXPANSION for BUY, or <= 20% in BEAR_DISTRIBUTION for SELL)
             if symbol in self.recent_directional_exits:
                 exit_info = self.recent_directional_exits[symbol]
                 last_side = exit_info["side"]
@@ -356,16 +357,33 @@ class QuantBotOrchestrator:
                 if prop_side != last_side:
                     diff_m = (current_time_utc - last_time).total_seconds() / 60.0
                     if 0.0 <= diff_m < 30.0:
-                        decisions[symbol] = KEVDecision(
-                            approved=False,
-                            symbol=symbol,
-                            side="NEUTRAL",
-                            veto_gate_failed="DIRECTIONAL_FLIP_HYSTERESIS",
-                            veto_reason=f"VETO: Directional flip ({last_side} -> {prop_side}) blocked for 30m after loss (elapsed: {diff_m:.1f}m). Prevents whipsaw.",
-                            ticket=None,
-                            adversarial_notes="Anti-whipsaw directional hysteresis active."
-                        )
-                        continue
+                        regime_override = False
+                        if prop_side == "BUY" and macro_verdict.macro_regime == "BULL_EXPANSION" and macro_verdict.breadth_ratio >= Decimal("0.70"):
+                            regime_override = True
+                            logger.info(
+                                "[REGIME_OVERRIDE] Directional flip lockout overridden for %s BUY: Breadth=%.1f%% in BULL_EXPANSION",
+                                symbol, float(macro_verdict.breadth_ratio * Decimal("100"))
+                            )
+                        elif prop_side == "SELL" and macro_verdict.macro_regime == "BEAR_DISTRIBUTION" and macro_verdict.breadth_ratio <= Decimal("0.20"):
+                            regime_override = True
+                            logger.info(
+                                "[REGIME_OVERRIDE] Directional flip lockout overridden for %s SELL: Breadth=%.1f%% in BEAR_DISTRIBUTION",
+                                symbol, float(macro_verdict.breadth_ratio * Decimal("100"))
+                            )
+
+                        if not regime_override:
+                            decisions[symbol] = KEVDecision(
+                                approved=False,
+                                symbol=symbol,
+                                side="NEUTRAL",
+                                veto_gate_failed="DIRECTIONAL_FLIP_HYSTERESIS",
+                                veto_reason=f"VETO: Directional flip ({last_side} -> {prop_side}) blocked for 30m after loss (elapsed: {diff_m:.1f}m). Prevents whipsaw.",
+                                ticket=None,
+                                adversarial_notes="Anti-whipsaw directional hysteresis active."
+                            )
+                            continue
+                        else:
+                            del self.recent_directional_exits[symbol]
                     else:
                         del self.recent_directional_exits[symbol]
 

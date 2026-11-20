@@ -63,7 +63,7 @@ class TigerOrderflowConfig:
     """Microstructure Orderflow, CVD, Stoikov Micro-Price, and Anti-Steamroller filters."""
     ofi_threshold: Decimal = Decimal("0.45")               # Cont-Kukanov-Stoikov OFI trigger cutoff
     micro_price_skew_bps: Decimal = Decimal("0.20")        # 0.20 bps Stoikov Micro-Price skew filter
-    cvd_divergence_sigma: Decimal = Decimal("2.0")         # 2.0 sigma CVD delta divergence
+    cvd_divergence_sigma: Decimal = Decimal("1.4")         # 1.4 sigma CVD delta divergence (calibrated for high responsiveness)
     absorption_wick_min_ratio: Decimal = Decimal("0.45")   # 45% wick ratio for trapped liquidity candle (SELL setups)
     steamroller_vol_multiplier: Decimal = Decimal("4.5")   # Veto: volume > 4.5x average is a freight train
     max_spread_pct: Decimal = Decimal("0.0005")            # 0.05% max bid-ask spread tolerance
@@ -191,8 +191,8 @@ class TigerMasterConfig:
             orderflow=TigerOrderflowConfig(
                 ofi_threshold=Decimal(str(p_of.get("ofi_threshold", "0.45"))),
                 micro_price_skew_bps=Decimal(str(p_of.get("micro_price_skew_bps", "0.20"))),
-                cvd_divergence_sigma=Decimal(str(p_of.get("cvd_divergence_sigma", "2.0"))),
-                absorption_wick_min_ratio=Decimal(str(p_of.get("absorption_wick_min_ratio", "0.40"))),
+                cvd_divergence_sigma=Decimal(str(p_of.get("cvd_divergence_sigma", "1.4"))),
+                absorption_wick_min_ratio=Decimal(str(p_of.get("absorption_wick_min_ratio", "0.30"))),
                 steamroller_vol_multiplier=Decimal(str(p_of.get("steamroller_vol_multiplier", "4.5"))),
                 max_spread_pct=Decimal(str(p_of.get("max_spread_pct", "0.0005"))),
                 min_trapped_trader_density=Decimal(str(p_of.get("min_trapped_trader_density", "0.65"))),
@@ -204,6 +204,7 @@ class TigerMasterConfig:
                 delta_oi_filter_enabled=bool(p_of.get("delta_oi_filter_enabled", True)),
                 min_delta_oi_pct=Decimal(str(p_of.get("min_delta_oi_pct", "0.0001"))),
                 oi_lookback_seconds=int(p_of.get("oi_lookback_seconds", 180)),
+                buy_absorption_wick_min_ratio=Decimal(str(p_of.get("buy_absorption_wick_min_ratio", "0.35"))),
             ),
             brackets=TigerBracketConfig(
                 slow_vol_atr_threshold_pct=Decimal(str(p_brk.get("slow_vol_atr_threshold_pct", "0.0100"))),

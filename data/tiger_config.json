@@ -38,8 +38,8 @@
   "orderflow": {
     "ofi_threshold": "0.45",
     "micro_price_skew_bps": "0.20",
-    "cvd_divergence_sigma": "2.0",
-    "absorption_wick_min_ratio": "0.45",
+    "cvd_divergence_sigma": "1.4",
+    "absorption_wick_min_ratio": "0.30",
     "steamroller_vol_multiplier": "4.5",
     "max_spread_pct": "0.0005",
     "min_trapped_trader_density": "0.65",
@@ -52,7 +52,7 @@
     "min_delta_oi_pct": "0.0001",
     "oi_lookback_seconds": 180,
     "falling_knife_guard_enabled": true,
-    "buy_absorption_wick_min_ratio": "0.60",
+    "buy_absorption_wick_min_ratio": "0.35",
     "buy_max_24h_drop_abs_pct": "10.0"
   },
   "brackets": {

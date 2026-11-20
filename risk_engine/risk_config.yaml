@@ -79,7 +79,7 @@ max_portfolio_state_age_ms: 5000
 # 7. Layer 3: Gateway, Kill-Switch & Cross-Process Atomic Ledger
 max_api_messages_per_second: 10
 max_api_messages_per_minute: 300
-cancel_on_disconnect_timeout_ms: 5000
+cancel_on_disconnect_timeout_ms: 120000
 control_file_path: "data/risk_state.txt"
 ledger_db_path: "data/risk_ledger.db"
 slot_reservation_ttl_ms: 15000

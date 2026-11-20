@@ -691,6 +691,12 @@ def daemon_loop():
             check_system_antibloat()
             last_antibloat_check = time.time()
 
+        # Refresh Layer-3 Cancel-on-Disconnect heartbeat continuously on every daemon tick
+        try:
+            risk_engine.record_gateway_heartbeat()
+        except Exception as hb_err:
+            logger.debug("Heartbeat record error: %s", hb_err)
+
         if live_trading_enabled:
             # High-frequency scalper step
             try:
@@ -787,6 +793,7 @@ def live_status():
             "rules": ["VP_FIRING_INTO_POC", "VP_HVN_CHOP"],
             "cached_profiles": len(quant_bot.volume_profile_cache._cache),
         },
+        "trade_history": quant_bot.executor.get_live_trade_history(limit=25) if live_account.get("connected") else [],
         "last_cycle": last_cycle_summary,
         "symbol_cooldowns": apex_scalper.get_cooldown_status()
     })
@@ -860,7 +867,7 @@ def get_headless_tiger_radar():
     """Serves real-time tiger_radar.json for local PC tap."""
     data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
     radar_path = os.path.join(data_dir, 'tiger_radar.json')
-    for p in [radar_path, "/home/ec2-user/data/tiger_radar.json"]:
+    for p in [radar_path, "/home/ec2-user/kronos-bot/data/tiger_radar.json", "/home/ec2-user/data/tiger_radar.json"]:
         if os.path.exists(p):
             try:
                 with open(p, 'r', encoding='utf-8') as f:
@@ -870,6 +877,48 @@ def get_headless_tiger_radar():
             except Exception:
                 pass
     return jsonify({"success": False, "error": "radar not ready"}), 404
+
+
+@app.route('/api/tiger/state', methods=['GET'])
+def get_headless_tiger_state():
+    """Serves real-time tiger_state.json for local PC tap."""
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+    for p in [os.path.join(data_dir, 'tiger_state.json'), "/home/ec2-user/kronos-bot/data/tiger_state.json", "/home/ec2-user/data/tiger_state.json"]:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r', encoding='utf-8') as f:
+                    return jsonify({"success": True, "state": json.load(f)})
+            except Exception:
+                pass
+    return jsonify({"success": False, "error": "state not ready"}), 404
+
+
+@app.route('/api/live/trades', methods=['GET'])
+def live_trades():
+    """Serves live executed trade history with whitelisted IP access."""
+    try:
+        limit = min(100, int(request.args.get("limit", 50)))
+        trades = quant_bot.executor.get_live_trade_history(limit=limit)
+        return jsonify({"success": True, "trades": trades})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/live/scan', methods=['POST'])
+def run_live_scan():
+    """Trigger an immediate live scan cycle on AWS."""
+    try:
+        summary = _execute_live_cycle()
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/scalper/reset-slot', methods=['POST'])
+def reset_scalper_slot():
+    """Reset the scalper slot on AWS."""
+    apex_scalper.active_scalp = None
+    return jsonify({"success": True, "message": "Apex scalper slot reset successfully."})
 
 
 def shutdown_handler(signum, frame):
