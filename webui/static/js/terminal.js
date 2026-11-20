@@ -49,6 +49,28 @@
             document.querySelectorAll('.app-view').forEach(el => el.style.display = 'none');
             document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
 
+            if (viewName === 'swarm') {
+                const target = document.getElementById('view-dashboard');
+                const tab = document.getElementById('tab-swarm');
+                if (target) target.style.display = 'block';
+                if (tab) tab.classList.add('active');
+                const swarmDeck = document.getElementById('swarmDeck');
+                if (swarmDeck) {
+                    if (swarmDeck.classList.contains('collapsed')) {
+                        swarmDeck.classList.remove('collapsed');
+                        const btnCollapse = document.getElementById('btnCollapseSwarm');
+                        if (btnCollapse) btnCollapse.textContent = '[ - ] Collapse';
+                    }
+                    setTimeout(() => {
+                        if (typeof window.resizeSwarmCanvas === 'function') window.resizeSwarmCanvas();
+                        if (typeof window.resetSwarmView === 'function') window.resetSwarmView();
+                        swarmDeck.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                }
+                loadMacroOverview();
+                return;
+            }
+
             const target = document.getElementById(`view-${viewName}`);
             const tab = document.getElementById(`tab-${viewName}`);
             if (target) target.style.display = 'block';
@@ -61,6 +83,9 @@
                 }, 50);
             } else if (viewName === 'dashboard') {
                 loadMacroOverview();
+                setTimeout(() => {
+                    if (typeof window.resizeSwarmCanvas === 'function') window.resizeSwarmCanvas();
+                }, 50);
             } else if (viewName === 'bot') {
                 loadBotDashboard();
             } else if (viewName === 'live') {

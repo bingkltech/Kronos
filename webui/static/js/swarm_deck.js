@@ -818,8 +818,21 @@
     const cssW = rect.width;
     const cssH = rect.height;
 
-    // Reset transform to 1 CSS unit = 1 pixel
+    // Visibility & 0-size guard: if deck container is hidden, do not draw and do not collapse bots
+    if (cssW <= 0 || cssH <= 0) {
+      animFrameId = requestAnimationFrame(render);
+      return;
+    }
+
     const dpr = window.devicePixelRatio || 1;
+    const targetW = Math.round(cssW * dpr);
+    const targetH = Math.round(cssH * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+
+    // Reset transform to 1 CSS unit = 1 pixel
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
@@ -911,9 +924,17 @@
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    const w = rect.width || (canvas.parentElement ? canvas.parentElement.clientWidth : 0) || window.innerWidth || 1200;
+    const h = rect.height || 480;
+    if (w > 0 && h > 0) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
   }
+
+  // Expose on window so tab switches can immediately trigger canvas layout calculation
+  window.resizeSwarmCanvas = resizeCanvas;
+  window.resetSwarmView = resetView;
 
   // --- 14. DOCK CONTROLS & MODAL EVENT BINDING ---
   function setupControls() {

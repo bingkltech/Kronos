@@ -45,10 +45,16 @@
                 <button class="nav-tab" id="tab-tiger" onclick="switchAppView('tiger')">
                     <span style="color: #00f0ff;">🐅⚡</span> Stalking Tiger
                 </button>
+                <button class="nav-tab" id="tab-swarm" onclick="switchAppView('swarm')">
+                    <span style="color: #f5c869;">🐝</span> Swarm Deck (4 Bots · 24 Workers)
+                </button>
             </div>
         </div>
 
         <div class="topbar-right">
+            <div class="status-pill status-online" id="topbar-swarm-pill" style="cursor: pointer; border-color: rgba(245, 200, 105, 0.4); color: #f5c869;" onclick="switchAppView('swarm')" title="Click to view Neural Swarm Deck (4 Bots · 24 Agent Workers)">
+                <span class="pulse-dot" style="background: #f5c869;"></span> 🐝 4 BOTS · 24 WORKERS
+            </div>
             <div class="status-pill status-online" id="topbar-aws-tap-pill" style="border-color: rgba(0, 240, 255, 0.4); color: #00f0ff;" title="Zero-Whitelist AWS Telemetry Relay Active (Static IP: 13.63.158.94)">
                 <span class="pulse-dot" style="background: #00f0ff;"></span> 🔒 AWS TAP: ACTIVE (13.63.158.94)
             </div>
@@ -2716,6 +2722,9 @@
 
                 <button type="button" class="btn-secondary" style="font-size: 11px; padding: 6px 12px;" onclick="fetchTigerRadarData()">
                     🔄 Refresh
+                </button>
+                <button type="button" class="btn-secondary" style="font-size: 11px; padding: 6px 12px; border-color: rgba(245, 200, 105, 0.4); color: #f5c869; font-weight: 700; cursor: pointer;" onclick="switchAppView('swarm')">
+                    🐝 4 Bots · 24 Workers
                 </button>
             </div>
         </div>
