@@ -3433,17 +3433,14 @@ def system_hygiene_endpoint():
 @app.route('/api/system/anti-bloat', methods=['GET'])
 def system_anti_bloat_endpoint():
     """Serves real-time bloat detection, RAM, disk, and cache hygiene telemetry."""
-    # 1. If remote AWS coordinator is active, proxy directly from AWS
-    is_remote_active, _ = _check_remote_cloud_instance()
-    if is_remote_active:
+    # 1. If remote AWS coordinator bridge is connected, proxy directly from AWS
+    if aws_bridge and aws_bridge.is_connected():
         try:
-            import urllib.request
-            coord_url = aws_bridge.coordinator_url.rstrip('/') if aws_bridge and aws_bridge.is_connected() else (os.getenv("AWS_COORDINATOR_URL", "").rstrip('/') or "http://127.0.0.1:7072")
-            req = urllib.request.Request(f"{coord_url}/api/system/anti-bloat", headers={"User-Agent": "Kronos-WebUI/1.0"})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                return jsonify(data)
-        except Exception as e:
+            remote_data = aws_bridge.fetch_remote_json('/api/system/anti-bloat', timeout=2.5)
+            if remote_data and remote_data.get("success"):
+                remote_data["source"] = "AWS_RELAY"
+                return jsonify(remote_data)
+        except Exception:
             pass
 
     # 2. Local fallback
@@ -3458,17 +3455,14 @@ def system_anti_bloat_endpoint():
 @app.route('/api/system/anti-bloat/clean', methods=['POST'])
 def system_anti_bloat_clean_endpoint():
     """Triggers an immediate anti-bloat cleanse."""
-    # 1. If remote AWS coordinator is active, proxy directly to AWS
-    is_remote_active, _ = _check_remote_cloud_instance()
-    if is_remote_active:
+    # 1. If remote AWS coordinator bridge is connected, proxy directly to AWS
+    if aws_bridge and aws_bridge.is_connected():
         try:
-            import urllib.request
-            coord_url = aws_bridge.coordinator_url.rstrip('/') if aws_bridge and aws_bridge.is_connected() else (os.getenv("AWS_COORDINATOR_URL", "").rstrip('/') or "http://127.0.0.1:7072")
-            req = urllib.request.Request(f"{coord_url}/api/system/anti-bloat/clean", data=b"{}", headers={"User-Agent": "Kronos-WebUI/1.0", "Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-                return jsonify(data)
-        except Exception as e:
+            remote_res = aws_bridge.post_remote_json('/api/system/anti-bloat/clean', {})
+            if remote_res and remote_res.get("success"):
+                remote_res["source"] = "AWS_RELAY"
+                return jsonify(remote_res)
+        except Exception:
             pass
 
     # 2. Local fallback
