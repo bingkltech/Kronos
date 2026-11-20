@@ -25,6 +25,7 @@ from src.quant.tiger_orderflow import (
     AggTradeEvent,
     DepthSnapshot,
 )
+from src.quant.crypto_index_engine import OrderBookMicrostructure
 
 logger = logging.getLogger("kronos.tiger_ws")
 
@@ -111,9 +112,17 @@ class TigerWebSocketManager:
             ret_1m = (p_curr - p_start) / p_start
             return ret_1m, cvd_z
 
+    def get_microstructure_snapshot(self, symbol: str) -> Optional[OrderBookMicrostructure]:
+        """Thread-safe snapshot of order book microstructure from active WebSocket stream."""
+        with self._lock:
+            tracker = self.btc_tracker if symbol.upper() == "BTCUSDT" else self.trackers.get(symbol.upper())
+            if tracker is not None:
+                return tracker.get_order_book_microstructure()
+            return None
+
     def _build_stream_url(self) -> str:
         """Build multiplex stream URL for all active prey + BTC."""
-        streams = ["btcusdt@aggTrade"]
+        streams = ["btcusdt@aggTrade", "btcusdt@depth5@100ms"]
         with self._lock:
             for s in sorted(self.active_symbols):
                 low_s = s.lower()
@@ -155,9 +164,17 @@ class TigerWebSocketManager:
         timestamp_ms = int(data.get("E", int(time.time() * 1000)))
 
         with self._lock:
-            tracker = self.trackers.get(symbol)
+            tracker = self.btc_tracker if symbol == "BTCUSDT" else self.trackers.get(symbol)
             if tracker:
-                tracker.process_depth_update(best_bid, best_bid_qty, best_ask, best_ask_qty, timestamp_ms)
+                tracker.process_depth_update(
+                    best_bid=best_bid,
+                    best_bid_qty=best_bid_qty,
+                    best_ask=best_ask,
+                    best_ask_qty=best_ask_qty,
+                    timestamp_ms=timestamp_ms,
+                    raw_bids=bids,
+                    raw_asks=asks
+                )
 
     async def _ws_loop(self) -> None:
         """Main async resilient WebSocket streaming loop."""

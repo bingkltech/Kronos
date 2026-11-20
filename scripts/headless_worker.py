@@ -24,7 +24,7 @@ import logging
 import datetime
 import threading
 from decimal import Decimal
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set, Tuple, List
 
 # Ensure workspace root is in sys.path
 WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,6 +45,7 @@ from src.quant.gemini_strategy_arbiter import GeminiStrategyArbiter
 from src.quant.kronos_onnx_engine import KronosTrajectoryEngine
 from src.quant.binance_execution import PositionState, TradeTicket, BinanceAtomicExecutor
 from src.quant.quota_notifier import QuotaNotifier
+from src.quant.anti_bloat import get_anti_bloat_engine
 from dataclasses import replace as _dc_replace
 from risk_engine import (
     DEFAULT_CONFIG_PATH,
@@ -128,6 +129,11 @@ apex_scalper = ApexScalperEngine(
     min_score_threshold=Decimal("0.35")
 )
 gemini_arbiter = GeminiStrategyArbiter()
+
+# Autonomous 24/7 Anti-Bloat & Storage Hygiene Engine
+anti_bloat = get_anti_bloat_engine()
+anti_bloat.register_cache_pruner("quant_bot_index_engine", quant_bot.index_engine.prune_expired_caches)
+anti_bloat.start_daemon(interval_seconds=30.0)
 
 # Operational state & persistent trade-cap auto-pause guard
 QUOTA_STATE_PATH = os.path.join(WORKSPACE_ROOT, "data", "aws_trade_quota.json")
@@ -401,6 +407,55 @@ def load_scalper_config() -> Dict[str, Any]:
     return {}
 
 
+def _get_tiger_reserved_symbols() -> Set[str]:
+    """
+    Deconfliction Guard: Identifies symbols currently actively held, hunted, or cooling down
+    by Stalking Tiger (Strategy #3) or reserved in RiskLedger.
+    Guarantees Apex Scalper and Stalking Tiger never collide on the same asset.
+    """
+    reserved: Set[str] = set()
+
+    # 1. Inspect Tiger State (active positions, pending breakout signals, cooldowns)
+    data_dir = os.path.join(WORKSPACE_ROOT, "data")
+    for sp in [
+        os.path.join(data_dir, "tiger_state.json"),
+        "/home/ec2-user/kronos-bot/data/tiger_state.json",
+        "/home/ec2-user/data/tiger_state.json",
+    ]:
+        if os.path.exists(sp):
+            try:
+                with open(sp, "r", encoding="utf-8") as f:
+                    t_state = json.load(f)
+                for pos in t_state.get("active_positions", {}).values():
+                    sym = pos.get("symbol")
+                    if sym:
+                        reserved.add(sym.strip().upper())
+                for sig in t_state.get("pending_signals", {}).values():
+                    sym = sig.get("symbol")
+                    if sym:
+                        reserved.add(sym.strip().upper())
+                now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                for sym, cd_exp in t_state.get("symbol_cooldowns", {}).items():
+                    if cd_exp and cd_exp > now_iso:
+                        reserved.add(sym.strip().upper())
+                break
+            except Exception:
+                pass
+
+    # 2. Inspect RiskLedger Atomic Reservations
+    if hasattr(risk_engine, "ledger") and risk_engine.ledger is not None:
+        try:
+            active_res = risk_engine.ledger.active_reservations()
+            for r in active_res:
+                sym = r.get("symbol")
+                if sym:
+                    reserved.add(sym.strip().upper())
+        except Exception:
+            pass
+
+    return reserved
+
+
 def execute_apex_scalp_step():
     """High-frequency 5s order book screening and position management."""
     scalper_cfg = load_scalper_config()
@@ -544,42 +599,62 @@ def execute_apex_scalp_step():
         cooldown_dur = int(guardrails.get("post_exit_cooldown_seconds", 900))
         apex_scalper.cooldown_seconds = cooldown_dur
 
-        candidates = []
+        # 1. Deconfliction & Candidate Eligibility Filter
+        tiger_reserved = _get_tiger_reserved_symbols()
+        eligible_symbols = []
         for sym in list(ALL_SUPPORTED_SYMBOLS.keys()):
-            # Skip if currently holding
+            # Skip if currently holding on exchange
             if sym in active_symbols:
                 continue
             # Skip if quarantined by Bayesian learning distillation
             if sym in quarantined_symbols:
                 continue
+            # Skip if Stalking Tiger is currently holding or hunting this symbol
+            if sym in tiger_reserved:
+                continue
             # Skip if in post-exit quarantine cooldown
             if apex_scalper.is_symbol_in_cooldown(sym, now_utc):
                 continue
+            eligible_symbols.append(sym)
 
-            try:
-                klines = quant_bot.index_engine.fetch_recent_klines(sym, interval="5m", limit=24)
-                if not klines or len(klines) < 12:
-                    continue
-                curr_p = klines[-1]["close"]
-                micro_data = quant_bot.index_engine.fetch_order_book_microstructure(sym, depth_limit=10)
-                vp_snapshot = quant_bot.volume_profile_cache.get_previous_day_profile(sym, now_utc)
-                cand = apex_scalper.evaluate_microstructure_candidate(
-                    symbol=sym,
-                    current_price=curr_p,
-                    best_bid=micro_data.best_bid,
-                    best_ask=micro_data.best_ask,
-                    order_book_imbalance=micro_data.obi,
-                    recent_klines=klines,
-                    bnb_discount=True,
-                    micro_skew_bps=micro_data.micro_skew_bps,
-                    micro_price=micro_data.micro_price,
-                    current_time_utc=now_utc,
-                    volume_profile=vp_snapshot
-                )
-                if cand:
-                    candidates.append(cand)
-            except Exception:
+        # 2. Parallel Batch Data Fetch (Candle-boundary TTL + 0ms WS Depth / Cached REST)
+        batch_market_data = quant_bot.index_engine.batch_fetch_scalp_market_data(
+            symbols=eligible_symbols,
+            interval="5m",
+            kline_limit=24,
+            depth_limit=10
+        )
+
+        # 3. Microstructure Candidate Evaluation
+        candidates = []
+        for sym in eligible_symbols:
+            if sym not in batch_market_data:
                 continue
+            klines, micro_data = batch_market_data[sym]
+            if not klines or len(klines) < 12:
+                continue
+            if micro_data.best_bid <= Decimal("0") or micro_data.best_ask <= Decimal("0"):
+                continue
+
+            # Reference mid-price directly from live orderbook, fallback to last kline close
+            curr_p = ((micro_data.best_bid + micro_data.best_ask) / Decimal("2")) if (micro_data.best_bid > Decimal("0") and micro_data.best_ask > Decimal("0")) else klines[-1]["close"]
+            vp_snapshot = quant_bot.volume_profile_cache.get_previous_day_profile(sym, now_utc)
+
+            cand = apex_scalper.evaluate_microstructure_candidate(
+                symbol=sym,
+                current_price=curr_p,
+                best_bid=micro_data.best_bid,
+                best_ask=micro_data.best_ask,
+                order_book_imbalance=micro_data.obi,
+                recent_klines=klines,
+                bnb_discount=True,
+                micro_skew_bps=micro_data.micro_skew_bps,
+                micro_price=micro_data.micro_price,
+                current_time_utc=now_utc,
+                volume_profile=vp_snapshot
+            )
+            if cand:
+                candidates.append(cand)
 
         apex = apex_scalper.select_apex_candidate(candidates)
         if apex:
@@ -919,6 +994,26 @@ def reset_scalper_slot():
     """Reset the scalper slot on AWS."""
     apex_scalper.active_scalp = None
     return jsonify({"success": True, "message": "Apex scalper slot reset successfully."})
+
+
+@app.route('/api/system/anti-bloat', methods=['GET'])
+def get_anti_bloat_telemetry():
+    """Serves real-time bloat detection, RAM, disk, and cache hygiene telemetry."""
+    try:
+        status = anti_bloat.get_status()
+        return jsonify({"success": True, "anti_bloat": status})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/system/anti-bloat/clean', methods=['POST'])
+def trigger_anti_bloat_clean():
+    """Triggers an immediate autonomous cleanse cycle on AWS."""
+    try:
+        summary = anti_bloat.execute_cleanse_cycle(force_deep_clean=True)
+        return jsonify({"success": True, "clean_summary": summary})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def shutdown_handler(signum, frame):

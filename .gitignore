@@ -97,4 +97,6 @@ data/tiger_state.json
 data/storm_state.json
 data/tiger_trades.db
 data/trade_autopsies.db
+data/risk_ledger.db
+scratch/
 *.tar.gz

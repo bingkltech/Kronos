@@ -388,9 +388,12 @@
                     topNews.style.color = '#3fb950';
                 }
 
-                // Update Storm Protocol pill in parallel
+                // Update Storm Protocol & Anti-Bloat pills in parallel
                 if (typeof updateStormProtocolUI === 'function') {
                     updateStormProtocolUI();
+                }
+                if (typeof updateAntiBloatUI === 'function') {
+                    updateAntiBloatUI();
                 }
 
                 // Render Table Rows
@@ -1441,6 +1444,7 @@
             setInterval(() => {
                 loadMacroOverview();
                 updateStormProtocolUI();
+                updateAntiBloatUI();
             }, 5000);
         });
 
@@ -1494,6 +1498,70 @@
                 updateStormProtocolUI();
             } catch (e) {
                 alert('Failed toggling storm protocol: ' + e.message);
+            }
+        };
+
+        // Anti-Bloat 24/7 Engine UI Updater & Cleanse Trigger
+        async function updateAntiBloatUI() {
+            try {
+                const resp = await axios.get('/api/system/anti-bloat');
+                if (!resp.data || !resp.data.success || !resp.data.anti_bloat) return;
+                const ab = resp.data.anti_bloat;
+                const pill = document.getElementById('topbar-antibloat-pill');
+                if (!pill) return;
+
+                const report = ab.current_report || {};
+                const sev = (report.severity || 'NORMAL').toUpperCase();
+                const rss = report.process_rss_mb ? Math.round(report.process_rss_mb) : 0;
+                const diskFree = report.disk_free_gb ? report.disk_free_gb.toFixed(1) : 0;
+                const origin = resp.data.source === 'AWS_RELAY' ? 'AWS' : 'LOCAL';
+
+                let color = '#26a69a';
+                let bg = 'rgba(38, 166, 154, 0.15)';
+                let border = 'rgba(38, 166, 154, 0.4)';
+                let icon = '🧹';
+
+                if (sev === 'CRITICAL') {
+                    color = '#f85149';
+                    bg = 'rgba(248, 81, 73, 0.2)';
+                    border = 'rgba(248, 81, 73, 0.6)';
+                    icon = '🚨';
+                } else if (sev === 'WARNING') {
+                    color = '#e3b341';
+                    bg = 'rgba(227, 179, 65, 0.2)';
+                    border = 'rgba(227, 179, 65, 0.6)';
+                    icon = '⚠️';
+                }
+
+                pill.innerHTML = `${icon} BLOAT: ${sev} (${rss}MB | ${origin})`;
+                pill.title = `Anti-Bloat 24/7 Engine [${origin}]:\nSeverity: ${sev}\nProcess RSS: ${rss}MB\nDisk Free: ${diskFree}GB\nCleans: ${ab.total_cleans_executed || 0}\nReclaimed: ${ab.total_reclaimed_mb || 0}MB\nClick to manually run deep cleanse.`;
+                pill.style.color = color;
+                pill.style.background = bg;
+                pill.style.borderColor = border;
+            } catch (e) {
+                // silent
+            }
+        }
+
+        window.triggerAntiBloatCleanse = async function() {
+            const pill = document.getElementById('topbar-antibloat-pill');
+            if (pill) {
+                pill.innerHTML = `⏳ PURGING BLOAT...`;
+            }
+            try {
+                const resp = await axios.post('/api/system/anti-bloat/clean');
+                if (resp.data && resp.data.success) {
+                    const sum = resp.data.clean_summary || {};
+                    const reclaimed = sum.reclaimed_mb || 0;
+                    const src = resp.data.source || 'LOCAL';
+                    alert(`Anti-Bloat Cleanse Complete [${src}]!\nReclaimed: ${reclaimed} MB in ${(sum.duration_seconds || 0).toFixed(2)}s\nSeverity: ${resp.data.severity_after || 'NORMAL'}`);
+                } else {
+                    alert('Anti-Bloat Cleanse returned: ' + JSON.stringify(resp.data));
+                }
+            } catch (err) {
+                alert('Failed to trigger anti-bloat cleanse: ' + (err.response?.data?.error || err.message));
+            } finally {
+                updateAntiBloatUI();
             }
         };
 

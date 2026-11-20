@@ -133,19 +133,26 @@ def fetch_symbol_open_interest(symbol: str) -> Optional[Tuple[Decimal, int, Dict
 
 
 def run_aws_hygiene_check():
-    """Flushes memory buffers, calls Python gc, and truncates bloated log files."""
+    """Flushes memory buffers, calls Python gc, runs Anti-Bloat detector, and truncates bloated log files."""
     try:
         import gc
         gc.collect()
 
-        # Check tiger_live.log size and truncate if > 8MB
+        # Tick 24/7 Anti-Bloat Engine
+        try:
+            from src.quant.anti_bloat import get_anti_bloat_engine
+            get_anti_bloat_engine().tick()
+        except Exception:
+            pass
+
+        # Check tiger_live.log size and truncate if > 4MB
         log_path = os.path.join(PROJECT_ROOT, "logs", "tiger_live.log")
         if os.path.exists(log_path):
             size_mb = os.path.getsize(log_path) / (1024 * 1024)
-            if size_mb > 8.0:
+            if size_mb > 4.0:
                 with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
                     lines = f.readlines()
-                trimmed = lines[-12000:]
+                trimmed = lines[-2500:]
                 with open(log_path, "w", encoding="utf-8") as f:
                     f.writelines(trimmed)
                 logger.info(f"[AWS HYGIENE] Truncated bloated log ({size_mb:.1f} MB -> {len(trimmed)} lines kept).")

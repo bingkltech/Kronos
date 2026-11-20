@@ -11,13 +11,14 @@ from decimal import Decimal, InvalidOperation
 import logging
 import math
 import time
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from src.quant.tiger_config import (
     TigerOrderflowConfig,
     TigerMasterConfig,
     DEFAULT_TIGER_CONFIG,
 )
+from src.quant.crypto_index_engine import OrderBookMicrostructure
 
 logger = logging.getLogger("kronos.tiger_orderflow")
 
@@ -118,6 +119,9 @@ class SymbolOrderflowTracker:
         self.prev_depth: Optional[DepthSnapshot] = None
         self.last_ofi: Decimal = Decimal("0")
         self.oi_history: Deque[OpenInterestSnapshot] = deque(maxlen=100)
+        self.top_bids: List[Tuple[Decimal, Decimal]] = []
+        self.top_asks: List[Tuple[Decimal, Decimal]] = []
+        self.last_depth_ms: int = 0
 
     def process_open_interest(self, open_interest: Decimal, timestamp_ms: int) -> None:
         """Ingest Open Interest data point from Binance Futures REST API."""
@@ -178,11 +182,14 @@ class SymbolOrderflowTracker:
         best_bid_qty: Decimal,
         best_ask: Decimal,
         best_ask_qty: Decimal,
-        timestamp_ms: int
+        timestamp_ms: int,
+        raw_bids: Optional[List[List[Any]]] = None,
+        raw_asks: Optional[List[List[Any]]] = None
     ) -> Decimal:
         """
         Ingest top-of-book depth update from @depth5@100ms.
         Computes Cont-Kukanov-Stoikov (2014) Order Flow Imbalance (OFI).
+        Also stores multi-level depth for shared Level-2 microstructure taps.
         """
         new_depth = DepthSnapshot(
             best_bid=best_bid,
@@ -191,6 +198,14 @@ class SymbolOrderflowTracker:
             best_ask_qty=best_ask_qty,
             timestamp_ms=timestamp_ms
         )
+
+        if raw_bids and raw_asks:
+            self.top_bids = [(Decimal(str(p)), Decimal(str(q))) for p, q in raw_bids[:5]]
+            self.top_asks = [(Decimal(str(p)), Decimal(str(q))) for p, q in raw_asks[:5]]
+        else:
+            self.top_bids = [(best_bid, best_bid_qty)]
+            self.top_asks = [(best_ask, best_ask_qty)]
+        self.last_depth_ms = timestamp_ms
 
         if self.last_depth is not None:
             self.prev_depth = self.last_depth
@@ -222,6 +237,46 @@ class SymbolOrderflowTracker:
 
         self.last_depth = new_depth
         return self.last_ofi
+
+    def get_order_book_microstructure(self) -> Optional[OrderBookMicrostructure]:
+        """
+        Thread-safe extraction of Level-2 microstructure metrics (cumulative top-5 OBI,
+        Stoikov micro-price and basis-point skew) adhering strictly to AGENTS.md Invariant 1.
+        Freshness Guard: Vetoes snapshot if older than 3.0s.
+        """
+        if not self.top_bids or not self.top_asks:
+            return None
+        now_ms = int(time.time() * 1000)
+        if (now_ms - self.last_depth_ms) > 3000:
+            return None
+
+        total_bids = sum(q for _, q in self.top_bids)
+        total_asks = sum(q for _, q in self.top_asks)
+        denom = total_bids + total_asks
+
+        obi = (total_bids - total_asks) / denom if denom > Decimal("0") else Decimal("0.0")
+        best_bid = self.top_bids[0][0]
+        best_ask = self.top_asks[0][0]
+
+        if best_bid > Decimal("0") and best_ask > Decimal("0"):
+            mid = (best_bid + best_ask) / Decimal("2")
+            if denom > Decimal("0"):
+                micro_price = (best_bid * (total_asks / denom)) + (best_ask * (total_bids / denom))
+            else:
+                micro_price = mid
+            micro_skew_bps = ((micro_price - mid) / mid) * Decimal("10000") if mid > Decimal("0") else Decimal("0.0")
+        else:
+            micro_price = Decimal("0.0")
+            micro_skew_bps = Decimal("0.0")
+
+        return OrderBookMicrostructure(
+            obi=obi,
+            best_bid=best_bid,
+            best_ask=best_ask,
+            micro_price=micro_price,
+            micro_skew_bps=micro_skew_bps,
+            timestamp_ms=self.last_depth_ms
+        )
 
     def compute_cvd_metrics(self, window_seconds: int = 180) -> Tuple[Decimal, Decimal]:
         """

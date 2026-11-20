@@ -1911,6 +1911,7 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     except Exception:
         pass
 
+    eligible_symbols = []
     for sym in list(ALL_SUPPORTED_SYMBOLS.keys()):
         # Conflict Shield: Never scalp a symbol that already has an active macro position!
         if sym in active_macro_symbols:
@@ -1918,35 +1919,43 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
         # Post-Exit Quarantine Check: Veto if symbol is cooling down after recent exit
         if apex_scalper.is_symbol_in_cooldown(sym, now_utc):
             continue
+        eligible_symbols.append(sym)
 
-        try:
-            klines = quant_bot.index_engine.fetch_recent_klines(sym, interval="5m", limit=24)
-            if not klines or len(klines) < 12:
-                continue
-            curr_p = klines[-1]["close"]
-            
-            # Fetch real-time Level-2 Microstructure (OBI, Stoikov Micro-Price & Skew)
-            micro_data = quant_bot.index_engine.fetch_order_book_microstructure(sym, depth_limit=10)
+    batch_market_data = quant_bot.index_engine.batch_fetch_scalp_market_data(
+        symbols=eligible_symbols,
+        interval="5m",
+        kline_limit=24,
+        depth_limit=10
+    )
 
-            vp_snapshot = quant_bot.volume_profile_cache.get_previous_day_profile(sym, now_utc)
-            cand = apex_scalper.evaluate_microstructure_candidate(
-                symbol=sym,
-                current_price=curr_p,
-                best_bid=micro_data.best_bid,
-                best_ask=micro_data.best_ask,
-                order_book_imbalance=micro_data.obi,
-                recent_klines=klines,
-                bnb_discount=True,
-                micro_skew_bps=micro_data.micro_skew_bps,
-                micro_price=micro_data.micro_price,
-                macro_breadth_pct=current_breadth_pct,
-                current_time_utc=now_utc,
-                volume_profile=vp_snapshot
-            )
-            if cand:
-                candidates.append(cand)
-        except Exception as e:
+    for sym in eligible_symbols:
+        if sym not in batch_market_data:
             continue
+        klines, micro_data = batch_market_data[sym]
+        if not klines or len(klines) < 12:
+            continue
+        if micro_data.best_bid <= Decimal("0") or micro_data.best_ask <= Decimal("0"):
+            continue
+
+        curr_p = ((micro_data.best_bid + micro_data.best_ask) / Decimal("2")) if (micro_data.best_bid > Decimal("0") and micro_data.best_ask > Decimal("0")) else klines[-1]["close"]
+        vp_snapshot = quant_bot.volume_profile_cache.get_previous_day_profile(sym, now_utc)
+
+        cand = apex_scalper.evaluate_microstructure_candidate(
+            symbol=sym,
+            current_price=curr_p,
+            best_bid=micro_data.best_bid,
+            best_ask=micro_data.best_ask,
+            order_book_imbalance=micro_data.obi,
+            recent_klines=klines,
+            bnb_discount=True,
+            micro_skew_bps=micro_data.micro_skew_bps,
+            micro_price=micro_data.micro_price,
+            macro_breadth_pct=current_breadth_pct,
+            current_time_utc=now_utc,
+            volume_profile=vp_snapshot
+        )
+        if cand:
+            candidates.append(cand)
 
     apex = apex_scalper.select_apex_candidate(candidates)
     if apex:
@@ -3417,6 +3426,56 @@ def system_hygiene_endpoint():
             "mode": "preview" if is_dry_run else "executed",
             "summary": summary
         })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/system/anti-bloat', methods=['GET'])
+def system_anti_bloat_endpoint():
+    """Serves real-time bloat detection, RAM, disk, and cache hygiene telemetry."""
+    # 1. If remote AWS coordinator is active, proxy directly from AWS
+    is_remote_active, _ = _check_remote_cloud_instance()
+    if is_remote_active:
+        try:
+            import urllib.request
+            coord_url = aws_bridge.coordinator_url.rstrip('/') if aws_bridge and aws_bridge.is_connected() else (os.getenv("AWS_COORDINATOR_URL", "").rstrip('/') or "http://127.0.0.1:7072")
+            req = urllib.request.Request(f"{coord_url}/api/system/anti-bloat", headers={"User-Agent": "Kronos-WebUI/1.0"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                return jsonify(data)
+        except Exception as e:
+            pass
+
+    # 2. Local fallback
+    try:
+        from src.quant.anti_bloat import get_anti_bloat_engine
+        status = get_anti_bloat_engine().get_status()
+        return jsonify({"success": True, "anti_bloat": status, "source": "LOCAL"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/system/anti-bloat/clean', methods=['POST'])
+def system_anti_bloat_clean_endpoint():
+    """Triggers an immediate anti-bloat cleanse."""
+    # 1. If remote AWS coordinator is active, proxy directly to AWS
+    is_remote_active, _ = _check_remote_cloud_instance()
+    if is_remote_active:
+        try:
+            import urllib.request
+            coord_url = aws_bridge.coordinator_url.rstrip('/') if aws_bridge and aws_bridge.is_connected() else (os.getenv("AWS_COORDINATOR_URL", "").rstrip('/') or "http://127.0.0.1:7072")
+            req = urllib.request.Request(f"{coord_url}/api/system/anti-bloat/clean", data=b"{}", headers={"User-Agent": "Kronos-WebUI/1.0", "Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                return jsonify(data)
+        except Exception as e:
+            pass
+
+    # 2. Local fallback
+    try:
+        from src.quant.anti_bloat import get_anti_bloat_engine
+        summary = get_anti_bloat_engine().execute_cleanse_cycle(force_deep_clean=True)
+        return jsonify({"success": True, "clean_summary": summary, "source": "LOCAL"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
