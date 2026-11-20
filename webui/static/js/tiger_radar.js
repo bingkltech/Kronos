@@ -269,6 +269,13 @@
                     const dwellSec = Math.round(found.elapsed_seconds || 0);
                     const retPct = Math.round(parseFloat(found.retention_ratio_pct || (found.retention_ratio ? found.retention_ratio * 100 : 100)));
 
+                    const isScouted = (found.rank <= 2 && turnover >= 50000000 && !found.is_quarantined);
+                    const cvdZ = found.cvd_zscore !== undefined ? found.cvd_zscore : '0.0';
+                    const microSkew = found.micro_skew_bps !== undefined ? found.micro_skew_bps : '0.0';
+                    const ofiScore = found.ofi_score !== undefined ? found.ofi_score : '0.0';
+                    const absSig = (found.absorption_signal && found.absorption_signal !== 'NONE') ? found.absorption_signal : 'NONE';
+                    const absSigColor = absSig === 'BUY' ? '#00ff88' : (absSig === 'SELL' ? '#ff2255' : '#8b949e');
+
                     tooltip.innerHTML = `
                         <div style="display: flex; justify-content: space-between; gap: 10px;">
                             <span style="font-weight: 900; font-size: 13px; color: #00f0ff;">#${found.rank} ${found.symbol}</span>
@@ -279,9 +286,12 @@
                             <div>Turnover: <b style="color: #ffd700;">${turnoverStr}</b></div>
                             <div>Vol Score: <b style="color: #bd00ff;">${parseFloat(found.volatility_score || 0).toFixed(4)}</b></div>
                             <div>ΔOI: <b style="color: ${doi >= 0 ? '#00ff88' : '#ff2255'};">${doi.toFixed(2)}%</b></div>
+                            <div>CVD Z-Score: <b style="color: #00e5ff;">${cvdZ}σ</b> · Skew: <b style="color: #ffd700;">${microSkew} bps</b></div>
+                            <div>Absorption Climax: <b style="color: ${absSigColor};">${absSig}</b> · OFI: <b>${ofiScore}</b></div>
                             <div style="color: ${strColor}; margin-top: 3px;">Dynamic Str: <b>${strPct}%</b> (${stagStatus})</div>
                             <div style="color: #8b949e; font-size: 10px;">Dwell: <b>${dwellSec}s</b> · Retention: <b>${retPct}%</b></div>
                             <div>Stalk Score: <b style="color: #00f0ff;">${(found._stalkScore || 0.85).toFixed(2)}</b></div>
+                            ${isScouted ? '<div style="color: #ff9800; font-weight: 800; margin-top: 5px; font-size: 10px; border-top: 1px dashed rgba(255,152,0,0.4); padding-top: 3px;">⚡ RELAYED TO MACRO RECONNAISSANCE BRIDGE</div>' : ''}
                         </div>
                     `;
                 }
@@ -871,9 +881,16 @@
                 ctx.fillText(`#${p.rank}`, px, py - 1);
 
                 // Symbol Tag Above Node
+                const isScoutedPrey = (p.rank <= 2 && parseFloat(p.turnover_24h_usd || 0) >= 50000000 && !p.is_quarantined);
+                if (isScoutedPrey) {
+                    ctx.fillStyle = '#ff9800';
+                    ctx.font = 'bold 8px monospace';
+                    ctx.fillText('⚡ MACRO SCOUT', px, py - radius - 16);
+                }
+
                 ctx.fillStyle = isSelected ? '#ffd700' : '#ffffff';
                 ctx.font = 'bold 11px monospace';
-                ctx.fillText(p.symbol, px, py - radius - 7);
+                ctx.fillText(p.symbol, px, py - radius - 6);
 
                 // Price & Turnover Tag Below Node
                 ctx.fillStyle = nodeColor;
@@ -1102,6 +1119,18 @@
 
                 const elFloor = document.getElementById('tiger-adv-turnover-floor');
                 if (elFloor) elFloor.textContent = `$${(d.advisory.min_24h_turnover_usd / 1e6).toFixed(0)}M USD`;
+
+                const elBridge = document.getElementById('tiger-bridge-val');
+                if (elBridge && d.advisory.reconnaissance_bridge) {
+                    elBridge.textContent = `⚡ ${d.advisory.reconnaissance_bridge.status} (Rank 1-2)`;
+                    elBridge.style.color = '#ff9800';
+                }
+
+                const elAdvScout = document.getElementById('tiger-adv-scout-status');
+                if (elAdvScout && d.advisory.reconnaissance_bridge) {
+                    const br = d.advisory.reconnaissance_bridge;
+                    elAdvScout.textContent = `RELAYING TOP PREY → MACRO STORM (${br.confluence_multiplier} / ${br.conflict_throttle})`;
+                }
             }
 
         } catch (e) {
@@ -1137,12 +1166,29 @@
                 barColor = '#ffd700';
             }
 
+            const isScouted = (p.rank <= 2 && turnover >= 50000000 && !p.is_quarantined);
+            let scoutBadge = isScouted ? '<span class="tiger-prey-badge" style="background: rgba(255, 152, 0, 0.25); color: #ff9800; border: 1px solid rgba(255,152,0,0.5); font-size: 9px; margin-left: 5px; font-weight: 800;" title="Scouted by TigerScoutBridge for Macro Storm Protocol validation">🐅 MACRO SCOUT</span>' : '';
+
+            const cvdZ = p.cvd_zscore !== undefined ? p.cvd_zscore : '0.0';
+            const microSkew = p.micro_skew_bps !== undefined ? p.micro_skew_bps : '0.0';
+            const absSig = (p.absorption_signal && p.absorption_signal !== 'NONE') ? p.absorption_signal : '';
+            let absSigBadge = '';
+            if (absSig === 'BUY') {
+                absSigBadge = '<span style="background: rgba(0,255,136,0.2); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); border-radius: 2px; padding: 1px 4px; font-size: 8px; font-weight: 800; margin-left: 4px;">SPRING BUY</span>';
+            } else if (absSig === 'SELL') {
+                absSigBadge = '<span style="background: rgba(255,34,85,0.2); color: #ff2255; border: 1px solid rgba(255,34,85,0.4); border-radius: 2px; padding: 1px 4px; font-size: 8px; font-weight: 800; margin-left: 4px;">CLIMAX SELL</span>';
+            }
+
             html += `
                 <div class="tiger-prey-row" onclick="selectTigerPrey('${p.symbol}')" id="prey-row-${p.symbol}">
                     <div class="tiger-prey-rank">#${p.rank}</div>
                     <div class="tiger-prey-info">
-                        <span class="tiger-prey-symbol">${p.symbol}</span>
-                        <span class="tiger-prey-meta">Vol: ${parseFloat(p.volatility_score || 0).toFixed(3)} · $${turnoverM}M</span>
+                        <div style="display: flex; align-items: center; flex-wrap: wrap;">
+                            <span class="tiger-prey-symbol">${p.symbol}</span>
+                            ${scoutBadge}
+                            ${absSigBadge}
+                        </div>
+                        <span class="tiger-prey-meta">Vol: ${parseFloat(p.volatility_score || 0).toFixed(3)} · $${turnoverM}M · CVD: ${cvdZ}σ · Skew: ${microSkew}bps</span>
                         <div class="tiger-strength-bar-wrap">
                             <div class="tiger-strength-bar">
                                 <div class="tiger-strength-fill" style="width: ${strPct}%; background: ${barColor};"></div>

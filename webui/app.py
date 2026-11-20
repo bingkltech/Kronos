@@ -3117,7 +3117,15 @@ def get_tiger_radar():
             "min_buy_wick_ratio": 0.60,
             "min_sell_wick_ratio": 0.45,
             "min_24h_turnover_usd": 50000000.0,
-            "status": "ARMED_AND_STREAMING"
+            "status": "ARMED_AND_STREAMING",
+            "reconnaissance_bridge": {
+                "status": "ONLINE",
+                "target": "Strategy #1 (Macro Storm Protocol)",
+                "scouted_ranks": [1, 2],
+                "confluence_multiplier": "1.20x (+20% Kelly)",
+                "conflict_throttle": "0.70x (-30% Kelly)",
+                "min_turnover_usd": 50000000.0
+            }
         },
         "config": cfg_data
     })

@@ -636,13 +636,24 @@
                     `<span style="color: #3fb950; font-weight: 700;">Qty: ${d.ticket.quantity} | Notional: $${d.ticket.notional_usd.toFixed(2)}</span>` :
                     `<code style="color: #f85149;">${d.veto_gate || 'VETO'}</code>`;
 
+                let advNotes = d.adversarial_notes || '';
+                if (advNotes.includes('NANO_CONFLUENCE_CONFIRMED')) {
+                    advNotes = `<div style="margin-bottom: 3px;"><span class="badge" style="background: rgba(0, 230, 118, 0.2); color: #00E676; border: 1px solid rgba(0,230,118,0.4); font-size: 10px; font-weight: 800; padding: 2px 5px; border-radius: 3px; display: inline-block;">⚡ NANO CONFLUENCE (+20%)</span></div>` + advNotes;
+                } else if (advNotes.includes('NANO_CONFLICT_WARNING')) {
+                    advNotes = `<div style="margin-bottom: 3px;"><span class="badge" style="background: rgba(255, 34, 85, 0.2); color: #ff3366; border: 1px solid rgba(255,34,85,0.4); font-size: 10px; font-weight: 800; padding: 2px 5px; border-radius: 3px; display: inline-block;">⚠️ NANO CONFLICT (-30%)</span></div>` + advNotes;
+                }
+
+                const top10Universe = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'LINKUSDT', 'NEARUSDT', 'SUIUSDT'];
+                const isScoutedPrey = !top10Universe.includes(d.symbol) || advNotes.includes('TIGER');
+                const scoutBadge = isScoutedPrey ? '<span class="badge" style="background: rgba(255, 152, 0, 0.2); color: #ff9800; font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; font-weight: 800;">🐅 SCOUTED</span>' : '';
+
                 tr.innerHTML = `
-                    <td><strong>${d.symbol}</strong></td>
+                    <td><strong>${d.symbol}</strong>${scoutBadge}</td>
                     <td>${d.side}</td>
                     <td>${verdictBadge}</td>
                     <td>${gateOrTicket}</td>
                     <td style="font-size: 11px; max-width: 320px;">${d.reason}</td>
-                    <td style="font-size: 11px; color: var(--text-muted); max-width: 250px;">${d.adversarial_notes}</td>
+                    <td style="font-size: 11px; color: var(--text-muted); max-width: 250px;">${advNotes}</td>
                 `;
                 tbody.appendChild(tr);
             });

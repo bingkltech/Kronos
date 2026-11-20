@@ -948,7 +948,26 @@ def get_headless_tiger_radar():
                 with open(p, 'r', encoding='utf-8') as f:
                     radar_data = json.load(f)
                     if radar_data and radar_data.get("active_prey"):
-                        return jsonify({"success": True, "radar": radar_data})
+                        return jsonify({
+                            "success": True,
+                            "radar": radar_data,
+                            "advisory": {
+                                "zero_mfe_abort_seconds": 30,
+                                "zero_mfe_max_window_seconds": 180,
+                                "min_buy_wick_ratio": 0.60,
+                                "min_sell_wick_ratio": 0.45,
+                                "min_24h_turnover_usd": 50000000.0,
+                                "status": "ARMED_AND_STREAMING",
+                                "reconnaissance_bridge": {
+                                    "status": "ONLINE",
+                                    "target": "Strategy #1 (Macro Storm Protocol)",
+                                    "scouted_ranks": [1, 2],
+                                    "confluence_multiplier": "1.20x (+20% Kelly)",
+                                    "conflict_throttle": "0.70x (-30% Kelly)",
+                                    "min_turnover_usd": 50000000.0
+                                }
+                            }
+                        })
             except Exception:
                 pass
     return jsonify({"success": False, "error": "radar not ready"}), 404

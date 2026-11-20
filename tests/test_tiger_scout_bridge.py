@@ -250,9 +250,12 @@ def test_orchestrator_integration_with_scout_bridge(sample_radar_json):
         )
     }
 
+    # Use fixed liquid session time (10:00 UTC) to ensure test is independent of wall-clock time
+    test_time = datetime.datetime(2026, 11, 20, 10, 0, 0, tzinfo=datetime.timezone.utc)
     report = orchestrator.run_scan_cycle(
         account_equity=Decimal("200.00"),
         mock_trajectories=mock_trajs,
+        current_time_utc=test_time,
         execution_mode="PAPER"
     )
 
