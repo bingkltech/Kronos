@@ -140,15 +140,9 @@
         window._dashLiveTradesSig = '';
 
         function toggleDashboardViewMode() {
-            dashPortfolioViewMode = dashPortfolioViewMode === 'LIVE' ? 'PAPER' : 'LIVE';
-            const btn = document.getElementById('dash-mode-toggle-btn');
-            if (btn) {
-                btn.textContent = dashPortfolioViewMode === 'LIVE' ? '📝 Switch to Paper View' : '🔴 Switch to Live Real View';
-            }
+            dashPortfolioViewMode = 'LIVE';
             loadMacroOverview();
-            if (dashPortfolioViewMode === 'LIVE') {
-                loadLiveDashboard();
-            }
+            loadLiveDashboard();
         }
 
         function renderMacroPortfolioLive(data) {
@@ -199,7 +193,7 @@
                 dBadge.style.background = 'rgba(255, 82, 82, 0.15)';
                 dBadge.style.borderColor = 'rgba(255, 82, 82, 0.4)';
             }
-            if (dToggleBtn) dToggleBtn.textContent = '📝 Switch to Paper View';
+            if (dToggleBtn) dToggleBtn.style.display = 'none';
             if (dLiveSec) dLiveSec.style.display = 'block';
             if (dTradesSec) dTradesSec.style.display = 'block';
             if (dPaperSec) dPaperSec.style.display = 'none';
@@ -469,11 +463,11 @@
                 // Load Learning Stats
                 loadLearningStats();
 
-                // Live Real Trade Summary by Default
-                if (dashPortfolioViewMode === 'LIVE' && data.live_account) {
+                // Real Live Binance Portfolio is the ONLY portfolio shown on Macro Dashboard
+                if (data.live_account) {
                     renderMacroPortfolioLive(data);
-                } else if (data.paper_report) {
-                    renderPaperTradingReport(data.paper_report);
+                } else {
+                    loadLiveDashboard();
                 }
                 loadGeminiAssessment();
                 loadScalperStatus();
@@ -2106,55 +2100,8 @@
                 if (botLastTrade) botLastTrade.textContent = awaitHtml;
             }
 
-            // 1. Update Dashboard View Elements (Only if live autopilot is not currently running)
-            if (!liveAutopilotActive) {
-                const dTitle = document.getElementById('dash-portfolio-title');
-                const dBadge = document.getElementById('dash-paper-micro-badge');
-                const dReset = document.getElementById('dash-reset-btn');
-                const dLiveBtn = document.getElementById('dash-live-btn');
-                if (dTitle) dTitle.innerHTML = 'Paper Trading Performance & Win/Loss Audit';
-                if (dBadge) {
-                    dBadge.innerHTML = '⚡ Micro-Trading Active (Small Account: $200.00 Base)';
-                    dBadge.style.color = '#3fb950';
-                    dBadge.style.background = 'rgba(35, 134, 54, 0.2)';
-                    dBadge.style.borderColor = 'rgba(46, 160, 67, 0.4)';
-                }
-                if (dReset) dReset.style.display = 'inline-block';
-                if (dLiveBtn) dLiveBtn.style.display = 'none';
-
-                const dashEquity = document.getElementById('dash-paper-equity');
-                const dashStarting = document.getElementById('dash-paper-starting');
-                const dashPnl = document.getElementById('dash-paper-pnl');
-                const dashPnlPct = document.getElementById('dash-paper-pnl-pct');
-                const dashWinLoss = document.getElementById('dash-paper-winloss');
-                const dashWinRate = document.getElementById('dash-paper-winrate-badge');
-                const dashTotal = document.getElementById('dash-paper-total-trades');
-                const dashPF = document.getElementById('dash-paper-profitfactor');
-
-                if (dashEquity) {
-                    dashEquity.textContent = `$${rep.current_equity.toFixed(2)}`;
-                    dashEquity.style.color = rep.current_equity >= rep.initial_equity ? '#00E676' : '#f85149';
-                }
-                if (dashStarting) dashStarting.textContent = `Starting: $${rep.initial_equity.toFixed(2)} USDT`;
-                if (dashPnl) {
-                    dashPnl.textContent = `${rep.realized_pnl_usd >= 0 ? '+' : ''}$${rep.realized_pnl_usd.toFixed(2)}`;
-                    dashPnl.style.color = rep.realized_pnl_usd >= 0 ? '#3fb950' : '#f85149';
-                }
-                if (dashPnlPct) {
-                    dashPnlPct.textContent = `Return: ${rep.net_return_pct >= 0 ? '+' : ''}${rep.net_return_pct.toFixed(2)}%`;
-                    dashPnlPct.style.color = rep.net_return_pct >= 0 ? '#3fb950' : '#f85149';
-                }
-                if (dashWinLoss) dashWinLoss.textContent = `${rep.winning_trades} Wins vs ${rep.losing_trades} Losses`;
-                if (dashWinRate) dashWinRate.textContent = `Win Rate: ${rep.win_rate_pct.toFixed(1)}%`;
-                if (dashTotal) dashTotal.textContent = `${rep.total_trades} Total Trades`;
-                if (dashPF) dashPF.textContent = `${rep.profit_factor.toFixed(2)}x`;
-                const dashFeeDrag = document.getElementById('dash-paper-fee-drag');
-                if (dashFeeDrag) {
-                    const totalFees = rep.total_fees_usd || 0;
-                    const grossPnl = rep.gross_pnl_usd !== undefined ? rep.gross_pnl_usd : rep.realized_pnl_usd;
-                    dashFeeDrag.textContent = `Fee Drag: -$${totalFees.toFixed(2)} | Gross: ${grossPnl >= 0 ? '+' : ''}$${grossPnl.toFixed(2)}`;
-                }
-            }
+            // 1. Dashboard View is 100% Real Live Binance Trading (No paper trading on Macro Dashboard)
+            // Paper trading report updates are restricted to the Paper Bot view.
 
             // 2. Update Bot View Elements
             const botEquity = document.getElementById('bot-equity-val');

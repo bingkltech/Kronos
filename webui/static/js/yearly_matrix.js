@@ -6,6 +6,7 @@
 
 (function () {
     let ymSource = localStorage.getItem("kronos_ym_source") || "live";
+    if (ymSource === "paper") ymSource = "live";
     let ymTimeframe = localStorage.getItem("kronos_ym_timeframe") || "daily";      // "1y" | "daily" (default to daily)
     let ymSelectedMonth = localStorage.getItem("kronos_ym_month") || null;  // null -> auto current UTC month (Nov '26, Dec '26, ...)
     let ymMode = localStorage.getItem("kronos_ym_mode") || "both";         // "both" | "bs" | "pnl"

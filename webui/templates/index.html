@@ -215,9 +215,6 @@
                     <button class="btn-primary" style="padding: 4px 10px; font-size: 11px; background: #b62324; border-color: #ff5252;" onclick="runLiveScan()">
                         ⚡ Live Scan Now
                     </button>
-                    <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" id="dash-mode-toggle-btn" onclick="toggleDashboardViewMode()">
-                        📝 Switch to Paper View
-                    </button>
                     <button class="btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="switchAppView('live')">
                         🔴 Full Live Terminal
                     </button>
@@ -231,8 +228,8 @@
                         <span class="card-title" id="dash-card-equity-title">Total Futures Wallet</span>
                         <span class="card-icon">💵</span>
                     </div>
-                    <div class="card-value" style="font-size: 22px; color: #00E676; font-family: var(--font-mono);" id="dash-paper-equity">$182.44 USDT</div>
-                    <div class="card-sub" id="dash-paper-starting">Available Collateral: $19.12 USDT</div>
+                    <div class="card-value" style="font-size: 22px; color: #00E676; font-family: var(--font-mono);" id="dash-paper-equity">$197.41 USDT</div>
+                    <div class="card-sub" id="dash-paper-starting">Available Collateral: $197.41 USDT</div>
                 </div>
 
                 <div class="metric-card" style="padding: 14px; background: var(--bg-elevated);">
@@ -370,43 +367,6 @@
                     </table>
                 </div>
             </div>
-
-            <!-- PAPER SECTION: Shown only when user toggles to Paper View -->
-            <div id="dash-paper-section" style="display: none;">
-                <div style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <span>Recent Closed Paper Trades</span>
-                    <button class="btn-secondary" style="padding: 2px 8px; font-size: 10px;" onclick="resetPaperTrading()">
-                        🔄 Reset Paper Account
-                    </button>
-                </div>
-                <div style="overflow-x: auto; max-height: 180px;">
-                    <table class="quant-table" style="font-size: 12px;">
-                        <thead>
-                            <tr>
-                                <th>Time (UTC)</th>
-                                <th>Symbol</th>
-                                <th>Side</th>
-                                <th>Entry Price</th>
-                                <th>Exit Price</th>
-                                <th>Quantity</th>
-                                <th>Fee Drag</th>
-                                <th>Gross PnL</th>
-                                <th>Net Realized PnL</th>
-                                <th>Return</th>
-                                <th>Outcome</th>
-                                <th>Exit Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dash-paper-trades-tbody">
-                            <tr>
-                                <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 16px;">
-                                    No closed paper trades yet.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
 
         <!-- Top-10 Composite Radar Table -->
@@ -475,7 +435,7 @@
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <div style="font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 700;">Macro Regime Diagnosis:</div>
                     <div id="gemini-regime-diag" style="font-size: 13px; font-weight: 700; color: #f0f6fc; padding: 8px 12px; background: rgba(22, 27, 34, 0.8); border-radius: 6px; border-left: 3px solid #58a6ff;">
-                        Analyzing live market breadth, funding rates, and paper trading outcomes...
+                        Analyzing live market breadth, funding rates, and live Binance execution telemetry...
                     </div>
 
                     <div style="font-size: 11px; color: #8b949e; text-transform: uppercase; font-weight: 700; margin-top: 4px;">Executive Edge Rationale:</div>
@@ -574,7 +534,6 @@
                     <div class="ym-seg-group" title="Data source">
                         <button class="ym-seg-btn active" data-ym-source="live" onclick="setYearlyMatrixSource('live')">Live</button>
                         <button class="ym-seg-btn" data-ym-source="tiger" onclick="setYearlyMatrixSource('tiger')">Tiger</button>
-                        <button class="ym-seg-btn" data-ym-source="paper" onclick="setYearlyMatrixSource('paper')">Paper</button>
                     </div>
                     <div class="ym-seg-group" title="Cell display">
                         <button class="ym-seg-btn active" data-ym-mode="both" onclick="setYearlyMatrixMode('both')">B/S + $</button>

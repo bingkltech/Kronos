@@ -1071,36 +1071,48 @@ def get_macro_overview():
                 "carry_verdict": carry.verdict
             })
             
-        # Live Binance Account & Recent Trades
+        # Real Live Binance Account & Recent Trades (Default across Macro Dashboard)
         live_account = None
         live_trades = []
-        if live_trading_enabled:
-            try:
-                live_account = quant_bot.executor.get_live_account_summary()
-                if live_account and live_account.get("connected"):
-                    raw_trades = quant_bot.executor.get_live_trade_history(limit=15)
-                    active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
-                    if "positions" in live_account:
-                        enriched_pos = []
-                        for p in live_account.get("positions", []):
-                            pd = dict(p)
-                            is_sc = bool(pd.get("is_scalp")) or (active_scalp_sym is not None and pd.get("symbol") == active_scalp_sym)
-                            pd["is_scalp"] = is_sc
-                            pd["trade_type"] = "SCALP" if is_sc else "MACRO"
-                            enriched_pos.append(pd)
-                        live_account["positions"] = enriched_pos
 
-                    scalp_oids = getattr(quant_bot.executor, "scalp_order_ids", set())
-                    for t in raw_trades:
-                        td = dict(t)
-                        oid = str(td.get("order_id") or td.get("orderId") or "")
-                        tid = str(td.get("trade_id") or td.get("id") or "")
-                        is_sc = bool(td.get("is_scalp")) or (oid in scalp_oids) or (tid in scalp_oids)
-                        td["is_scalp"] = is_sc
-                        td["trade_type"] = "SCALP" if is_sc else "MACRO"
-                        live_trades.append(td)
+        # 1. Primary Priority: AWS EC2 Bridge (Whitelisted Production Execution Gateway)
+        if aws_bridge and aws_bridge.is_connected():
+            try:
+                cached_st = getattr(aws_bridge, "_cached_live_status", None)
+                if cached_st and isinstance(cached_st, dict) and cached_st.get("live_account"):
+                    live_account = dict(cached_st.get("live_account") or {})
+                    live_account["connected"] = bool(cached_st.get("connected", True))
+                    live_trades = list(cached_st.get("trade_history") or [])
+                else:
+                    remote_st = aws_bridge.fetch_remote_json('/api/live/status', timeout=2.5)
+                    if remote_st and isinstance(remote_st, dict) and remote_st.get("live_account"):
+                        live_account = dict(remote_st.get("live_account") or {})
+                        live_account["connected"] = bool(remote_st.get("connected", True))
+                        live_trades = list(remote_st.get("trade_history") or [])
             except Exception as err:
-                logger.debug("Live account overview error: %s", err)
+                logger.debug("Failed to pull live account from AWS bridge: %s", err)
+
+        # 2. Secondary Priority: Local Binance executor if available
+        if not live_account or not live_account.get("connected"):
+            try:
+                local_acct = quant_bot.executor.get_live_account_summary()
+                if local_acct and local_acct.get("connected"):
+                    live_account = local_acct
+                    live_trades = quant_bot.executor.get_live_trade_history(limit=25)
+            except Exception as err:
+                logger.debug("Local executor live account query: %s", err)
+
+        # Enrich active positions if scalp
+        if live_account and "positions" in live_account:
+            active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
+            enriched_pos = []
+            for p in live_account.get("positions", []):
+                pd = dict(p)
+                is_sc = bool(pd.get("is_scalp")) or (active_scalp_sym is not None and pd.get("symbol") == active_scalp_sym)
+                pd["is_scalp"] = is_sc
+                pd["trade_type"] = "SCALP" if is_sc else "MACRO"
+                enriched_pos.append(pd)
+            live_account["positions"] = enriched_pos
 
         return jsonify({
             "success": True,
@@ -1116,7 +1128,7 @@ def get_macro_overview():
                 "reason": news_verdict.reason
             },
             "symbols": symbols_data,
-            "live_trading_enabled": live_trading_enabled,
+            "live_trading_enabled": True,
             "live_account": {
                 "connected": live_account.get("connected", False) if live_account else False,
                 "total_wallet_balance_usd": float(live_account.get("total_wallet_balance_usd", Decimal("0.00"))) if live_account else 0.0,
@@ -1128,7 +1140,7 @@ def get_macro_overview():
                 "positions": live_account.get("positions", []) if live_account else []
             } if live_account else None,
             "live_trades": live_trades,
-            "paper_report": quant_bot.executor.get_paper_summary()
+            "trade_history": live_trades
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
