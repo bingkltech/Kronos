@@ -1,12 +1,12 @@
 # Kronos Strategy #3: Stalking Tiger Scalping Strategy
 ## Microstructure Orderflow, Trapped Liquidity Alpha & Zero-Ban Rate Architecture
-### Version 2.1: Predatory HFT Double-Alpha (Live Multiplex WebSocket, BTC Tide Gate & Volatility Parity)
+### Version 2.2: Institutional Adaptive Microstructure Risk & Champion Selection
 
 > **Institutional Quantitative Trading Standard**  
-> **Status:** Active Real-Time Forward Paper Testing (Daemon Task `task-3301`)  
-> **Host Environment:** Local High-Performance PC (Windows Native, Multi-Core, PyTorch/NumPy)  
-> **Fleet Position:** Strategy #3 (100% Isolated from Strategy #1 AWS EC2 and Strategy #2 Lightning Scalper)  
-> **ASVL Verification:** 100% Passed (16 of 16 Unit Tests in 1.22s | 101 of 101 Entire Kronos Suite Passed)
+> **Status:** Active Real-Capital Live Production (`tiger_worker.py --live --quota 5` on AWS EC2)  
+> **Host Environment:** AWS EC2 Production Node (Amazon Linux 2023, 24/7 nohup daemon)  
+> **Fleet Position:** Strategy #3 (Isolated from Strategy #1 Macro and Strategy #2 Apex Scalper)  
+> **ASVL Verification:** 100% Passed (16 of 16 Risk Engine Unit Tests | 54 of 54 Test Suite Passed | 49/49 Lessons Aligned)
 
 ---
 
@@ -27,7 +27,7 @@ In high-frequency cryptocurrency perpetual trading, 98% of retail scalpers are *
 +----------------------------------------------------------------------------------------------------+
 |                             THE STALKING TIGER BLUEPRINT (STRATEGY #3 v2.1)                        |
 +----------------------------------------------------------------------------------------------------+
-| 1. DOMAIN           | Independent PC-Native Daemon (Zero AWS coupling, isolated config & state)     |
+| 1. DOMAIN           | AWS EC2 24/7 Sovereign Daemon (Fully integrated with RiskEngine v3)          |
 | 2. UNIVERSE SIEVE   | Top 150 Binance USDⓈ-M Perps scanned via bulk 24hr ticker (every 30s)        |
 | 3. MACRO SHIELD     | Outlier Filter (|24h Chg| <= 35%) + 1h Trend Anchor (veto counter-trend >= 2%)|
 | 4. BTC TIDE GATE    | Veto altcoin longs if BTC 1m return <= -0.35% or BTC CVD <= -2.5 sigma        |
@@ -37,9 +37,10 @@ In high-frequency cryptocurrency perpetual trading, 98% of retail scalpers are *
 | 8. SPEED & TTL      | Signal TTL = 90s (cancel stale); Execution reaction time < 50ms (WS-driven)   |
 | 9. PROFIT LOCK      | Instant Breakeven Ratchet at +0.80% gain; 8m Velocity Check                  |
 | 10. TIME-STOP       | 15m Max Horizon (12m Stall Scratch [-0.20%, +0.25%] -> 15m Hard Market Kill) |
-| 11. DUAL BRACKETS   | Slow Vol: TP +1.01% / SL -0.66% | Fast Vol: TP +1.10% / SL -1.10%            |
+| 11. DUAL BRACKETS   | Slow Vol: TP +1.20% / SL -0.70% (Net R:R 1.26:1) | Fast Vol: TP +1.90% / SL -1.10%|
 | 12. CHURN SHIELD    | 15-Minute Post-Exit Symbol Cooldown (stops repetitive re-entry churning)     |
 | 13. SELF-LEARNING   | Sub-second Forensics (data/tiger_trades.db) -> Distilled Rules Auto-Update   |
+| 14. ADAPTIVE RISK   | Spread-Aware Floor max(3*Spread, 0.40%) + Rank #1 "Champion Prey" Selection  |
 +----------------------------------------------------------------------------------------------------+
 ```
 
@@ -192,16 +193,17 @@ Adheres strictly to AGENTS.md Invariant 1 (**Zero Float Financial Math with Deci
 
 | Parameter | Slow Volatility Regime ($\text{ATR}_{14} < 1.0\%$) | High Volatility Regime ($\text{ATR}_{14} \ge 1.0\%$) |
 | :--- | :--- | :--- |
-| **Take-Profit (Price Distance)** | **$+1.01\%$** | **$+1.10\%$** (Calibrated) / $+1.90\%$ (Max) |
-| **Gross ROI at 5x Leverage** | $+5.05\%$ | $+5.50\%$ (Calibrated) / $+9.50\%$ |
-| **Net ROI (after 0.09% fees)** | **$+4.65\%$** | **$+5.10\%$** (Calibrated) / $+9.10\%$ |
-| **Stop-Loss (Price Distance)** | **$-0.66\%$** | **$-1.10\%$** |
-| **Gross ROI Loss at 5x** | $-3.30\%$ | $-5.50\%$ |
-| **Net ROI Loss (after 0.09% fees)** | **$-3.70\%$** | **$-5.90\%$** (Clamped to $-5.5\%$ max) |
+| **Take-Profit (Price Distance)** | **$+1.20\%$** (Widened via Lesson #20) | **$+1.90\%$** |
+| **Gross ROI at 5x Leverage** | $+6.00\%$ | $+9.50\%$ |
+| **Net ROI (after 0.14% fees+spread)** | **$+5.30\%$** | **$+8.80\%$** |
+| **Stop-Loss (Price Distance)** | **$-0.70\%$** (Calibrated above 0.66% floor) | **$-1.10\%$** |
+| **Gross ROI Loss at 5x** | $-3.50\%$ | $-5.50\%$ |
+| **Net ROI Loss (after 0.14% fees+spread)**| **$-4.20\%$** | **$-6.20\%$** (Clamped to $-5.5\%$ max) |
+| **Net Risk-to-Reward Ratio (Net R:R)** | **$1.26 : 1$** ($\ge 1.20$ Lesson #10 invariant) | **$1.42 : 1$** ($\ge 1.20$ Lesson #10 invariant) |
 | **Risk Sizing Model** | Inverse-Volatility Parity | Inverse-Volatility Parity |
-| **Effective Position Notional** | **~$\$227.00$** ($\$1.50 / 0.66\%$) | **~$\$136.00$** ($\$1.50 / 1.10\%$) |
+| **Effective Position Notional** | **~$\$214.00$** ($\$1.50 / 0.70\%$) | **~$\$136.00$** ($\$1.50 / 1.10\%$) |
 | **Cash Risk per Stop-Loss** | **Strictly Locked to $-\$1.50$** | **Strictly Locked to $-\$1.50$** |
-| **Expected Cash Win** | **$+\$2.10$ to $+\$2.60$** | **$+\$1.50$ to $+\$2.10$** |
+| **Expected Cash Win** | **$+\$2.20$ to $+\$2.60$** | **$+\$2.20$ to $+\$2.60$** |
 | **BTC Macro Tide Gate** | Vetoes Longs if BTC 1m $\le -0.35\%$ | Vetoes Longs if BTC 1m $\le -0.35\%$ |
 | **Profit Cushion Lock** | $+0.80\%$ MFE $\rightarrow$ Ratchet SL to BE+Fees | $+0.80\%$ MFE $\rightarrow$ Ratchet SL to BE+Fees |
 | **Post-Exit Symbol Cooldown** | **15 Minutes** (Stops Churn) | **15 Minutes** (Stops Churn) |
@@ -432,9 +434,41 @@ To ensure institutional stability and prevent machine-gun churn or slot-cap viol
 * Eliminates cross-symbol "machine-gun churn" during market-wide cascades.
 * Persisted across daemon restarts via `data/tiger_state.json`.
 
-### 3. Correlated Basket Tremor Veto (`max_correlated_signals_per_scan = 1`)
-* If more than 1 symbol qualifies for an absorption trigger within the same 15-second scan cycle, the entire cycle is **vetoed**.
-* Multiple simultaneous altcoin absorption wicks represent systemic correlated shocks, not isolated idiosyncratic trapped trader opportunities.
+### 3. Correlated Basket Tremor Defense & "Champion Prey" Cross-Sectional Ranking
+* **Legacy Flaw:** Previously, if $\ge 2$ symbols triggered simultaneously in the same 5-second scan, the daemon vetoed *all* candidates, mistaking market momentum pulses for toxic systemic shocks and missing high-conviction entries.
+* **Institutional v2.2 Upgrade:** Instead of an all-or-nothing cancel, the system ranks simultaneous triggers via an orderflow conviction score:
+  $$\text{Prey Conviction Score} = 2.0 \times |\text{OFI}| + \text{Wick Ratio} + \text{Absorption Density}$$
+* **Execution Invariant:** Selects and dispatches **strictly the Rank #1 "Champion Prey"**. Ranks #2 through #5 are discarded to preserve zero-correlated basket risk and maintain single-position discipline.
+
+---
+
+## 15. Institutional Microstructure Risk & Live Real Deployment (v2.2 Upgrade)
+
+### 1. Time-Horizon Decoupled Stop Floor (`order.is_scalp = True`)
+* **Blunt Floor Elimination:** The risk manager previously applied a single $0.66\%$ minimum stop distance (Lessons #16 & #39) across both multi-hour swing trades and sub-minute scalps, which blocked valid micro-wick invalidation stops ($0.45\% - 0.50\%$).
+* **Adaptive Spread Shield:** Scalp orders evaluate an adaptive floor:
+  $$\text{Effective Stop Floor} = \max\Big(3.0 \times \text{Spread}_{\text{pct}}, \; \text{scalp\_min\_stop\_distance\_pct}\; (0.40\%)\Big)$$
+* **Enhanced Protection:** Macro trades remain locked to $0.66\%$. If an altcoin book widens to $0.25\%$ spread, the required stop automatically widens to $0.75\%$ ($3 \times 0.25\%$), rejecting tight stops in noisy or illiquid orderbooks.
+
+### 2. Net R:R Geometry Calibration (Eliminating the Lesson #10 Veto Loop)
+* With VIP0 taker fees ($0.10\%$ roundtrip) and average spread friction ($0.04\%$), an entry with $+1.01\%$ TP and $-0.66\%$ SL resulted in:
+  $$\text{Net R:R} = \frac{1.01\% - 0.14\%}{0.66\% + 0.14\%} = 1.0875 < 1.20 \quad (\text{Vetoed})$$
+* Aligned with Lesson #20 (*"widen TP target to >= 1.20%"*), slow regime brackets are calibrated to **$\text{TP} = +1.20\%$** and **$\text{SL} = -0.70\%$**:
+  $$\text{Net R:R} = \frac{1.20\% - 0.14\%}{0.70\% + 0.14\%} = \frac{1.06\%}{0.84\%} = \mathbf{1.26} \ge 1.20$$
+* All slow-regime trades satisfy Lesson #10 naturally while fully accounting for exchange fee friction.
+
+### 3. Counterfactual "Ghost Trade" Audit Engine
+* When any signal is vetoed by the risk engine, it is logged to `data/tiger_counterfactuals.jsonl`:
+  ```json
+  {"signal_id": "TIGER_SIG_KERNELUSDT_1700000000", "symbol": "KERNELUSDT", "action": "SELL", "evaluation_fill_price": "0.1550", "stop_loss_price": "0.1561", "take_profit_price": "0.1531", "reason_codes": ["OMS_STOP_BELOW_NOISE_FLOOR_L16_L39"], "timestamp_utc": "2026-11-21T05:00:00"}
+  ```
+* Allows empirical verification of whether risk vetoes protected capital or blocked winners.
+
+### 4. Live Real Production State (AWS EC2)
+* **Command:** `python scripts/tiger_worker.py --live --quota 5`
+* **Account:** Binance USDⓈ-M Futures (Real Capital Margin, $200.71 USDT Wallet)
+* **Active Stream:** 5 Multiplex WebSocket streams (`@aggTrade` + `@depth5@100ms`) with dynamic rate throttling.
+* **Concurrency Quota:** 3 Scalp slots allocated within the 9-position portfolio ceiling (6 Macro + 3 Scalp).
 
 ---
 

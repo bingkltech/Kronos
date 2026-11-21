@@ -151,6 +151,9 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
    ```
 
 ### Documentation Links
+* 🐅 [Stalking Tiger Scalping Architecture Manual](docs/TIGER_SCALPER_ARCHITECTURE.md)
+* 🛡️ [Institutional Microstructure Risk & Champion Selection Manual](docs/INSTITUTIONAL_MICROSTRUCTURE_RISK_AND_CHAMPION_SELECTION.md)
+* 🚪 [Portfolio Concurrency Expansion (6M/3S) & Discretionary Owner Manual Sell Manual](docs/PORTFOLIO_CONCURRENCY_EXPANSION_AND_OWNER_OVERRIDE.md)
 * 🧠 [Specialized Advisory Consultant & Tri-Perspective ACR Manual](docs/ADVISORY_CONSULTANT_AND_TRI_PERSPECTIVE_ACR.md)
 * 🌊 [Tsunami Storm Adaptive Protocol Manual](docs/TSUNAMI_STORM_ADAPTIVE_PROTOCOL.md)
 * 📊 [Previous-UTC-Day Volume Profile Spatial Veto Manual](docs/VOLUME_PROFILE_SPATIAL_VETO_AND_DASHBOARD_MATRIX.md)

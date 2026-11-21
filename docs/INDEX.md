@@ -28,6 +28,7 @@ Welcome to the institutional documentation repository for **Kronos**, an autonom
 | **[18. Specialized Advisory Consultant & Tri-Perspective ACR](file:///F:/012D_TRADE/Kronos/docs/ADVISORY_CONSULTANT_AND_TRI_PERSPECTIVE_ACR.md)** | Multi-Perspective Advisory & Fleet Governance | Decoupled Adversarial Conviction Ratio ($ACR$), Post-Trade Alpha Attribution ($\alpha = R_{\text{trade}} - R_{\text{BTC}}$), 3-Position Fleet Cap, 50-Trade Session Quota & Email Alert, Sweetspot Trade Expirations. |
 | **[19. Stalking Tiger Macro Reconnaissance Bridge](file:///F:/012D_TRADE/Kronos/docs/TIGER_MACRO_RECONNAISSANCE_BRIDGE.md)** | Cross-Fleet Scout & Feed | Dynamic Scout Cache, Whole-Binance Microstructure Ticker Feed, Sub-Second Orderflow Multiplexing, Mutual Exclusion Isolation. |
 | **[20. Concurrency Expansion & Discretionary Owner Override](file:///F:/012D_TRADE/Kronos/docs/PORTFOLIO_CONCURRENCY_EXPANSION_AND_OWNER_OVERRIDE.md)** | 9-Position Fleet & Capital Rotation | Concurrency Upgrade (6 Macro + 3 Scalp), 1-Hour Owner Discretionary Manual Sell Lockout (`OWNER_MANUAL_CAPITAL_ROTATION`), Binance Quantized Depth Snapping, 24/7 Anti-Bloat Engine. |
+| **[21. Institutional Microstructure Risk & Champion Selection](file:///F:/012D_TRADE/Kronos/docs/INSTITUTIONAL_MICROSTRUCTURE_RISK_AND_CHAMPION_SELECTION.md)** | Adaptive Scalp Risk & Orderflow Tournaments | Time-Horizon Decoupled Noise Floor (`max(3*Spread, 0.40%)`), Net R:R Geometry Calibration (1.26:1 after friction), Rank #1 Champion Prey Tournament Selection, Counterfactual Ghost Logging. |
 
 ---
 
