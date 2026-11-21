@@ -1506,7 +1506,7 @@
                         stormPill.style.background = 'rgba(210, 153, 34, 0.15)';
                     }
                 } else {
-                    stormPill.innerHTML = '🌊 CALM WATERS (3M / 1S)';
+                    stormPill.innerHTML = '🌊 CALM WATERS (6M / 3S)';
                     stormPill.style.color = '#00e5ff';
                     stormPill.style.borderColor = 'rgba(0, 229, 255, 0.4)';
                     stormPill.style.background = 'transparent';
@@ -1521,7 +1521,7 @@
                 const currentResp = await axios.get('/api/storm/status');
                 const isActive = currentResp.data?.status?.is_storm_active;
                 if (isActive) {
-                    if (!confirm('Disarm Tsunami Storm Protocol and return to Normal Waters (3 Macro / 1 Scalp)?')) return;
+                    if (!confirm('Disarm Tsunami Storm Protocol and return to Normal Waters (6 Macro / 3 Scalp)?')) return;
                     const resp = await axios.post('/api/storm/toggle', { action: 'cancel' });
                     alert(resp.data.message || 'Storm mode deactivated.');
                 } else {

@@ -261,6 +261,9 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
         _val = getattr(_t_rcfg, _fn)
         if _val and not os.path.isabs(_val):
             _t_updates[_fn] = os.path.join(PROJECT_ROOT, _val)
+    max_conc = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
+    _t_updates["max_concurrent_positions"] = max_conc
+    _t_updates["tier1_max_concurrent_positions"] = max(1, max_conc // 3)
     tiger_risk_cfg = _dc_replace(_t_rcfg, **_t_updates) if _t_updates else _t_rcfg
     _t_align = audit_lesson_alignment(tiger_risk_cfg, lessons_db_path=os.path.join(PROJECT_ROOT, "data", "lessons.db"))
     logger.info(

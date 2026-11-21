@@ -9,8 +9,9 @@ quota_path = "/home/ec2-user/kronos-bot/data/aws_trade_quota.json"
 updates = {
     "KRONOS_INSTANCE_TAG": "AWS",
     "KRONOS_LIVE_TRADE_CAP": "50",
-    "KRONOS_MAX_CONCURRENT_POSITIONS": "3",
-    "KRONOS_MAX_MACRO_POSITIONS": "2",
+    "KRONOS_MAX_CONCURRENT_POSITIONS": "9",
+    "KRONOS_MAX_MACRO_POSITIONS": "6",
+    "KRONOS_MAX_SCALP_POSITIONS": "3",
     "ALERT_EMAIL_TO": "",
     "SMTP_HOST": "smtp.gmail.com",
     "SMTP_PORT": "587",

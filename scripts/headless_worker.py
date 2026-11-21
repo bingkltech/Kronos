@@ -71,9 +71,10 @@ def _build_workspace_risk_config() -> RiskConfig:
         val = getattr(cfg, field_name)
         if val and not os.path.isabs(val):
             updates[field_name] = os.path.join(WORKSPACE_ROOT, val)
-    # Enforce portfolio concurrency cap (Max 3 trades total: 2 macro + 1 scalp)
-    max_conc = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    # Enforce portfolio concurrency cap (Max 9 trades total: 6 macro + 3 scalp)
+    max_conc = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
     updates["max_concurrent_positions"] = max_conc
+    updates["tier1_max_concurrent_positions"] = max(1, max_conc // 3)
     return _dc_replace(cfg, **updates) if updates else cfg
 
 
@@ -113,7 +114,7 @@ state_reconciler = StateReconciler(
 trajectory_engine = KronosTrajectoryEngine(service_url="", symbols_config=ALL_SUPPORTED_SYMBOLS)
 runtime_risk_cfg = _dc_replace(
     DEFAULT_RISK_CONFIG,
-    max_concurrent_positions=int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    max_concurrent_positions=int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
 )
 quant_bot = QuantBotOrchestrator(
     symbols_config=ALL_SUPPORTED_SYMBOLS,
@@ -318,8 +319,8 @@ def execute_live_cycle():
         if p.get("symbol") not in scalp_active_symbols
     ]
 
-    # Global Concurrency Clamp: Max 3 positions total across entire portfolio
-    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    # Global Concurrency Clamp: Max 9 positions total across entire portfolio
+    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
     if len(active_positions) >= max_portfolio_positions:
         logger.info(
             "[PORTFOLIO CONCURRENCY] Maximum concurrent positions held (%d/%d: %s). Holding.",
@@ -329,8 +330,8 @@ def execute_live_cycle():
         )
         return
 
-    # Dedicated Strategy Allocation: Strictly max 2 Macro trades (3 total: 2 Macro + 1 Scalp)
-    max_macro_positions = int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2"))
+    # Dedicated Strategy Allocation: Strictly max 6 Macro trades (9 total: 6 Macro + 3 Scalp)
+    max_macro_positions = int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "6"))
     if len(macro_positions) >= max_macro_positions:
         logger.info(
             "[STRATEGY ALLOCATION] Macro slots full (%d/%d occupied: %s). Holding for exit before new macro entry.",
@@ -558,15 +559,16 @@ def execute_apex_scalp_step():
 
         active_symbols = {p.get("symbol") for p in live_acc.get("positions", [])}
 
-        # Global Concurrency Clamp: Max 3 positions total across portfolio
-        max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+        # Global Concurrency Clamp: Max 9 positions total across portfolio
+        max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
         if len(active_symbols) >= max_portfolio_positions:
             return
 
-        # Dedicated Strategy Allocation: Strictly 1 Scalp trade
+        # Dedicated Strategy Allocation: Strictly 3 Scalp trades
+        max_scalp_positions = int(os.getenv("KRONOS_MAX_SCALP_POSITIONS", "3"))
         scalp_active_symbols = quant_bot.executor.scalp_active_symbols
         active_scalps = active_symbols.intersection(scalp_active_symbols)
-        if len(active_scalps) >= 1 or not apex_scalper.is_slot_available:
+        if len(active_scalps) >= max_scalp_positions or not apex_scalper.is_slot_available:
             return
 
         # Dynamic Post-Exit Quarantine Reflex:
@@ -580,17 +582,17 @@ def execute_apex_scalp_step():
                     apex_scalper.register_symbol_cooldown(
                         symbol=exited_sym,
                         current_time_utc=now_utc,
-                        duration_seconds=900,
-                        reason="MANUAL_OR_EXCHANGE_EXIT"
+                        duration_seconds=3600,
+                        reason="OWNER_MANUAL_CAPITAL_ROTATION"
                     )
                     quant_bot.register_symbol_cooldown(
                         symbol=exited_sym,
                         current_time_utc=now_utc,
-                        duration_seconds=900,
-                        reason="MANUAL_OR_EXCHANGE_EXIT"
+                        duration_seconds=3600,
+                        reason="OWNER_MANUAL_CAPITAL_ROTATION"
                     )
                     logger.info(
-                        "[COOLDOWN] Position on %s closed/exited (manual or exchange fill). 15-minute post-exit quarantine activated to prevent churn & mean-reversion whipsaw.",
+                        "[COOLDOWN] Position on %s closed/exited (manual or exchange fill). 1-hour post-exit quarantine activated for capital rotation.",
                         exited_sym
                     )
         previous_live_symbols = active_symbols
@@ -857,10 +859,10 @@ def live_status():
             "session_trades": live_session_trades,
             "trades_remaining": max(0, live_trade_cap - live_session_trades) if live_trade_cap is not None else None,
             "cap_reached_utc": live_cap_reached_utc.isoformat() if live_cap_reached_utc else None,
-            "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3")),
+            "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9")),
             "allocation": {
-                "macro": int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2")),
-                "scalp": 1
+                "macro": int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "6")),
+                "scalp": int(os.getenv("KRONOS_MAX_SCALP_POSITIONS", "3"))
             }
         },
         "volume_profile_veto": {

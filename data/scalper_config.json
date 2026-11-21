@@ -36,7 +36,7 @@
   "guardrails": {
     "ringfenced_margin_usd": 20.0,
     "isolated_leverage": 4,
-    "max_concurrent_scalps": 1,
+    "max_concurrent_scalps": 3,
     "daily_loss_circuit_breaker_usd": 3.0,
     "min_symbol_24h_volume_usd": 50000000.0,
     "max_spread_bps": 2.5,

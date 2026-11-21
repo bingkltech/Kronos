@@ -1461,7 +1461,7 @@ def _execute_live_bot_cycle():
         if p.get("symbol") not in scalp_active_symbols
     ]
 
-    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
     if len(active_positions) >= max_portfolio_positions:
         print(f">> [PORTFOLIO CONCURRENCY] Maximum concurrent positions held ({len(active_positions)}/{max_portfolio_positions}: {active_symbols}). Holding.")
         summary = {
@@ -1487,7 +1487,7 @@ def _execute_live_bot_cycle():
         _save_bot_settings()
         return summary
 
-    max_macro_positions = int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2"))
+    max_macro_positions = int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "6"))
     if len(macro_positions) >= max_macro_positions:
         print(f">> [STRATEGY ALLOCATION] Macro slots full ({len(macro_positions)}/{max_macro_positions} occupied: {[p.get('symbol') for p in macro_positions]}). Holding for exit before new macro entry.")
         summary = {
@@ -1872,8 +1872,8 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
             live_trading_enabled = False
         return
 
-    # Concurrency Clamp: Max 3 positions across entire portfolio
-    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3"))
+    # Concurrency Clamp: Max 9 positions across entire portfolio (6 macro + 3 scalp)
+    max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
     all_active_symbols = set()
     scalp_active_symbols = quant_bot.executor.scalp_active_symbols
     if live_trading_enabled:
@@ -1893,9 +1893,10 @@ def _execute_apex_scalp_step(account_equity: Optional[Decimal] = None):
     if len(all_active_symbols) >= max_portfolio_positions:
         return
 
-    # Dedicated Scalp Allocation: Strictly 1 Scalp slot
+    # Dedicated Scalp Allocation: Strictly 3 Scalp slots
+    max_scalp_positions = int(os.getenv("KRONOS_MAX_SCALP_POSITIONS", "3"))
     active_scalps = all_active_symbols.intersection(scalp_active_symbols)
-    if len(active_scalps) >= 1 or not apex_scalper.is_slot_available:
+    if len(active_scalps) >= max_scalp_positions or not apex_scalper.is_slot_available:
         return
 
     # 3. Slot is Free: Institutional Microstructure & Order Flow Screening
@@ -2848,10 +2849,10 @@ def get_live_status():
                 "scalp_trades": quota_mgr.scalp_trades,
                 "trades_remaining": quota_mgr.trades_remaining,
                 "cap_reached_utc": quota_mgr.cap_reached_utc.isoformat() if quota_mgr.cap_reached_utc else None,
-                "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3")),
+                "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9")),
                 "allocation": {
-                    "macro": int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "2")),
-                    "scalp": 1
+                    "macro": int(os.getenv("KRONOS_MAX_MACRO_POSITIONS", "6")),
+                    "scalp": int(os.getenv("KRONOS_MAX_SCALP_POSITIONS", "3"))
                 }
             },
             "confidence_multiplier": float(calib.confidence_multiplier),
@@ -2928,8 +2929,8 @@ def reset_live_quota():
             "macro_trades": quota_mgr.macro_trades,
             "scalp_trades": quota_mgr.scalp_trades,
             "trades_remaining": quota_mgr.trades_remaining,
-            "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "3")),
-            "allocation": {"macro": 2, "scalp": 1}
+            "max_concurrent_positions": int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9")),
+            "allocation": {"macro": 6, "scalp": 3}
         }
     })
 
