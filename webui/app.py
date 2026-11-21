@@ -2570,7 +2570,19 @@ def post_neon_execute():
             net_expected_gain_pct=Decimal("0.02"),
             is_scalp=False,
         )
-        pos = quant_bot.executor.submit_bracket_order(ticket)
+        exec_mode = str(req_data.get("execution_mode", "LIVE")).upper()
+        if exec_mode == "LIVE":
+            p_state, m_snap = quant_bot.executor.fetch_live_risk_snapshots(
+                symbol=ticket.symbol,
+                fallback_price=ticket.entry_price,
+            )
+            pos = quant_bot.executor.submit_live_bracket_order(
+                ticket,
+                portfolio_state=p_state,
+                market_snapshot=m_snap,
+            )
+        else:
+            pos = quant_bot.executor.submit_bracket_order(ticket)
         return jsonify({
             "success": True,
             "message": f"NEON Trade Ticket submitted for {symbol} ({side})",

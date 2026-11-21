@@ -33,5 +33,19 @@
     "trade_cap": 5,
     "recipient": "",
     "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  },
+  {
+    "timestamp_utc": "2026-11-21 09:58:48 UTC",
+    "session_trades": 5,
+    "trade_cap": 5,
+    "recipient": "",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
+  },
+  {
+    "timestamp_utc": "2026-11-21 13:29:11 UTC",
+    "session_trades": 5,
+    "trade_cap": 5,
+    "recipient": "",
+    "status": "RECORDED_NO_SMTP_CREDENTIALS"
   }
 ]

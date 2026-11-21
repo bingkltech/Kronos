@@ -46,6 +46,11 @@ from src.quant.kronos_onnx_engine import KronosTrajectoryEngine
 from src.quant.binance_execution import PositionState, TradeTicket, BinanceAtomicExecutor
 from src.quant.quota_notifier import QuotaNotifier
 from src.quant.anti_bloat import get_anti_bloat_engine
+from src.quant.neon_strategy import (
+    evaluate_neon_universe,
+    load_neon_config,
+    NEON_CORE_UNIVERSE,
+)
 from dataclasses import replace as _dc_replace
 from risk_engine import (
     DEFAULT_CONFIG_PATH,
@@ -141,8 +146,8 @@ QUOTA_STATE_PATH = os.path.join(WORKSPACE_ROOT, "data", "aws_trade_quota.json")
 quota_mgr = QuotaNotifier(quota_path=QUOTA_STATE_PATH)
 running = True
 live_trading_enabled = True
-raw_trade_cap = os.getenv("KRONOS_LIVE_TRADE_CAP", "50").strip()
-live_trade_cap: Optional[int] = int(raw_trade_cap) if raw_trade_cap.isdigit() else 50
+raw_trade_cap = os.getenv("KRONOS_LIVE_TRADE_CAP", "8").strip()
+live_trade_cap: Optional[int] = int(raw_trade_cap) if raw_trade_cap.isdigit() else 8
 live_session_trades: int = 0
 live_cap_reached_utc: Optional[datetime.datetime] = None
 scan_interval_sec = int(os.getenv("KRONOS_SCAN_INTERVAL", "60"))
@@ -373,15 +378,16 @@ def execute_live_cycle():
     report = quant_bot.run_scan_cycle(
         account_equity=equity,
         lookback_data_map=lookbacks if lookbacks else None,
-        execution_mode="LIVE",
+        execution_mode="PAPER",  # Macro set to PAPER mode; only NEON trades real capital
         max_new_entries=macro_entry_cap
     )
 
     last_scan_utc = report.timestamp_utc
     next_scan_utc = now_u + datetime.timedelta(seconds=scan_interval_sec)
 
-    for p in report.dispatched_trades:
-        _record_live_trade_dispatch(p.symbol, "MACRO")
+    # Macro runs in PAPER mode — do not count towards live trade quota
+    # for p in report.dispatched_trades:
+    #     _record_live_trade_dispatch(p.symbol, "MACRO")
 
     dispatched = [p.symbol for p in report.dispatched_trades]
     logger.info(
@@ -740,23 +746,9 @@ def execute_apex_scalp_step():
                     atr_pct=(apex.atr_5m / apex.entry_price) if apex.entry_price > Decimal("0") else None,
                     live_summary=live_summary,
                 )
-                live_res = quant_bot.executor.submit_live_bracket_order(
-                    ticket,
-                    portfolio_state=p_state,
-                    market_snapshot=m_snap,
-                )
-                if live_res.state == PositionState.REJECTED:
-                    logger.warning("Apex scalp entry rejected: %s", live_res.close_reason)
-                    apex_scalper.active_scalp = None
-                    return
-                if live_res.entry_order_id:
-                    quant_bot.executor.record_scalp_order(live_res.entry_order_id)
-                if live_res.take_profit_order_id:
-                    quant_bot.executor.record_scalp_order(live_res.take_profit_order_id)
-                if live_res.stop_loss_order_id:
-                    quant_bot.executor.record_scalp_order(live_res.stop_loss_order_id)
-                logger.info("Apex Scalp Dispatched: %s (%s) Lev: %dx Notional: $%.2f", apex.symbol, apex.side, new_pos.leverage, float(new_pos.notional_usd))
-                _record_live_trade_dispatch(apex.symbol, "SCALP")
+                # Apex Scalper operates in PAPER mode per user authorization (NEON is sole live trader)
+                paper_pos = quant_bot.executor.submit_bracket_order(ticket)
+                logger.info("[APEX-PAPER] Scalp Paper Dispatched: %s (%s) Lev: %dx Notional: $%.2f", apex.symbol, apex.side, new_pos.leverage, float(new_pos.notional_usd))
     except Exception as e:
         logger.debug("Apex scalper cycle: %s", e)
 
@@ -776,10 +768,146 @@ def check_system_antibloat():
         logger.debug("Disk health watchdog check: %s", e)
 
 
+def execute_neon_cycle():
+    """
+    NEON Strategy v1.0 — The SOLE Authorized Real Capital Live Trading Bot.
+    Evaluates 6-Gate Pullback-Resumption on confirmed 1-hour Binance candles.
+    Strictly capped at 8 live trades before auto-pausing.
+    """
+    global live_session_trades, live_trading_enabled, live_cap_reached_utc
+    if not live_trading_enabled or not _has_trade_quota_remaining():
+        return
+
+    try:
+        live_summary = quant_bot.executor.get_live_account_summary()
+        if not live_summary.get("connected"):
+            logger.debug("[NEON] Binance connection unavailable for NEON scan: %s", live_summary.get("error"))
+            return
+
+        equity = Decimal(str(live_summary.get("total_wallet_balance_usd", 191.89)))
+        if equity <= Decimal("0"):
+            equity = Decimal("191.89")
+
+        # 1. Fetch live 1h klines for core universe
+        live_candles: Dict[str, List[Dict[str, Any]]] = {}
+        live_tickers: Dict[str, Any] = {}
+        for sym in NEON_CORE_UNIVERSE:
+            try:
+                klines = quant_bot.index_engine.fetch_recent_klines(sym, interval="1h", limit=60)
+                if klines and len(klines) >= 30:
+                    live_candles[sym] = klines
+                    last_k = klines[-1]
+                    live_tickers[sym] = {
+                        "lastPrice": str(last_k["close"]),
+                        "priceChangePercent": str(((last_k["close"] - klines[0]["close"]) / klines[0]["close"]) * Decimal("100"))
+                    }
+            except Exception as kerr:
+                logger.debug("[NEON] Failed to fetch 1h klines for %s: %s", sym, kerr)
+
+        if not live_candles:
+            return
+
+        # Count active live positions
+        active_live_positions = [
+            p for p in quant_bot.executor.active_positions.values()
+            if p.state == PositionState.BRACKETS_ACTIVE
+        ]
+
+        neon_cfg = load_neon_config()
+        scan = evaluate_neon_universe(
+            tickers=live_tickers,
+            account_equity=equity,
+            config=neon_cfg,
+            open_position_count=len(active_live_positions),
+            live_candles_map=live_candles
+        )
+
+        is_session_open = scan.get("session_open", False)
+        session_window = scan.get("session_window", "Unknown")
+
+        if not is_session_open:
+            logger.info("[NEON] Session Window '%s' is in capital-preservation standby. No entries permitted until active window.", session_window)
+            return
+
+        approved_candidates = scan.get("approved_signals", [])
+        logger.info(
+            "[NEON-CYCLE] Session: %s | Regime: %s | Evaluated: %d | Approved: %d",
+            session_window,
+            scan.get("macro_regime"),
+            len(scan.get("evaluations", [])),
+            len(approved_candidates)
+        )
+
+        max_concurrent = int(neon_cfg.get("max_concurrent_positions", 2))
+
+        for cand in approved_candidates:
+            if not live_trading_enabled or not _has_trade_quota_remaining():
+                break
+            if len(active_live_positions) >= max_concurrent:
+                logger.info("[NEON] Max concurrent positions reached (%d/%d). Holding for exits.", len(active_live_positions), max_concurrent)
+                break
+
+            sym = cand["symbol"]
+            side = "BUY" if cand["side"] == "LONG" else "SELL"
+
+            active_symbols = {p.symbol for p in active_live_positions}
+            if sym in active_symbols:
+                continue
+
+            t_info = cand.get("ticket") or {}
+            entry_px = Decimal(str(t_info.get("entry_price", cand.get("price", 60000.0))))
+            sl_px = Decimal(str(t_info.get("stop_loss", entry_px * Decimal("0.985"))))
+            tp_px = Decimal(str(t_info.get("take_profit", entry_px * Decimal("1.03"))))
+            qty = Decimal(str(t_info.get("quantity", Decimal("0.001"))))
+            notional = Decimal(str(t_info.get("notional_usd", entry_px * qty)))
+            lev = int(Decimal(str(neon_cfg.get("max_leverage", 3.5))))
+
+            from src.quant.kev_risk_arbiter import TradeTicket
+            ticket = TradeTicket(
+                symbol=sym,
+                side=side,
+                entry_price=entry_px,
+                stop_loss=sl_px,
+                take_profit=tp_px,
+                quantity=qty,
+                notional_usd=notional,
+                effective_leverage=lev,
+                risk_budget_usd=equity * Decimal("0.015"),
+                reward_risk_ratio=Decimal("2.0"),
+                net_expected_gain_pct=Decimal("0.02"),
+                is_scalp=False
+            )
+
+            p_state, m_snap = quant_bot.executor.fetch_live_risk_snapshots(
+                symbol=ticket.symbol,
+                fallback_price=ticket.entry_price,
+                live_summary=live_summary,
+            )
+
+            live_res = quant_bot.executor.submit_live_bracket_order(
+                ticket,
+                portfolio_state=p_state,
+                market_snapshot=m_snap,
+            )
+
+            if live_res.state == PositionState.REJECTED:
+                logger.warning("[NEON-LIVE] Order rejected on Binance: %s", live_res.close_reason)
+                continue
+
+            _record_live_trade_dispatch(sym, "NEON")
+            logger.info(
+                "[NEON-LIVE] *** DISPATCHED REAL MONEY TRADE *** %s %s @ %s | SL: %s | TP: %s | Qty: %s | Progress: %d/%d",
+                sym, side, entry_px, sl_px, tp_px, qty, live_session_trades, live_trade_cap
+            )
+    except Exception as e:
+        logger.warning("[NEON-CYCLE-ERROR] %s", e)
+
+
 def daemon_loop():
-    """Main background loop coordinating macro cycles and high-frequency scalping."""
+    """Main background loop coordinating macro cycles, scalping, and NEON live execution."""
     logger.info("Background daemon active. Main scan every %ds, scalper tick every 5s.", scan_interval_sec)
     last_macro_time = 0.0
+    last_neon_time = 0.0
     last_antibloat_check = time.time()
 
     # Initial pre-flight check
@@ -800,19 +928,27 @@ def daemon_loop():
             logger.debug("Heartbeat record error: %s", hb_err)
 
         if live_trading_enabled:
-            # High-frequency scalper step
+            # High-frequency scalper step (PAPER)
             try:
                 execute_apex_scalp_step()
             except Exception as e:
                 logger.debug("Scalper step exception: %s", e)
 
-            # Macro scan cycle
+            # Macro scan cycle (PAPER)
             if now_ts - last_macro_time >= scan_interval_sec:
                 try:
                     execute_live_cycle()
                     last_macro_time = time.time()
                 except Exception as e:
                     logger.warning("Macro cycle exception: %s", e)
+
+            # NEON scan cycle (SOLE REAL CAPITAL LIVE TRADER)
+            if now_ts - last_neon_time >= 60:
+                try:
+                    execute_neon_cycle()
+                    last_neon_time = time.time()
+                except Exception as e:
+                    logger.warning("NEON cycle exception: %s", e)
 
         time.sleep(5)
 

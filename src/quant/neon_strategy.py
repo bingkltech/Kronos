@@ -408,7 +408,8 @@ def evaluate_neon_universe(
     tickers: Dict[str, Any],
     account_equity: Decimal,
     config: Optional[Dict[str, Any]] = None,
-    open_position_count: int = 0
+    open_position_count: int = 0,
+    live_candles_map: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> Dict[str, Any]:
     cfg = config or load_neon_config()
     now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -452,8 +453,21 @@ def evaluate_neon_universe(
         price = float(t.get("lastPrice") or t.get("price") or 100.0)
 
         # Load historical candles or fallback
-        csv_file = os.path.join(DATA_DIR, f"binance_{sym}_1h.csv")
-        candles = parse_csv_candles(csv_file)[-512:]
+        if live_candles_map and sym in live_candles_map and len(live_candles_map[sym]) >= 30:
+            candles = [
+                {
+                    "timestamp": c.get("timestamp", ""),
+                    "open": float(c["open"]),
+                    "high": float(c["high"]),
+                    "low": float(c["low"]),
+                    "close": float(c["close"]),
+                    "volume": float(c.get("volume", 0)),
+                }
+                for c in live_candles_map[sym][-512:]
+            ]
+        else:
+            csv_file = os.path.join(DATA_DIR, f"binance_{sym}_1h.csv")
+            candles = parse_csv_candles(csv_file)[-512:]
         if len(candles) < 30:
             # Generate synthetic series around current price for structural completeness
             candles = []
@@ -592,6 +606,7 @@ def evaluate_neon_universe(
         "macro_breadth_pct": round(breadth_ratio * 100.0, 1),
         "macro_regime": macro_regime,
         "approved_count": sum(1 for e in evaluations if e["approved"]),
+        "approved_signals": [e for e in evaluations if e["approved"]],
         "evaluations": evaluations,
     }
 
