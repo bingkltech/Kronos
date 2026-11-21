@@ -111,6 +111,7 @@ class ProposedOrder:
     sample_size: int = 0                     # Empirical trade sample size backing win_rate/payoff
     round_trip_fee_bps: Decimal = Decimal("10.0")  # Round-trip fee assumption in bps (e.g. 10 bps = 0.10%)
     leverage: Decimal = Decimal("5")         # Intended isolated contract leverage for SL ROI check
+    is_scalp: bool = False                   # True if high-frequency microstructure scalp (adaptive spread noise floor)
     client_order_id: Optional[str] = None
     timestamp_ms: Optional[int] = None
 
@@ -127,6 +128,7 @@ class ProposedOrder:
         object.__setattr__(self, "payoff_ratio", to_optional_decimal(self.payoff_ratio, "payoff_ratio"))
         object.__setattr__(self, "round_trip_fee_bps", to_decimal(self.round_trip_fee_bps, "round_trip_fee_bps"))
         object.__setattr__(self, "leverage", to_decimal(self.leverage, "leverage"))
+        object.__setattr__(self, "is_scalp", bool(self.is_scalp))
 
     @property
     def notional_usd(self) -> Decimal:

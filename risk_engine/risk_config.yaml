@@ -66,8 +66,10 @@ max_order_book_depth_pct: "0.10"
 max_price_collar_pct: "0.015"
 require_stop_loss_on_entries: true      # Zero naked entries
 min_stop_distance_pct: "0.0066"         # L#16 & L#39 noise floor
+scalp_min_stop_distance_pct: "0.0040"   # L#16 & L#39 adaptive micro-scalp noise floor
 max_sl_roi_pct: "0.06"                  # L#25 max 6.0% leveraged SL ROI clamp
 min_rr_ratio: "1.20"
+scalp_min_rr_ratio: "1.20"
 min_cost_multiple: "1.50"               # L#10 & L#37 hard positive net-of-fee floor
 shadow_warn_cost_multiple: "4.00"       # Stage-2 72h shadow calibration warning
 duplicate_order_window_ms: 500

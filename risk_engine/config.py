@@ -90,8 +90,10 @@ class RiskConfig:
     max_price_collar_pct: Decimal = Decimal("0.015")
     require_stop_loss_on_entries: bool = True                 # Zero naked entries (mandatory SL on non-reduce-only)
     min_stop_distance_pct: Decimal = Decimal("0.0066")        # L#16 & L#39 noise floor (blocks vanishing-stop blowups)
+    scalp_min_stop_distance_pct: Decimal = Decimal("0.0040")  # L#16 & L#39 adaptive micro-scalp noise floor
     max_sl_roi_pct: Decimal = Decimal("0.06")                 # L#25 hard clamp: max 6.0% leveraged SL ROI
     min_rr_ratio: Decimal = Decimal("1.20")                   # Minimum net-of-fee R:R guard when TP+SL present
+    scalp_min_rr_ratio: Decimal = Decimal("1.20")             # Scalp net R:R guard (>= 1.20)
     min_cost_multiple: Decimal = Decimal("1.50")              # Hard net-positive TP-to-friction floor (L#10/L#37)
     shadow_warn_cost_multiple: Decimal = Decimal("4.00")      # Stage-2 72h shadow warning for <4x cost multiple
     duplicate_order_window_ms: int = 500

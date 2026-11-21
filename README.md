@@ -103,10 +103,10 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
 * **Tsunami Storm Adaptive Protocol (Rough Seas & Black Swan Defense):**
   * **3-Phase Adaptive State Machine:** Automatically detects violent shocks (BTC 5m velocity $\ge 2\%$, 5m range $\ge 3\%$, market breadth collapse $<15\%$ or $>85\%$, or macroeconomic news catalysts) and triggers protective protocol.
   * **Phase 1 Shock Pause (First 15m):** Strict VETO on all new entries. Lets falling knives and sudden liquidation wicks clear without catching wicks.
-  * **Phase 2 Focused Caution (Minutes 15-60):** Fleet capacity is strictly clamped to **1 Macro Position and 1 Scalp Position** (down from 3 Macro / 1 Scalp), elevating win probability requirement to $\ge 75.0\%$ with Mark-Price stops.
-  * **Phase 3 Calm Water Auto-Recovery:** Automatically reverts to normal fleet capacity (3 Macro / 1 Scalp) after 60 minutes once turbulence normalizes (zero restarts required).
+  * **Phase 2 Focused Caution (Minutes 15-60):** Fleet capacity is strictly clamped to **1 Macro Position and 1 Scalp Position** (down from 6 Macro / 3 Scalp), elevating win probability requirement to $\ge 75.0\%$ with Mark-Price stops.
+  * **Phase 3 Calm Water Auto-Recovery:** Automatically reverts to expanded fleet capacity (6 Macro / 3 Scalp) after 60 minutes once turbulence normalizes (zero restarts required).
   * **Exchange-Native Mark-Price Anti-Wick Protection:** Stop-Loss brackets dispatch with `workingType: "MARK_PRICE"`, protecting isolated stops against single-exchange needle wicks while preserving contract price Take-Profits.
-  * **Interactive Cockpit Telemetry:** Live topbar indicator (`#topbar-storm-pill`) displaying ocean state, countdown timers, and instant manual override capability.
+  * **Interactive Cockpit Telemetry:** Live topbar indicator (`#topbar-storm-pill`) displaying ocean state, countdown timers, and instant manual override capability (`🌊 CALM WATERS (6M / 3S)`).
 * **Specialized Advisory Consultant & Tri-Perspective ACR (`src/quant/advisory_consultant.py`):**
   * **Adversarial Conviction Ratio ($ACR$):** Pure `Decimal` mathematical formulation synthesizing multi-perspective analysis:
     $$ACR = \frac{C_{\text{bull}} \times (1 - P_{\text{bear}})}{1 + R_{\text{drag}}}$$
@@ -114,9 +114,12 @@ Kronos has been extended into a complete **Institutional Multi-Agent Algorithmic
   * **Multi-Perspective Cross-Examination:** Cross-examines Bullish Conviction ($C_{\text{bull}}$: OBI, Stoikov micro-price skew) against Bearish Hazard ($P_{\text{bear}}$: Volume Profile $pPOC$ ceilings, funding drag) and Frictional Drag ($R_{\text{drag}}$: VIP0 taker fees + slippage).
   * **Autonomous Post-Trade Reflection:** Decomposes realized trade returns against the Bitcoin benchmark ($\alpha = R_{\text{trade}} - R_{\text{BTC}}$) and records structured 2-sentence empirical lessons to `data/consultant_lessons.jsonl`.
   * **CLI Consultant Engine:** `python scripts/run_consultant_assessment.py --symbol SOLUSDT` or `--all`.
-* **Portfolio Concurrency Allocation & 50-Trade Session Quota Guard:**
-  * **Strict Fleet Ceiling (Max 3 Trades):** Maximum **2 concurrent Macro positions + 1 Lightning Scalp position** across the entire universe, with total active margin exposure strictly capped at $\le 4.5\%$ of account equity.
+* **Portfolio Concurrency Allocation & Discretionary Owner Overrides:**
+  * **Expanded Fleet Ceiling (Max 9 Trades):** Up to **6 concurrent Macro positions + 3 Scalp positions** (Tiger + Apex) across the entire universe, with total active margin exposure bounded and managed via `RiskEngine` atomic ledger reservations.
+  * **Discretionary Owner Manual Sell Override (1-Hour Lockout):** When the owner manually closes or sells an active position (e.g. BTC/ETH on Binance or WebUI) to reallocate capital to other opportunities, an automatic **60-minute post-exit quarantine** (`OWNER_MANUAL_CAPITAL_ROTATION`) locks out all bots from re-entering, preventing algorithmic amnesia and preserving 100% of liberated margin.
   * **50-Trade Session Quota:** Hard session circuit breaker automatically halts new entries upon the 50th completed trade and dispatches an automated SMTP summary email to the operator.
+  * **24/7 Anti-Bloat Engine & AWS Headless Tap:** Dynamic RSS monitoring (AWS $<180\text{MB}$, PC $<750\text{MB}$), automatic log truncation (>4MB to 2,500 lines), orphaned buffer cleanup, and SQLite WAL compaction, coupled with zero-whitelist PC dashboard telemetry over an encrypted SSH tunnel.
+  * **Joined Scalping Fetch & Binance Depth Quantization:** Sub-second top-5 OBI and Stoikov skew with strict Binance depth snapping `[5, 10, 20, 50, 100]`, candle-boundary TTL invalidation, and 3000ms WebSocket freshness fallback.
   * **Sweetspot Trade Expirations:** Scalps bounded to 10–12m sweetspot with an 8m stagnation cutoff (if unrealized PnL $< +0.15\%$); macro trades bounded to 90m stagnation cutoff (4h maximum duration).
 * **Role-Specialized Multi-Agent Architecture:**
   * **Macro Specialists:** Asynchronous event catalyst shield + 8-hour crypto carry monitor.

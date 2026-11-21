@@ -141,6 +141,7 @@ def make_order(
     reduce_only: bool = False,
     exchange_enforces_reduce_only: bool = False,
     is_gross_edge_estimate: bool = False,
+    is_scalp: bool = False,
     leverage: str = "5",
     ts_ms: int = 1_700_000_000_100,
 ) -> ProposedOrder:
@@ -158,6 +159,7 @@ def make_order(
         reduce_only=reduce_only,
         exchange_enforces_reduce_only=exchange_enforces_reduce_only,
         is_gross_edge_estimate=is_gross_edge_estimate,
+        is_scalp=is_scalp,
         leverage=Decimal(leverage),
         timestamp_ms=ts_ms,
     )
@@ -583,6 +585,45 @@ def test_oms_mandatory_sl_noise_floor_sl_roi_collar_and_loops():
     d_bad = engine.evaluate_order(None, portfolio, market)  # type: ignore[arg-type]
     assert d_bad.status == DecisionStatus.VETOED
     assert "RISK_ENGINE_FAIL_CLOSED_ERROR" in d_bad.reason_codes
+
+
+def test_oms_scalp_adaptive_noise_floor_and_spread_protection():
+    """Verify adaptive noise floor for high-frequency scalps vs macro swings."""
+    engine = RiskEngine(config=make_config())
+    base_ts = 1_700_000_000_000
+    portfolio = make_portfolio(ts_ms=base_ts)
+
+    # 1. Tight spread market (spread = 2 bps = 0.02%)
+    tight_market = make_market(bid="49995", ask="50005", ts_ms=base_ts)
+
+    # Case A: Scalp order with 0.50% stop and 1.20% TP in tight book -> PASSES
+    order_scalp_pass = make_order(
+        price="50000", sl="49750", tp="50600", is_scalp=True, ts_ms=base_ts + 10
+    )
+    d_scalp_pass = engine.evaluate_order(order_scalp_pass, portfolio, tight_market, now_ms=base_ts + 10)
+    assert d_scalp_pass.status == DecisionStatus.APPROVED
+    assert "OMS_STOP_BELOW_NOISE_FLOOR_L16_L39" not in d_scalp_pass.reason_codes
+    assert "OMS_NET_RR_BELOW_MIN_L10" not in d_scalp_pass.reason_codes
+
+    # Case B: Macro swing with same 0.50% stop -> VETOED by 0.66% macro floor
+    engine.oms_layer.reset_history()
+    order_macro = make_order(
+        price="50000", sl="49750", tp="50600", is_scalp=False, ts_ms=base_ts + 20
+    )
+    d_macro = engine.evaluate_order(order_macro, portfolio, tight_market, now_ms=base_ts + 20)
+    assert d_macro.status == DecisionStatus.VETOED
+    assert "OMS_STOP_BELOW_NOISE_FLOOR_L16_L39" in d_macro.reason_codes
+
+    # Case C: Scalp order with 0.50% stop in WIDE spread book (spread = 25 bps = 0.25%)
+    # 3 * 0.25% = 0.75% required floor -> 0.50% stop is VETOED for safety
+    engine.oms_layer.reset_history()
+    wide_market = make_market(bid="49937.5", ask="50062.5", ts_ms=base_ts)
+    order_scalp_wide = make_order(
+        price="50000", sl="49750", tp="50600", is_scalp=True, ts_ms=base_ts + 30
+    )
+    d_scalp_wide = engine.evaluate_order(order_scalp_wide, portfolio, wide_market, now_ms=base_ts + 30)
+    assert d_scalp_wide.status == DecisionStatus.VETOED
+    assert "OMS_STOP_BELOW_NOISE_FLOOR_L16_L39" in d_scalp_wide.reason_codes
 
 
 # ==============================================================================

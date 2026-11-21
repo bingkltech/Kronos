@@ -757,6 +757,7 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                             take_profit=sig.take_profit_price,
                             conviction=Decimal("0.80"),
                             leverage=Decimal("5"),
+                            is_scalp=True,
                             client_order_id=sig_id,
                             timestamp_ms=now_ms_eval,
                         )
@@ -770,6 +771,7 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                             logger.warning(
                                 f"[RISK-VETO] Tiger entry {sig.symbol} {sig.action} blocked ({risk_dec.status.value}): {risk_dec.reason_codes}"
                             )
+                            engine.log_counterfactual_veto(sig, risk_dec.reason_codes, fill_price, now_utc)
                             sig.status = "CANCELLED"
                             del engine.pending_signals[sig_id]
                             engine.save_state()
@@ -977,15 +979,28 @@ def run_realtime_paper_trading(cfg: TigerMasterConfig, is_paper: bool = True, qu
                                 )
                                 cycle_qualified_signals.append((cand, sig_long, atr_pct, target_tp, target_sl))
 
-                # Correlated Basket Tremor Veto:
-                # If multiple symbols trigger in the same scan cycle, it is an altcoin-wide systemic tremor, not an isolated trapped setup.
-                if len(cycle_qualified_signals) > cfg.temporal.max_correlated_signals_per_scan:
-                    logger.warning(
-                        f"[CORRELATED TREMOR VETO] {len(cycle_qualified_signals)} symbols triggered simultaneously "
-                        f"({[s[0].symbol for s in cycle_qualified_signals]}). Systemic market shock detected; "
-                        f"vetoed all to prevent basket burst cascade."
+                # Correlated Basket Tremor Defense & Champion Prey Selection:
+                # If multiple symbols trigger in the same scan cycle, never open multiple positions simultaneously
+                # (which causes basket burst risk). Instead, select the single highest-conviction "Champion Prey"
+                # based on Orderflow Imbalance (OFI), Wick Ratio, and Absorption Density.
+                if len(cycle_qualified_signals) > 1:
+                    def _score_prey(item):
+                        _cand, _sig, _atr, _tp, _sl = item
+                        _ofi = abs(_sig.ofi_score) if _sig.ofi_score else Decimal("0")
+                        _wick = _sig.wick_ratio if _sig.wick_ratio else Decimal("0")
+                        _dens = _sig.absorption_density if _sig.absorption_density else Decimal("0")
+                        return _ofi * Decimal("2.0") + _wick + _dens
+
+                    cycle_qualified_signals.sort(key=_score_prey, reverse=True)
+                    champion = cycle_qualified_signals[0]
+                    logger.info(
+                        f"[CHAMPION PREY SELECTED] {len(cycle_qualified_signals)} symbols triggered simultaneously "
+                        f"({[s[0].symbol for s in cycle_qualified_signals]}). Filtered basket down to Rank #1 alpha leader: "
+                        f"{champion[0].symbol} (Score: {_score_prey(champion):.2f})."
                     )
-                elif len(cycle_qualified_signals) == 1:
+                    cycle_qualified_signals = [champion]
+
+                if len(cycle_qualified_signals) == 1:
                     cand, sig, atr_pct, target_tp, target_sl = cycle_qualified_signals[0]
                     vp_snapshot = vp_cache.get_previous_day_profile(sig.symbol, now_utc)
                     created = engine.create_signal_from_absorption(

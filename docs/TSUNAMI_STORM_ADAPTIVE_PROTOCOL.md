@@ -17,11 +17,11 @@ When an unforeseen high-impact catalyst hits (such as an emergency rate shock, s
 Naive trading systems attempt to continue normal multi-position operations or "catch falling knives," resulting in simultaneous stop-outs across multiple positions.
 
 The **Tsunami Storm Adaptive Protocol** solves this by implementing an autonomous dynamic shock-absorber:
-1. **Normal Waters:** Normal fleet capacity (**3 Macro Positions, 1 Scalp Position**).
+1. **Normal Waters:** Expanded fleet capacity (**6 Macro Positions, 3 Scalp Positions**, Total = 9).
 2. **When Tsunami Hits:** Batten down the hatches:
    - **Phase 1 (First 15 Minutes):** Mandatory **Shock Pause** (freeze all new entries; let falling knives and liquidation wicks exhaust).
    - **Phase 2 (Minutes 15 to 60):** Clamps maximum portfolio exposure to strictly **1 Macro Position and 1 Scalp Position**, enforces an elevated conviction gate ($\ge 75.0\%$), and activates exchange Mark-Price anti-wick stops.
-   - **Phase 3 (After 60 Minutes):** **Calm Water Auto-Recovery** automatically restores normal capacity once the storm elapses and volatility cools down.
+   - **Phase 3 (After 60 Minutes):** **Calm Water Auto-Recovery** automatically restores normal capacity (6 Macro / 3 Scalp) once the storm elapses and volatility cools down.
 
 ---
 
@@ -29,8 +29,8 @@ The **Tsunami Storm Adaptive Protocol** solves this by implementing an autonomou
 
 ```
                       [ NORMAL WATERS ]
-              • Macro Book: Up to 3 positions
-              • Scalper: Single slot (N=1), 65% gate
+              • Macro Book: Up to 6 positions (Was 2-3)
+              • Scalper: Up to 3 positions (Tiger + Apex)
               • Stop Orders: Binance Mark-Price Protected
                              │
      TSUNAMI DETECTED! ──────┼────── (Violent BTC dump >2% in 5m, 
@@ -55,8 +55,9 @@ The **Tsunami Storm Adaptive Protocol** solves this by implementing an autonomou
                              │  volatility normalizes...
                              ▼
               [ 🔄 CALM WATER AUTO-RECOVERY ]
-              • Macro capacity restored to 3 positions
-              • Standard scalper thresholds restored
+              • Macro capacity restored to 6 positions
+              • Scalp capacity restored to 3 positions
+              • Standard thresholds restored
               • Fully automatic recovery (Zero restarts)
 ```
 

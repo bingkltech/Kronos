@@ -515,6 +515,36 @@ class TigerExecutionEngine:
             "reason": reason
         }
 
+    def log_counterfactual_veto(
+        self,
+        signal: PendingTigerSignal,
+        reason_codes: List[str],
+        fill_price: Decimal,
+        timestamp_utc: datetime.datetime,
+        log_file: str = "data/tiger_counterfactuals.jsonl",
+    ) -> None:
+        """
+        Records a vetoed signal as a counterfactual 'ghost trade' for statistical audit.
+        Allows empirical verification of whether risk vetoes protected capital or blocked winners.
+        """
+        try:
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            entry_d = {
+                "signal_id": signal.signal_id,
+                "symbol": signal.symbol,
+                "action": signal.action,
+                "entry_trigger_price": str(signal.entry_trigger_price),
+                "evaluation_fill_price": str(fill_price),
+                "stop_loss_price": str(signal.stop_loss_price),
+                "take_profit_price": str(signal.take_profit_price),
+                "reason_codes": reason_codes,
+                "timestamp_utc": timestamp_utc.isoformat(),
+            }
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry_d) + "\n")
+        except Exception as e:
+            logger.warning(f"[COUNTERFACTUAL-LOG-ERROR] Failed to append ghost trade: {e}")
+
     def save_state(self) -> None:
         """Persist state to disk."""
         os.makedirs(os.path.dirname(self.state_file), exist_ok=True)

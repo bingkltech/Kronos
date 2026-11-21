@@ -257,7 +257,14 @@ class PreTradeOMSLayer:
                     reasons.append("OMS_INVALID_BRACKET_STOP_LOSS")
                 else:
                     sl_dist_pct = abs(order.price - order.stop_loss) / order.price
-                    if sl_dist_pct < self.config.min_stop_distance_pct:
+                    # Adaptive Noise Floor: Scalps use dynamic spread-aware floor; macro swings use standard floor
+                    if getattr(order, "is_scalp", False):
+                        spread_pct = market.order_book.spread_bps() / Decimal("10000")
+                        min_sl_floor = max(spread_pct * Decimal("3.0"), getattr(self.config, "scalp_min_stop_distance_pct", Decimal("0.0040")))
+                    else:
+                        min_sl_floor = self.config.min_stop_distance_pct
+
+                    if sl_dist_pct < min_sl_floor:
                         reasons.append("OMS_STOP_BELOW_NOISE_FLOOR_L16_L39")
                     eff_lev = max(Decimal("1"), order.leverage)
                     if (sl_dist_pct * eff_lev) > self.config.max_sl_roi_pct:
@@ -279,7 +286,12 @@ class PreTradeOMSLayer:
                         sl_dist_pct = abs(order.price - order.stop_loss) / order.price
                         net_reward = tp_dist_pct - friction_pct
                         net_risk = sl_dist_pct + friction_pct
-                        if net_risk > Decimal("0") and (net_reward / net_risk) < self.config.min_rr_ratio:
+                        required_rr = (
+                            getattr(self.config, "scalp_min_rr_ratio", self.config.min_rr_ratio)
+                            if getattr(order, "is_scalp", False)
+                            else self.config.min_rr_ratio
+                        )
+                        if net_risk > Decimal("0") and (net_reward / net_risk) < required_rr:
                             reasons.append("OMS_NET_RR_BELOW_MIN_L10")
 
             # 2f. Unified Portfolio Concurrency & Same-Symbol Lock (L#15 Alpha-Agnostic)
