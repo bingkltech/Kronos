@@ -833,6 +833,10 @@
 
                 liveAutopilotActive = !!(data.autopilot && data.autopilot.enabled);
 
+                if (data.contra_mode !== undefined && window.updateContraModeUI) {
+                    window.updateContraModeUI(data.contra_mode);
+                }
+
                 // Check for Binance API connection / 401 error
                 const errBanner = document.getElementById('live-api-error-banner');
                 const errText = document.getElementById('live-api-error-text');
@@ -1532,6 +1536,52 @@
                 updateStormProtocolUI();
             } catch (e) {
                 alert('Failed toggling storm protocol: ' + e.message);
+            }
+        };
+
+        window.updateContraModeUI = function(isActive) {
+            const active = Boolean(isActive);
+            const topBtn = document.getElementById('topbar-contra-btn');
+            const topLabel = document.getElementById('topbar-contra-label');
+            const tigerBtn = document.getElementById('tigerContraBtn');
+            const tigerText = document.getElementById('tigerContraBtnText');
+
+            if (topBtn) {
+                if (active) {
+                    topBtn.classList.add('active');
+                    if (topLabel) topLabel.textContent = '🔴 CONTRA: ACTIVE';
+                } else {
+                    topBtn.classList.remove('active');
+                    if (topLabel) topLabel.textContent = 'CONTRA: OFF';
+                }
+            }
+
+            if (tigerBtn) {
+                if (active) {
+                    tigerBtn.classList.add('active');
+                    if (tigerText) tigerText.textContent = '🔴 CONTRA: ACTIVE';
+                } else {
+                    tigerBtn.classList.remove('active');
+                    if (tigerText) tigerText.textContent = '🔴 CONTRA: OFF';
+                }
+            }
+        };
+
+        window.toggleContraMode = async function() {
+            try {
+                const statusResp = await axios.get('/api/contra/status');
+                const currentlyActive = Boolean(statusResp.data?.contra_mode);
+                const confirmMsg = currentlyActive
+                    ? 'Disarm Contra Mode?\n\n• Normal execution will be restored (Long -> Long, Short -> Short).'
+                    : 'ACTIVATE CONTRA TRADING MODE?\n\n• Inverts EVERY trade signal:\n  - If Strategy says LONG -> Buys become SHORTS.\n  - If Strategy says SHORT -> Sells become LONGS.\n• Mirrored Take-Profit & Stop-Loss brackets across entry price.\n• Identical 3x leverage, Kelly sizing, and risk budget.\n• Active across both Macro & Scalper engines.\n\nProceed?';
+                if (!confirm(confirmMsg)) return;
+
+                const resp = await axios.post('/api/contra/toggle');
+                const newState = Boolean(resp.data?.contra_mode);
+                window.updateContraModeUI(newState);
+                alert(resp.data?.message || `Contra Mode is now ${newState ? 'ACTIVE' : 'OFF'}`);
+            } catch (e) {
+                alert('Failed toggling Contra Mode: ' + e.message);
             }
         };
 

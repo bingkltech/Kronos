@@ -35,7 +35,7 @@ except Exception:
 logger = logging.getLogger("Kronos.BinanceExecution")
 
 from src.quant.config import TOP_10_SYMBOLS, FuturesSymbolConfig, DEFAULT_RISK_CONFIG
-from src.quant.kev_risk_arbiter import TradeTicket
+from src.quant.kev_risk_arbiter import TradeTicket, invert_trade_ticket
 
 
 class PositionState(Enum):
@@ -115,6 +115,7 @@ class BinanceAtomicExecutor:
         self.realistic_friction = realistic_friction
         self.risk_engine = risk_engine
         self.last_risk_decision: Optional[Any] = None
+        self.contra_mode: bool = False
         self._time_offset_ms: int = 0
         self._last_time_sync: float = 0.0
 
@@ -1054,6 +1055,14 @@ class BinanceAtomicExecutor:
         fmt_price = Decimal("10") ** -price_prec
         fmt_qty = Decimal("10") ** -qty_prec
 
+        if getattr(self, "contra_mode", False):
+            orig_side = ticket.side
+            ticket = invert_trade_ticket(ticket)
+            logger.warning(
+                "[CONTRA TRADING ACTIVE] Live Trade Inverted: %s %s -> %s | Entry: %s | Inverted TP: %s | Inverted SL: %s",
+                ticket.symbol, orig_side, ticket.side, ticket.entry_price, ticket.take_profit, ticket.stop_loss
+            )
+
         side = "BUY" if ticket.side in ("BUY", "LONG") else "SELL"
         opp_side = "SELL" if side == "BUY" else "BUY"
 
@@ -1470,6 +1479,15 @@ class BinanceAtomicExecutor:
         if rejected_pos is not None or gated_ticket is None:
             return rejected_pos  # type: ignore[return-value]
         ticket = gated_ticket
+
+        if getattr(self, "contra_mode", False):
+            orig_side = ticket.side
+            ticket = invert_trade_ticket(ticket)
+            logger.warning(
+                "[CONTRA TRADING ACTIVE] Paper Trade Inverted: %s %s -> %s | Entry: %s | Inverted TP: %s | Inverted SL: %s",
+                ticket.symbol, orig_side, ticket.side, ticket.entry_price, ticket.take_profit, ticket.stop_loss
+            )
+
         # Determine effective entry price and entry taker fee
         if self.realistic_friction:
             sym_cfg = self.symbols_config.get(ticket.symbol)

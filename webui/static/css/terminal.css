@@ -1540,3 +1540,44 @@
             color: #58a6ff;
             text-decoration: underline;
         }
+
+/* Topbar Round CONTRA Button */
+.btn-contra-round {
+    border: 1px solid rgba(255, 34, 85, 0.6) !important;
+    background: rgba(45, 10, 20, 0.7) !important;
+    color: #ff4d6d !important;
+    font-weight: 800 !important;
+    border-radius: 20px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.btn-contra-round:hover {
+    border-color: #ff0055 !important;
+    color: #fff !important;
+    box-shadow: 0 0 10px rgba(255, 0, 85, 0.5) !important;
+}
+
+.btn-contra-round.active {
+    background: #ff0055 !important;
+    color: #ffffff !important;
+    border-color: #ff3377 !important;
+    box-shadow: 0 0 16px rgba(255, 0, 85, 0.9) !important;
+}
+
+.contra-round-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ff2255;
+    box-shadow: 0 0 4px #ff2255;
+    display: inline-block;
+}
+
+.btn-contra-round.active .contra-round-dot {
+    background: #ffffff;
+    box-shadow: 0 0 8px #ffffff;
+}

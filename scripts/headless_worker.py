@@ -863,6 +863,7 @@ def live_status():
             "paper_trading_paused": True,
             "passive_observer": False
         },
+        "contra_mode": getattr(quant_bot, "contra_mode", False),
         "live_account": {
             "total_wallet_balance_usd": float(live_account.get("total_wallet_balance_usd", Decimal("0.00"))),
             "available_balance_usd": float(live_account.get("available_balance_usd", Decimal("0.00"))),
@@ -962,6 +963,28 @@ def flatten_live():
             quant_bot.register_symbol_cooldown(sym, now_u, duration_seconds=900, reason="MANUAL_API_FLATTEN")
             logger.info("[COOLDOWN] Manual API flatten on %s: 15-minute quarantine activated.", sym)
     return jsonify(res)
+
+@app.route('/api/contra/toggle', methods=['POST'])
+def toggle_contra():
+    """Toggle Contra Trading Mode on AWS Headless Daemon."""
+    payload = request.get_json(silent=True) or {}
+    curr = getattr(quant_bot, "contra_mode", False)
+    new_state = bool(payload["contra_mode"]) if "contra_mode" in payload else not curr
+    quant_bot.set_contra_mode(new_state)
+    logger.warning("[CONTRA] AWS Daemon Contra Trading Mode set to %s", new_state)
+    return jsonify({
+        "success": True,
+        "contra_mode": new_state,
+        "message": f"AWS Contra Mode set to {new_state}"
+    })
+
+@app.route('/api/contra/status', methods=['GET'])
+def get_contra_status_aws():
+    """Get current Contra Mode state on AWS Daemon."""
+    return jsonify({
+        "success": True,
+        "contra_mode": getattr(quant_bot, "contra_mode", False)
+    })
 
 
 @app.route('/api/tiger/radar', methods=['GET'])

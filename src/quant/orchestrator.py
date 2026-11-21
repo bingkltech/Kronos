@@ -108,6 +108,13 @@ class QuantBotOrchestrator:
         self.risk_arbiter = risk_arbiter or KEVSupremeArbiter(risk_config=self.risk_config, symbols_config=self.symbols_config)
         self.learning_governor = learning_governor or LearningGovernor()
         self.executor = executor or BinanceAtomicExecutor(dry_run=True, realistic_friction=True, symbols_config=self.symbols_config)
+        self.contra_mode: bool = False
+
+    def set_contra_mode(self, enabled: bool) -> None:
+        """Set Contra Trading Mode across orchestrator and executor."""
+        self.contra_mode = bool(enabled)
+        if self.executor:
+            self.executor.contra_mode = bool(enabled)
 
     def register_symbol_cooldown(
         self,

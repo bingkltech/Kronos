@@ -76,6 +76,9 @@
             <div class="status-pill" id="topbar-storm-pill" style="cursor: pointer; border-color: rgba(0, 229, 255, 0.4); color: #00e5ff; font-weight: 800;" onclick="toggleStormProtocol()" title="Click to trigger or cancel Tsunami Storm Mode (1 Macro / 1 Scalp / 60m)">
                 🌊 CALM WATERS (6M / 3S)
             </div>
+            <button type="button" class="status-pill btn-contra-round" id="topbar-contra-btn" onclick="toggleContraMode()" title="CONTRA TRADING MODE: Invert all signals (Long <-> Short) with mirrored TP & SL">
+                <span class="contra-round-dot"></span> <span id="topbar-contra-label">CONTRA: OFF</span>
+            </button>
             <div class="topbar-clock" id="topbar-clock">
                 --:--:-- UTC
             </div>
@@ -2677,6 +2680,12 @@
                 <!-- Web Audio API Synthesizer Toggle -->
                 <button type="button" class="tiger-audio-btn" id="tigerAudioToggleBtn" title="Toggle Synthesized Web Audio Sound FX">
                     <span>🔈</span> AUDIO SFX: MUTED
+                </button>
+
+                <!-- Big Red Round CONTRA Toggle Button (Invert Long/Short Signals) -->
+                <button type="button" class="btn-tiger-contra-round" id="tigerContraBtn" onclick="toggleContraMode()" title="CONTRA TRADING MODE: When ACTIVE, flips all trades (Long -> Short, Short -> Long) with mirrored TP & SL">
+                    <span class="tiger-contra-dot"></span>
+                    <span id="tigerContraBtnText">🔴 CONTRA: OFF</span>
                 </button>
 
                 <button type="button" class="btn-secondary" style="font-size: 11px; padding: 6px 12px;" onclick="fetchTigerRadarData()">

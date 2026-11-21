@@ -5,10 +5,20 @@ import pytest
 
 from src.quant.orchestrator import QuantBotOrchestrator, LIVE_EXCLUDED_SYMBOLS
 from src.quant.kronos_onnx_engine import TrajectoryVerdict
+from src.quant.crypto_index_engine import MacroIndexVerdict
 
 def test_directional_flip_hysteresis():
     """Verify that a symbol that suffered a loss on SELL cannot flip to BUY within 30m."""
     bot = QuantBotOrchestrator()
+    # Mock index engine to return neutral CHOP regime to prevent live-market surge override
+    bot.index_engine.evaluate_universe = lambda **kwargs: MacroIndexVerdict(
+        macro_regime="CHOP",
+        breadth_ratio=Decimal("0.50"),
+        coins_above_vwap_count=5,
+        total_coins_evaluated=10,
+        symbol_stats={},
+        reason="Test CHOP"
+    )
     # Pick a time outside of US open / late night funding window (e.g. 10:00 UTC European Prime session)
     t_exit = datetime.datetime(2026, 11, 16, 10, 0, tzinfo=datetime.timezone.utc)
     bot.record_directional_loss("ETHUSDT", "SELL", t_exit)

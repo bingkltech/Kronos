@@ -1220,6 +1220,9 @@ def _load_bot_settings():
                         print(f">> [Gemini Memory] Restored sweetspot: R:R={latest_gemini_assessment['sweetspot_rr_ratio']:.2f}, Fee Hurdle={latest_gemini_assessment['sweetspot_fee_hurdle_pct']:.2f}%")
                     except Exception as err:
                         print(f">> [Gemini Memory] Could not apply restored sweetspot: {err}")
+            if "contra_mode" in cfg:
+                c_mode = bool(cfg["contra_mode"])
+                quant_bot.set_contra_mode(c_mode)
     except Exception as e:
         print(f">> [Bot Memory] Warning loading settings: {e}")
 
@@ -1236,6 +1239,7 @@ def _save_bot_settings():
             "last_cycle_summary": bot_last_cycle_summary,
             "gemini_auto_apply": gemini_auto_apply,
             "latest_gemini_assessment": latest_gemini_assessment,
+            "contra_mode": getattr(quant_bot, "contra_mode", False),
             "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
         temp_file = f"{BOT_SETTINGS_FILE}.tmp"
@@ -2388,6 +2392,48 @@ def toggle_storm_status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route('/api/contra/toggle', methods=['POST'])
+def toggle_contra_mode():
+    """Toggle Contra Trading Mode (Inverts order directions with mirrored TP/SL)."""
+    try:
+        req = request.get_json(silent=True) or {}
+        curr = getattr(quant_bot, "contra_mode", False)
+        new_state = bool(req["contra_mode"]) if "contra_mode" in req else not curr
+        quant_bot.set_contra_mode(new_state)
+        _save_bot_settings()
+
+        # Relay to EC2 coordinator if active
+        aws_url = os.getenv("AWS_COORDINATOR_URL", "").strip().rstrip("/")
+        if not aws_url and aws_bridge and aws_bridge.is_connected():
+            aws_url = f"http://127.0.0.1:{aws_bridge.local_port}"
+        remote_synced = False
+        if aws_url:
+            try:
+                r = requests.post(f"{aws_url}/api/contra/toggle", json={"contra_mode": new_state}, timeout=4)
+                if r.status_code == 200:
+                    remote_synced = True
+            except Exception as re_err:
+                logger.warning("Failed to relay contra toggle to AWS coordinator: %s", re_err)
+
+        return jsonify({
+            "success": True,
+            "contra_mode": new_state,
+            "remote_synced": remote_synced,
+            "message": f"Contra Mode {'ACTIVATED (All trades will be INVERTED: Long->Short, Short->Long)' if new_state else 'DEACTIVATED (Normal execution restored)'}"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/contra/status', methods=['GET'])
+def get_contra_status():
+    """Get current Contra Mode state."""
+    return jsonify({
+        "success": True,
+        "contra_mode": getattr(quant_bot, "contra_mode", False)
+    })
+
+
 @app.route('/api/bot/paper-report', methods=['GET'])
 def get_paper_report():
     """Return comprehensive paper trading performance audit and win/loss records."""
@@ -2836,6 +2882,7 @@ def get_live_status():
                 "positions": enriched_positions
             },
             "trade_history": enriched_trades,
+            "contra_mode": getattr(quant_bot, "contra_mode", False),
             "autopilot": {
                 "enabled": live_trading_enabled,
                 "interval_seconds": live_trading_interval,
@@ -3140,6 +3187,7 @@ def get_tiger_radar():
                 "min_turnover_usd": 50000000.0
             }
         },
+        "contra_mode": getattr(quant_bot, "contra_mode", False),
         "config": cfg_data
     })
 

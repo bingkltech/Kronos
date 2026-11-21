@@ -1071,6 +1071,10 @@
             }
 
             // 2. Update Header Metrics
+            if (d.contra_mode !== undefined && window.updateContraModeUI) {
+                window.updateContraModeUI(d.contra_mode);
+            }
+
             const elBal = document.getElementById('tiger-bal-val');
             if (elBal && d.wallet_balance) {
                 elBal.textContent = `$${parseFloat(d.wallet_balance).toFixed(2)} USDT`;

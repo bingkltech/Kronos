@@ -14,7 +14,7 @@ and sizes positions via strict Decimal Fractional Kelly / Risk Budgeting.
 Strictly adheres to AGENTS.md Invariant 1 (Zero Float Financial Math).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
 from typing import Dict, List, Optional, Set
 
@@ -435,3 +435,35 @@ class KEVSupremeArbiter:
             ticket=ticket,
             adversarial_notes="; ".join(adversarial_notes) if adversarial_notes else "Adversarial stress-test clear."
         )
+
+
+def invert_trade_ticket(ticket: TradeTicket) -> TradeTicket:
+    """
+    Contra Execution Mode: Inverts BUY -> SELL or SELL -> BUY.
+    Mirrors Take-Profit and Stop-Loss distances across the entry price.
+    Retains identical quantity, leverage, risk budget, and ATR bracket magnitudes.
+    Strictly preserves Zero-Float Financial Math (AGENTS.md Invariant 1).
+    """
+    orig_side = ticket.side.upper()
+    entry = ticket.entry_price
+    if orig_side in ("BUY", "LONG"):
+        # Original LONG: TP > entry, SL < entry
+        delta_tp = ticket.take_profit - entry
+        delta_sl = entry - ticket.stop_loss
+        new_side = "SELL"
+        new_tp = entry - delta_tp
+        new_sl = entry + delta_sl
+    else:
+        # Original SHORT: TP < entry, SL > entry
+        delta_tp = entry - ticket.take_profit
+        delta_sl = ticket.stop_loss - entry
+        new_side = "BUY"
+        new_tp = entry + delta_tp
+        new_sl = entry - delta_sl
+
+    return replace(
+        ticket,
+        side=new_side,
+        take_profit=new_tp,
+        stop_loss=new_sl,
+    )
