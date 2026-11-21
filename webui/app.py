@@ -2434,6 +2434,160 @@ def get_contra_status():
     })
 
 
+# ==============================================================================
+# NEON STRATEGY v1.0 — Institutional Regime-Adaptive Quant Engine Endpoints
+# ==============================================================================
+
+@app.route('/api/neon/overview', methods=['GET'])
+def get_neon_overview():
+    try:
+        from src.quant.neon_strategy import (
+            load_neon_config,
+            compute_live_forensic_audit,
+            evaluate_neon_universe,
+            run_neon_backtest,
+            NEON_CORE_UNIVERSE,
+            NEON_QUARANTINED_SYMBOLS,
+            FALLBACK_PRICES,
+        )
+        cfg = load_neon_config()
+        tickers = {}
+        try:
+            r = requests.get("https://fapi.binance.com/fapi/v1/ticker/24hr", timeout=3)
+            if r.ok:
+                for item in r.json():
+                    sym = item.get("symbol")
+                    if sym:
+                        tickers[sym] = item
+        except Exception:
+            pass
+
+        account_equity = quant_bot.executor.get_current_equity()
+        open_pos_count = len(quant_bot.executor.active_positions)
+        forensic_audit = compute_live_forensic_audit()
+        live_scanner = evaluate_neon_universe(tickers, account_equity, cfg, open_pos_count)
+
+        btc_bear_bt = run_neon_backtest("BTCUSDT", 200.0, mirror_bull=False, config=cfg)
+        btc_bull_bt = run_neon_backtest("BTCUSDT", 200.0, mirror_bull=True, config=cfg)
+
+        return jsonify({
+            "success": True,
+            "strategy": {
+                "name": cfg.get("strategy_name"),
+                "version": cfg.get("version"),
+                "core_universe": NEON_CORE_UNIVERSE,
+                "quarantined_symbols": NEON_QUARANTINED_SYMBOLS,
+                "config": cfg,
+            },
+            "forensic_audit": forensic_audit,
+            "live_scanner": live_scanner,
+            "benchmarks": {
+                "real_bear_1h": btc_bear_bt,
+                "mirrored_bull_1h": btc_bull_bt,
+            }
+        })
+    except Exception as e:
+        logger.error("Error in /api/neon/overview: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/neon/config', methods=['POST'])
+def post_neon_config():
+    try:
+        from src.quant.neon_strategy import save_neon_config
+        req_data = request.get_json(silent=True) or {}
+        updated = save_neon_config(req_data)
+        return jsonify({
+            "success": True,
+            "config": updated,
+            "message": f"NEON Strategy configuration updated ({'ACTIVE' if updated.get('enabled') else 'STANDBY'})."
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/neon/equity-curve', methods=['GET'])
+def get_neon_equity_curve():
+    try:
+        from src.quant.neon_strategy import build_neon_equity_curve, load_neon_config
+        scope = request.args.get("scope", "CORE_BASKET").upper()
+        try:
+            init_eq = float(request.args.get("initial_equity", 200))
+        except (ValueError, TypeError):
+            init_eq = 200.0
+        mirror_bull = request.args.get("mirror_bull", "false").lower() == "true"
+        cfg = load_neon_config()
+        payload = build_neon_equity_curve(scope=scope, initial_equity=init_eq, mirror_bull=mirror_bull, config=cfg)
+        return jsonify({"success": True, "equity_curve": payload})
+    except Exception as e:
+        logger.error("Error in /api/neon/equity-curve: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/neon/backtest', methods=['POST'])
+def post_neon_backtest():
+    try:
+        from src.quant.neon_strategy import run_neon_backtest, load_neon_config
+        req_data = request.get_json(silent=True) or {}
+        symbol = str(req_data.get("symbol", "BTCUSDT")).upper()
+        try:
+            init_eq = float(req_data.get("initial_equity", 200))
+        except (ValueError, TypeError):
+            init_eq = 200.0
+        mirror_bull = bool(req_data.get("mirror_bull", False))
+        cfg = load_neon_config()
+        res = run_neon_backtest(symbol=symbol, initial_equity=init_eq, mirror_bull=mirror_bull, config=cfg)
+        return jsonify({"success": True, "backtest": res})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/neon/execute', methods=['POST'])
+def post_neon_execute():
+    try:
+        req_data = request.get_json(silent=True) or {}
+        symbol = str(req_data.get("symbol", "BTCUSDT")).upper()
+        side_raw = str(req_data.get("side", "SELL")).upper()
+        side = "BUY" if side_raw in ("BUY", "LONG") else "SELL"
+        entry_px = Decimal(str(req_data.get("entry_price", 60000.0)))
+        sl_px = Decimal(str(req_data.get("stop_loss", entry_px * Decimal("0.99"))))
+        tp_px = Decimal(str(req_data.get("take_profit", entry_px * Decimal("1.02"))))
+        notional = Decimal(str(req_data.get("notional_usd", 60.0)))
+        qty = (notional / entry_px).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+        from src.quant.kev_risk_arbiter import TradeTicket
+        ticket = TradeTicket(
+            symbol=symbol,
+            side=side,
+            entry_price=entry_px,
+            stop_loss=sl_px,
+            take_profit=tp_px,
+            quantity=qty,
+            notional_usd=notional,
+            effective_leverage=3,
+            risk_budget_usd=notional / Decimal("3"),
+            reward_risk_ratio=Decimal("2.0"),
+            net_expected_gain_pct=Decimal("0.02"),
+            is_scalp=False,
+        )
+        pos = quant_bot.executor.submit_bracket_order(ticket)
+        return jsonify({
+            "success": True,
+            "message": f"NEON Trade Ticket submitted for {symbol} ({side})",
+            "position": {
+                "position_id": pos.position_id,
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "entry_price": float(pos.entry_price),
+                "stop_loss": float(pos.stop_loss),
+                "take_profit": float(pos.take_profit),
+                "state": str(pos.state),
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/api/bot/paper-report', methods=['GET'])
 def get_paper_report():
     """Return comprehensive paper trading performance audit and win/loss records."""

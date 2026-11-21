@@ -299,6 +299,10 @@ async function loadScalperRadar() {
 }
 
 // 5. Load Scalper Telemetry & Status
+async function loadScalperStatus() {
+    return loadScalperTelemetry();
+}
+
 async function loadScalperTelemetry() {
     try {
         const resp = await axios.get('/api/scalper/status');
@@ -572,18 +576,12 @@ function switchScalperSubTab(subTab) {
         if (paneLightning) paneLightning.style.display = 'none';
 
         if (btnTiger) {
-            btnTiger.className = 'btn-primary';
-            btnTiger.style.background = '#e65100';
-            btnTiger.style.borderColor = '#ff9800';
-            btnTiger.style.color = '#fff';
-            btnTiger.style.boxShadow = '0 0 14px rgba(255, 152, 0, 0.4)';
+            btnTiger.className = 'scalper-subtab active-tiger';
+            btnTiger.removeAttribute('style');
         }
         if (btnLightning) {
-            btnLightning.className = 'btn-secondary';
-            btnLightning.style.background = '';
-            btnLightning.style.borderColor = '';
-            btnLightning.style.color = 'var(--text-muted)';
-            btnLightning.style.boxShadow = 'none';
+            btnLightning.className = 'scalper-subtab';
+            btnLightning.removeAttribute('style');
         }
         loadTigerPage();
     } else {
@@ -591,18 +589,12 @@ function switchScalperSubTab(subTab) {
         if (paneLightning) paneLightning.style.display = 'block';
 
         if (btnLightning) {
-            btnLightning.className = 'btn-primary';
-            btnLightning.style.background = '#1f6feb';
-            btnLightning.style.borderColor = '#388bfd';
-            btnLightning.style.color = '#fff';
-            btnLightning.style.boxShadow = '0 0 14px rgba(88, 166, 255, 0.4)';
+            btnLightning.className = 'scalper-subtab active-lightning';
+            btnLightning.removeAttribute('style');
         }
         if (btnTiger) {
-            btnTiger.className = 'btn-secondary';
-            btnTiger.style.background = '';
-            btnTiger.style.borderColor = '';
-            btnTiger.style.color = 'var(--text-muted)';
-            btnTiger.style.boxShadow = 'none';
+            btnTiger.className = 'scalper-subtab';
+            btnTiger.removeAttribute('style');
         }
         loadLightningScalperPage();
     }

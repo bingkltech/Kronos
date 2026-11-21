@@ -1,58 +1,124 @@
 /**
- * webui/static/js/swarm_deck.js — Interactive Neural Swarm Canvas & BotSwarmBridge
+ * webui/static/js/swarm_deck.js — Interactive 6-Bot Neural Swarm Canvas & BotSwarmBridge
  *
  * Features:
- * - Draggable Bots & Workers: Click & drag any bot hub to relocate it anywhere on canvas.
- * - Draggable Beacons: Drag candidate asset beacons directly.
- * - Viewport Pan & Zoom: Click & drag empty canvas space to pan; mouse wheel to zoom (0.4x - 2.5x).
- * - Reset View: "Reset View" button & canvas double-click to snap back to default layout.
- * - Full Touch & Mouse Support with zero-lag worker tracking.
- * - Implements window.BotSwarmBridge with auto-reconnect to ws://localhost:8765/swarm.
- * - Graceful fallback to autonomous demo simulation when WS is idle.
+ * - 6-Bot Default Fleet (36 Agent Workers) including BOT-05 (NEON-5 Trend Hunter) & BOT-06 (NEON-6 Maker Arbiter).
+ * - Segmented 6 | 4 | 3 fleet topology switching with balanced 3x2 / 2x2 / 1+2 spatial geometry.
+ * - Upgraded Canvas HUD Nodes with 6-segment radial gate status rings, hex core geometry, and unboxed tabular PnL tags.
+ * - Live NEON Telemetry Sync from /api/neon/overview & /api/neon/equity-curve for BOT-05 and BOT-06.
+ * - Click-to-Inspect (<5px movement) Slide-Over Bot Inspector Drawer with 6-gate matrix & bracket blueprints.
+ * - Docked Bottom Fleet Roster bar with per-bot smooth Camera Focus lerp and individual Pause/Resume controls.
+ * - Preserves drag-to-relocate bots/beacons, viewport pan/zoom, double-click reset, and WebSocket /swarm bridge.
  */
 
 (function () {
   'use strict';
 
-  // --- 1. CONFIGURATION & COLOR PALETTES ---
+  // --- 1. CONFIGURATION & 6-BOT FLEET DEFINITIONS ---
   const WORKER_STAGES = [
-    { id: 'SCAN', label: 'SCAN', color: '#f43f5e', name: 'Scanner' },
-    { id: 'FLOW', label: 'FLOW', color: '#fb7185', name: 'Orderflow' },
+    { id: 'SCAN', label: 'SCAN', color: '#f43f5e', name: 'Market Scanner' },
+    { id: 'FLOW', label: 'FLOW', color: '#fb7185', name: 'Orderflow CVD' },
     { id: 'RISK', label: 'RISK', color: '#2dd4bf', name: 'Risk Arbiter' },
-    { id: 'VALID', label: 'VALID', color: '#fbbf24', name: 'Trajectory' },
-    { id: 'EXEC', label: 'EXEC', color: '#a855f7', name: 'Execution' },
-    { id: 'LEDGER', label: 'LEDGER', color: '#34d399', name: 'Ledger' }
+    { id: 'VALID', label: 'VALID', color: '#fbbf24', name: 'Trajectory Check' },
+    { id: 'EXEC', label: 'EXEC', color: '#a855f7', name: 'Execution Engine' },
+    { id: 'LEDGER', label: 'LEDGER', color: '#34d399', name: 'Decimal Ledger' }
   ];
 
-  const DEFAULT_BOTS_4 = [
-    { id: 'BOT-01', name: 'LIGHTNING', accent: '#f5c869', pair: 'SOL/USDT' },
-    { id: 'BOT-02', name: 'TIGER', accent: '#38bdf8', pair: 'BTC/USDT' },
-    { id: 'BOT-03', name: 'MACRO', accent: '#c084fc', pair: 'ETH/USDT' },
-    { id: 'BOT-04', name: 'STORM', accent: '#34d399', pair: 'BNB/USDT' }
+  const DEFAULT_BOTS_6 = [
+    {
+      id: 'BOT-01',
+      name: 'LIGHTNING',
+      role: 'Scalp Velocity',
+      strategyKey: 'lightning',
+      accent: '#f5c869',
+      pair: 'SOL/USDT',
+      pnlText: '+$4.85',
+      pnlPositive: true,
+      winRateText: '61.2% WR'
+    },
+    {
+      id: 'BOT-02',
+      name: 'TIGER',
+      role: 'Prey Radar',
+      strategyKey: 'tiger',
+      accent: '#38bdf8',
+      pair: 'BTC/USDT',
+      pnlText: '+$6.12',
+      pnlPositive: true,
+      winRateText: '63.4% WR'
+    },
+    {
+      id: 'BOT-03',
+      name: 'MACRO',
+      role: 'Regime Forecast',
+      strategyKey: 'macro',
+      accent: '#c084fc',
+      pair: 'ETH/USDT',
+      pnlText: '+$3.40',
+      pnlPositive: true,
+      winRateText: '58.5% WR'
+    },
+    {
+      id: 'BOT-04',
+      name: 'STORM',
+      role: 'Trend Momentum',
+      strategyKey: 'storm',
+      accent: '#34d399',
+      pair: 'BNB/USDT',
+      pnlText: '+$5.18',
+      pnlPositive: true,
+      winRateText: '59.8% WR'
+    },
+    {
+      id: 'BOT-05',
+      name: 'NEON-5',
+      role: 'Trend Hunter',
+      strategyKey: 'neon-trend',
+      accent: '#22d3ee',
+      pair: 'BTC/USDT',
+      pnlText: '+$9.40',
+      pnlPositive: true,
+      winRateText: '56.7% WR'
+    },
+    {
+      id: 'BOT-06',
+      name: 'NEON-6',
+      role: 'Maker Arbiter',
+      strategyKey: 'neon-maker',
+      accent: '#2dd4bf',
+      pair: 'LINK/USDT',
+      pnlText: '+$25.20',
+      pnlPositive: true,
+      winRateText: '67.8% WR'
+    }
   ];
 
-  const DEFAULT_BOTS_3 = [
-    { id: 'BOT-01', name: 'LIGHTNING', accent: '#f5c869', pair: 'SOL/USDT' },
-    { id: 'BOT-02', name: 'TIGER', accent: '#38bdf8', pair: 'BTC/USDT' },
-    { id: 'BOT-03', name: 'MACRO', accent: '#c084fc', pair: 'ETH/USDT' }
-  ];
+  const DEFAULT_BOTS_4 = DEFAULT_BOTS_6.slice(0, 4);
+  const DEFAULT_BOTS_3 = DEFAULT_BOTS_6.slice(0, 3);
 
-  const CANDIDATE_ASSETS = ['SOL', 'BTC', 'ETH', 'BNB', 'PEPE', 'DOGE', 'SUI', 'AVAX', 'NEAR', 'LINK', 'RENDER', 'APT'];
+  const CANDIDATE_ASSETS = ['BTC', 'ETH', 'SOL', 'BNB', 'LINK', 'AVAX', 'SUI', 'NEAR', 'RENDER', 'APT'];
 
   // --- 2. ENGINE & INTERACTION STATE ---
   let canvas, ctx;
   let animFrameId = null;
   let isRunning = true;
-  let botsCount = 4;
+  let botsCount = 6;
   let simulationPace = 1.0;
   let isLiveWS = false;
   let wsSocket = null;
-  let wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + (window.location.hostname || 'localhost') + ':8765/swarm';
+  let wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + (window.location.host || 'localhost:3000') + '/swarm';
 
   let bots = [];
-  let beacons = new Map(); // id -> Beacon
+  let beacons = new Map();
   let particles = [];
   let lightningStrikes = [];
+
+  // Selection, Camera & Telemetry State
+  let selectedBotId = null;
+  let cameraTarget = null; // { panX, panY, zoom }
+  let cachedNeonOverview = null;
+  let cachedNeonEquity = null;
+  let neonSyncTimer = null;
 
   // Pan, Zoom & Dragging state
   let panX = 0;
@@ -63,36 +129,85 @@
   let draggedBot = null;
   let draggedBeacon = null;
   let dragOffset = { x: 0, y: 0 };
+  let pointerDownScreen = { x: 0, y: 0 };
+  let pointerDragMoved = false;
   let hoveredBot = null;
   let hoveredBeacon = null;
 
   let lastTime = performance.now();
   let demoTimer = 0;
 
-  // --- 3. BOT & WORKER CLASSES ---
+  // --- 3. FORMATTING HELPERS ---
+  function fmtUsd(val, showSign) {
+    const num = Number(val || 0);
+    const sign = showSign ? (num > 0 ? '+' : num < 0 ? '-' : '') : (num < 0 ? '-' : '');
+    return `${sign}$${Math.abs(num).toFixed(2)}`;
+  }
+
+  function fmtPrice(val) {
+    const n = Number(val || 0);
+    if (n >= 1000) return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (n >= 1) return `$${n.toFixed(4)}`;
+    return `$${n.toFixed(6)}`;
+  }
+
+  function fmtPair(sym) {
+    const s = String(sym || 'BTCUSDT');
+    if (s.includes('/')) return s;
+    if (s.endsWith('USDT')) return `${s.slice(0, -4)}/USDT`;
+    return s;
+  }
+
+  function fmtUtcClock() {
+    const d = new Date();
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    const ss = String(d.getUTCSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss} UTC`;
+  }
+
+  // --- 4. BOT & WORKER CLASSES ---
   class BotNode {
     constructor(cfg, targetX, targetY) {
       this.id = cfg.id;
       this.name = cfg.name;
-      this.accent = cfg.accent || '#f5c869';
+      this.role = cfg.role || 'Autonomous Agent';
+      this.strategyKey = cfg.strategyKey || 'standard';
+      this.isNeon = this.strategyKey === 'neon-trend' || this.strategyKey === 'neon-maker';
+      this.accent = cfg.accent || '#38bdf8';
       this.pair = cfg.pair || 'BTC/USDT';
       this.x = targetX;
       this.y = targetY;
       this.isCustomPosition = false;
       this.isDragged = false;
-      this.radius = 24;
-      this.angle = 0;
-      this.stateText = 'HUNTING';
+      this.paused = false;
+      this.radius = 23;
+      this.angle = Math.random() * Math.PI * 2;
+      this.stateText = this.isNeon ? 'SYNCING' : 'HUNTING';
       this.stateTime = 0;
       this.lockedBeaconId = null;
+
+      // Live Telemetry Fields
+      this.pnlText = cfg.pnlText || '+$0.00';
+      this.pnlPositive = cfg.pnlPositive !== false;
+      this.winRateText = cfg.winRateText || '--';
+      this.convictionPct = this.isNeon ? 0 : 72;
+      this.vetoReason = '';
+      this.bracket = null;
+      this.gates = WORKER_STAGES.map((st) => ({
+        key: st.id,
+        label: st.name,
+        passed: !this.isNeon,
+        detail: this.isNeon ? 'Awaiting live NEON sync...' : 'Stage nominal'
+      }));
 
       // Initialize 6 satellite workers orbiting this bot
       this.workers = WORKER_STAGES.map((st, i) => ({
         id: st.id,
         label: st.label,
         color: st.color,
-        angleOffset: (i * (Math.PI * 2) / 6),
-        orbitRadius: 65,
+        angleOffset: (i * (Math.PI * 2)) / 6,
+        orbitRadius: 58,
         x: targetX,
         y: targetY,
         currentPill: null,
@@ -103,24 +218,35 @@
       this.updateWorkers(0);
     }
 
+    getPassedGateCount() {
+      return this.gates.filter((g) => g.passed).length;
+    }
+
     update(dt, defaultX, defaultY) {
-      // If user hasn't dragged this bot, anchor to default quadrant
       if (!this.isCustomPosition && !this.isDragged) {
         this.x = defaultX;
         this.y = defaultY;
       }
 
-      this.angle += dt * 0.4 * simulationPace;
+      if (!this.paused) {
+        this.angle += dt * 0.38 * simulationPace;
+      }
 
-      if (this.stateTime > 0) {
+      if (this.stateTime > 0 && !this.paused) {
         this.stateTime -= dt;
         if (this.stateTime <= 0) {
-          this.stateText = 'HUNTING';
+          this.stateText = this.isNeon ? this.getNeonIdleLabel() : 'HUNTING';
           this.lockedBeaconId = null;
         }
       }
 
-      this.updateWorkers(dt);
+      this.updateWorkers(this.paused ? 0 : dt);
+    }
+
+    getNeonIdleLabel() {
+      const passed = this.getPassedGateCount();
+      if (passed === 6) return `APPROVED · ${this.pair.split('/')[0]}`;
+      return `${passed}/6 GATES · ${this.pair.split('/')[0]}`;
     }
 
     updateWorkers(dt = 0) {
@@ -135,125 +261,197 @@
             if (w.pillTime <= 0) w.currentPill = null;
           }
           if (w.activePulse > 0) {
-            w.activePulse = Math.max(0, w.activePulse - dt * 2.5);
+            w.activePulse = Math.max(0, w.activePulse - dt * 2.2);
           }
         }
       });
     }
 
+    drawHexagon(ctx, cx, cy, r) {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        const px = cx + Math.cos(a) * r;
+        const py = cy + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+
     draw(ctx) {
-      // 1. Draw glowing tentacle filaments to workers
-      this.workers.forEach((w) => {
+      const isSelected = selectedBotId === this.id;
+      const isHovered = this === hoveredBot;
+      const dimAlpha = this.paused ? 0.48 : 1.0;
+
+      ctx.save();
+      ctx.globalAlpha = dimAlpha;
+
+      // 1. Satellite workers & curved filaments
+      this.workers.forEach((w, idx) => {
+        const gateInfo = this.gates[idx];
+        const gateActive = this.isNeon ? Boolean(gateInfo && gateInfo.passed) : w.activePulse > 0;
+        const nodeColor = this.paused
+          ? '#64748b'
+          : this.isNeon
+          ? gateActive
+            ? '#22c55e'
+            : '#f87171'
+          : w.color;
+
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
-        const midX = (this.x + w.x) / 2 + Math.cos(this.angle) * 8;
-        const midY = (this.y + w.y) / 2 + Math.sin(this.angle) * 8;
+        const midX = (this.x + w.x) / 2 + Math.cos(this.angle) * 6;
+        const midY = (this.y + w.y) / 2 + Math.sin(this.angle) * 6;
         ctx.quadraticCurveTo(midX, midY, w.x, w.y);
-        ctx.strokeStyle = w.activePulse > 0 ? w.color : 'rgba(255, 255, 255, 0.12)';
-        ctx.lineWidth = w.activePulse > 0 ? 2 : 1;
+        ctx.strokeStyle =
+          w.activePulse > 0
+            ? nodeColor
+            : this.isNeon && gateActive
+            ? 'rgba(34, 197, 94, 0.24)'
+            : 'rgba(148, 163, 184, 0.13)';
+        ctx.lineWidth = w.activePulse > 0 ? 1.8 : 1;
         ctx.stroke();
 
-        // Worker node
+        // Worker node circle
         ctx.beginPath();
-        ctx.arc(w.x, w.y, 4.5 + w.activePulse * 3, 0, Math.PI * 2);
-        ctx.fillStyle = w.color;
-        ctx.shadowColor = w.color;
-        ctx.shadowBlur = w.activePulse > 0 ? 14 : 5;
+        ctx.arc(w.x, w.y, 4 + w.activePulse * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = nodeColor;
+        ctx.shadowColor = nodeColor;
+        ctx.shadowBlur = w.activePulse > 0 ? 12 : 4;
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Worker label
-        ctx.font = '600 8px monospace';
+        // Worker micro-label
+        ctx.font = '600 7.5px "JetBrains Mono", monospace';
         ctx.fillStyle = '#94a3b8';
         ctx.textAlign = 'center';
-        ctx.fillText(w.label, w.x, w.y - 8);
+        ctx.fillText(w.label, w.x, w.y - 7);
 
-        // Worker pill badge
-        if (w.currentPill) {
-          ctx.font = '500 8.5px monospace';
+        // Live worker signal pill
+        if (w.currentPill && !this.paused) {
+          ctx.font = '500 8px "JetBrains Mono", monospace';
           const pWidth = ctx.measureText(w.currentPill).width + 10;
-          ctx.fillStyle = 'rgba(10, 14, 22, 0.90)';
-          ctx.strokeStyle = w.color;
+          ctx.fillStyle = 'rgba(10, 14, 22, 0.92)';
+          ctx.strokeStyle = nodeColor;
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.roundRect(w.x - pWidth / 2, w.y + 7, pWidth, 14, 6);
+          ctx.roundRect(w.x - pWidth / 2, w.y + 6, pWidth, 14, 4);
           ctx.fill();
           ctx.stroke();
 
           ctx.fillStyle = '#f8fafc';
-          ctx.fillText(w.currentPill, w.x, w.y + 17);
+          ctx.fillText(w.currentPill, w.x, w.y + 15.5);
         }
       });
 
-      // 2. Drag / Hover indicator halo
-      if (this.isDragged || this === hoveredBot) {
+      // 2. Selection / Hover / Drag Precision Halo
+      if (isSelected || this.isDragged || isHovered) {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius + 12, 0, Math.PI * 2);
-        ctx.strokeStyle = this.accent;
-        ctx.lineWidth = this.isDragged ? 2 : 1.2;
+        ctx.arc(this.x, this.y, this.radius + 16, 0, Math.PI * 2);
+        ctx.strokeStyle = isSelected ? '#22d3ee' : this.accent;
+        ctx.lineWidth = isSelected || this.isDragged ? 1.8 : 1.1;
         ctx.setLineDash([4, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
       }
 
-      // 3. Draw Bot Hub Outer Radar Reticle
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      ctx.rotate(this.angle * 0.5);
+      // 3. Radial 6-Gate Segmented Status Ring around Bot Hub
+      const ringRadius = this.radius + 8;
+      const segSpan = (Math.PI * 2) / 6;
+      const gap = 0.14;
+      for (let i = 0; i < 6; i++) {
+        const startA = -Math.PI / 2 + i * segSpan + gap / 2;
+        const endA = -Math.PI / 2 + (i + 1) * segSpan - gap / 2;
+        const g = this.gates[i];
+        const w = this.workers[i];
 
-      ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 1.5);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-      ctx.lineWidth = 1.2;
-      ctx.setLineDash([4, 6]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+        let segColor = 'rgba(148, 163, 184, 0.22)';
+        if (this.paused) {
+          segColor = 'rgba(100, 116, 139, 0.35)';
+        } else if (this.isNeon) {
+          segColor = g && g.passed ? '#22c55e' : 'rgba(248, 113, 113, 0.55)';
+        } else {
+          segColor = w && w.activePulse > 0 ? this.accent : 'rgba(52, 211, 153, 0.55)';
+        }
 
-      ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 2, Math.PI * 0.8, Math.PI * 1.8);
-      ctx.strokeStyle = this.accent;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.restore();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, ringRadius, startA, endA);
+        ctx.strokeStyle = segColor;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
 
-      // 4. Central Bot Core
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(11, 15, 24, 0.94)';
-      ctx.strokeStyle = this.accent;
-      ctx.lineWidth = 2;
-      ctx.shadowColor = this.accent;
-      ctx.shadowBlur = this.isDragged ? 20 : 12;
+      // 4. Central Bot Hub Core (Precision Hex for NEON-5/6, Circle for Bots 1-4)
+      ctx.fillStyle = 'rgba(10, 15, 25, 0.96)';
+      ctx.strokeStyle = this.paused ? '#64748b' : this.accent;
+      ctx.lineWidth = isSelected ? 2.4 : 1.9;
+      ctx.shadowColor = this.paused ? 'transparent' : this.accent;
+      ctx.shadowBlur = this.isDragged || isSelected ? 18 : 10;
+
+      if (this.isNeon) {
+        this.drawHexagon(ctx, this.x, this.y, this.radius);
+      } else {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      }
       ctx.fill();
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // Inner text / icon
-      ctx.fillStyle = this.accent;
-      ctx.font = 'bold 10px monospace';
+      // Inner Bot ID + Pair Ticker
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(this.id, this.x, this.y - 3);
+      ctx.fillStyle = this.paused ? '#94a3b8' : this.accent;
+      ctx.font = '700 9.5px "JetBrains Mono", monospace';
+      ctx.fillText(this.id, this.x, this.y - 4);
 
-      // Name & state tags below
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '600 7.5px "JetBrains Mono", monospace';
+      ctx.fillText(this.pair.split('/')[0], this.x, this.y + 7);
+
+      ctx.restore();
+
+      // 5. Crisp Unboxed Name, State & Tabular PnL Readout Beneath Hub (Always Full Contrast)
+      ctx.save();
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      ctx.font = '700 9px monospace';
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillText(this.name, this.x, this.y + 36);
 
-      ctx.font = '500 8.5px monospace';
-      if (this.stateText.startsWith('FILL')) {
-        ctx.fillStyle = '#34d399';
-      } else if (this.stateText.startsWith('LOCK')) {
+      ctx.font = '700 9.5px "Plus Jakarta Sans", sans-serif';
+      ctx.fillStyle = this.paused ? '#94a3b8' : '#f1f5f9';
+      ctx.fillText(this.name, this.x, this.y + 42);
+
+      // State Line
+      const displayState = this.paused ? 'PAUSED' : this.stateText;
+      ctx.font = '600 8px "JetBrains Mono", monospace';
+      if (this.paused) {
+        ctx.fillStyle = '#f87171';
+      } else if (displayState.startsWith('FILL') || displayState.startsWith('APPROVED')) {
+        ctx.fillStyle = '#22c55e';
+      } else if (displayState.startsWith('LOCK')) {
         ctx.fillStyle = '#f5c869';
+      } else if (this.isNeon) {
+        ctx.fillStyle = '#22d3ee';
       } else {
-        ctx.fillStyle = '#64748b';
+        ctx.fillStyle = '#94a3b8';
       }
-      ctx.fillText(this.stateText, this.x, this.y + 47);
+      ctx.fillText(displayState, this.x, this.y + 53);
+
+      // Tabular PnL + Gate/WR Readout Tag (Unboxed)
+      const subTag = this.isNeon
+        ? `${this.pnlText} · ${this.getPassedGateCount()}/6G`
+        : `${this.pnlText} · ${this.winRateText}`;
+      ctx.font = '600 8px "JetBrains Mono", monospace';
+      ctx.fillStyle = this.paused ? '#64748b' : this.pnlPositive ? '#34d399' : '#f87171';
+      ctx.fillText(subTag, this.x, this.y + 64);
+
+      ctx.restore();
     }
   }
 
-  // --- 4. BEACON (BINANCE ASSET CANDIDATE) ---
+  // --- 5. BEACON (BINANCE ASSET CANDIDATE) ---
   class Beacon {
     constructor(data) {
       this.id = data.id || 'sig-' + Math.floor(Math.random() * 1000);
@@ -288,7 +486,7 @@
       }
     }
 
-    draw(ctx, w, h) {
+    draw(ctx) {
       const px = this.worldX;
       const py = this.worldY;
       const alpha = Math.max(0, Math.min(1, this.life));
@@ -301,9 +499,8 @@
       if (this.status === 'SKIPPED') col = '#ef4444';
       if (this.status === 'CAPTURED') col = '#34d399';
 
-      // Pulse ring for locked/captured
       if (this.status === 'LOCKED' || this.status === 'CAPTURED') {
-        const ringR = 12 + (Math.sin(this.pulse) + 1) * 4;
+        const ringR = 11 + (Math.sin(this.pulse) + 1) * 3.5;
         ctx.beginPath();
         ctx.arc(px, py, ringR, 0, Math.PI * 2);
         ctx.strokeStyle = col;
@@ -311,8 +508,7 @@
         ctx.stroke();
       }
 
-      // Diamond marker
-      const sz = 8;
+      const sz = 7.5;
       ctx.beginPath();
       ctx.moveTo(px, py - sz);
       ctx.lineTo(px + sz, py);
@@ -328,52 +524,433 @@
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // Symbol & Score text
-      ctx.font = '600 8.5px monospace';
+      ctx.font = '600 8px "JetBrains Mono", monospace';
       ctx.fillStyle = col;
       ctx.textAlign = 'center';
-      ctx.fillText(this.symbol, px, py - 12);
+      ctx.fillText(this.symbol, px, py - 11);
 
-      ctx.font = '500 7.5px monospace';
+      ctx.font = '500 7.5px "JetBrains Mono", monospace';
       ctx.fillStyle = '#cbd5e1';
-      ctx.fillText((this.score * 100).toFixed(0) + '%', px, py + 16);
+      ctx.fillText((this.score * 100).toFixed(0) + '%', px, py + 15);
 
       ctx.restore();
     }
   }
 
-  // --- 5. INITIALIZE TOPOLOGY ---
+  // --- 6. TOPOLOGY, CONSTELLATION GEOMETRY & FLEET ROSTER ---
   function initBots(count) {
-    botsCount = count;
-    const cfgList = count === 3 ? DEFAULT_BOTS_3 : DEFAULT_BOTS_4;
-    bots = cfgList.map((cfg) => new BotNode(cfg, 0, 0));
+    const validCount = count === 3 || count === 4 ? count : 6;
+    botsCount = validCount;
+    const prevPaused = new Map(bots.map((b) => [b.id, b.paused]));
+
+    const cfgList = validCount === 3 ? DEFAULT_BOTS_3 : validCount === 4 ? DEFAULT_BOTS_4 : DEFAULT_BOTS_6;
+    bots = cfgList.map((cfg) => {
+      const node = new BotNode(cfg, 0, 0);
+      if (prevPaused.has(node.id)) {
+        node.paused = Boolean(prevPaused.get(node.id));
+      }
+      return node;
+    });
+
+    // Re-apply cached live NEON telemetry immediately if available
+    if (cachedNeonOverview || cachedNeonEquity) {
+      applyNeonTelemetryToBots(cachedNeonOverview, cachedNeonEquity);
+    }
+
+    // If selected bot was removed by shrinking fleet, close inspector
+    if (selectedBotId && !bots.some((b) => b.id === selectedBotId)) {
+      closeInspector();
+    }
+
+    updateFleetControlsUI();
     updateSwarmSummary();
+    renderFleetRoster();
+    renderInspector();
+  }
+
+  function updateFleetControlsUI() {
+    [6, 4, 3].forEach((n) => {
+      const btn = document.getElementById(`btnFleet${n}`);
+      if (btn) btn.classList.toggle('active', botsCount === n);
+    });
   }
 
   function updateSwarmSummary() {
-    const el = document.getElementById('swarmSummary');
-    if (el) {
-      el.textContent = `${bots.length} bots · ${bots.length * 6} agent workers · spot crypto`;
+    const activeCount = bots.filter((b) => !b.paused).length;
+    const workersCount = bots.length * 6;
+    const summaryEl = document.getElementById('swarmSummary');
+    if (summaryEl) {
+      const pausedSuffix = activeCount < bots.length ? ` · ${bots.length - activeCount} paused` : '';
+      summaryEl.textContent = `${bots.length} bots · ${workersCount} agent workers${pausedSuffix}`;
+    }
+
+    const topbarText = document.getElementById('topbar-swarm-pill-text');
+    if (topbarText) {
+      topbarText.textContent = `${bots.length} BOTS · ${workersCount} WORKERS`;
+    }
+    const topbarPill = document.getElementById('topbar-swarm-pill');
+    if (topbarPill) {
+      topbarPill.title = `Click to focus Neural Swarm Deck (${bots.length} Bots · ${workersCount} Agent Workers)`;
     }
   }
 
-  function getQuadrantCoords(w, h, count) {
+  function getConstellationCoords(w, h, count) {
     if (count === 3) {
       return [
-        { x: w * 0.50, y: h * 0.32 },
-        { x: w * 0.28, y: h * 0.68 },
-        { x: w * 0.72, y: h * 0.68 }
+        { x: w * 0.50, y: h * 0.30 },
+        { x: w * 0.27, y: h * 0.68 },
+        { x: w * 0.73, y: h * 0.68 }
       ];
     }
+    if (count === 4) {
+      return [
+        { x: w * 0.28, y: h * 0.31 },
+        { x: w * 0.72, y: h * 0.31 },
+        { x: w * 0.28, y: h * 0.69 },
+        { x: w * 0.72, y: h * 0.69 }
+      ];
+    }
+    // Balanced 3x2 Constellation for 6 Bots (with unobstructed breathing room for 36 workers)
     return [
-      { x: w * 0.28, y: h * 0.34 },
-      { x: w * 0.72, y: h * 0.34 },
-      { x: w * 0.28, y: h * 0.70 },
-      { x: w * 0.72, y: h * 0.70 }
+      { x: w * 0.19, y: h * 0.29 },
+      { x: w * 0.50, y: h * 0.29 },
+      { x: w * 0.81, y: h * 0.29 },
+      { x: w * 0.19, y: h * 0.70 },
+      { x: w * 0.50, y: h * 0.70 },
+      { x: w * 0.81, y: h * 0.70 }
     ];
   }
 
-  // --- 6. COORDINATE TRANSFORMATIONS & HIT TESTING ---
+  function renderFleetRoster() {
+    const bar = document.getElementById('swarmRosterBar');
+    if (!bar) return;
+
+    bar.className = `swarm-roster-bar fleet-${bots.length}`;
+    bar.innerHTML = bots
+      .map((bot) => {
+        const isSelected = selectedBotId === bot.id;
+        const stateLabel = bot.paused
+          ? 'PAUSED'
+          : bot.stateText.startsWith('APPROVED') || bot.stateText.startsWith('FILL')
+          ? 'ACTIVE'
+          : bot.stateText.startsWith('LOCK')
+          ? 'LOCKED'
+          : bot.isNeon
+          ? `${bot.getPassedGateCount()}/6G`
+          : 'HUNTING';
+
+        const stateCls = bot.paused
+          ? 'state-paused'
+          : stateLabel === 'ACTIVE'
+          ? 'state-live'
+          : stateLabel === 'LOCKED'
+          ? 'state-lock'
+          : '';
+
+        const metricColor = bot.paused ? '' : bot.pnlPositive ? 'text-pos' : 'text-neg';
+
+        return `<div class="swarm-roster-cell ${isSelected ? 'selected' : ''} ${bot.paused ? 'paused' : ''}" role="listitem" data-bot-id="${bot.id}" style="--bot-accent: ${bot.accent};">
+          <div class="roster-top">
+            <span class="roster-name-wrap">
+              <span class="roster-swatch"></span>
+              <span class="roster-name">${bot.id} · ${bot.name}</span>
+            </span>
+            <span class="roster-state ${stateCls}">${stateLabel}</span>
+          </div>
+          <div class="roster-mid">
+            <span class="roster-role">${bot.role}</span>
+            <span class="roster-metric ${metricColor}">${bot.pnlText}</span>
+          </div>
+          <div class="roster-actions">
+            <button type="button" class="roster-btn" data-action="focus" data-bot-id="${bot.id}">Focus</button>
+            <button type="button" class="roster-btn ${bot.paused ? 'is-paused' : ''}" data-action="pause" data-bot-id="${bot.id}">${bot.paused ? 'Resume' : 'Pause'}</button>
+          </div>
+        </div>`;
+      })
+      .join('');
+  }
+
+  // --- 7. BOT INSPECTOR DRAWER & CAMERA FOCUS ---
+  function selectBot(botId) {
+    const bot = bots.find((b) => b.id === botId);
+    if (!bot) {
+      closeInspector();
+      return;
+    }
+    selectedBotId = bot.id;
+    const drawer = document.getElementById('swarmInspector');
+    if (drawer) {
+      drawer.classList.add('open');
+      drawer.setAttribute('aria-hidden', 'false');
+    }
+    renderInspector();
+    renderFleetRoster();
+  }
+
+  function closeInspector() {
+    selectedBotId = null;
+    const drawer = document.getElementById('swarmInspector');
+    if (drawer) {
+      drawer.classList.remove('open');
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+    renderFleetRoster();
+  }
+
+  function renderInspector() {
+    const drawer = document.getElementById('swarmInspector');
+    if (!drawer || !selectedBotId) return;
+    const bot = bots.find((b) => b.id === selectedBotId);
+    if (!bot) {
+      closeInspector();
+      return;
+    }
+
+    const setEl = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setEl('inspectorKicker', `${bot.id} · ${bot.name}${bot.paused ? ' (PAUSED)' : ''}`);
+    const kicker = document.getElementById('inspectorKicker');
+    if (kicker) kicker.style.color = bot.paused ? '#94a3b8' : bot.accent;
+
+    setEl('inspectorRole', `${bot.role} · ${bot.stateText}`);
+    setEl('inspectorPair', bot.pair);
+
+    const pnlEl = document.getElementById('inspectorPnl');
+    if (pnlEl) {
+      pnlEl.textContent = bot.pnlText;
+      pnlEl.className = `inspector-metric-val ${bot.pnlPositive ? 'text-pos' : 'text-neg'}`;
+    }
+
+    setEl(
+      'inspectorWinRate',
+      bot.isNeon && bot.convictionPct > 0 ? `${bot.winRateText} · ${bot.convictionPct}%` : bot.winRateText
+    );
+
+    const gatesTitle = document.getElementById('inspectorGatesTitle');
+    const gatesSummary = document.getElementById('inspectorGatesSummary');
+    const gatesList = document.getElementById('inspectorGatesList');
+
+    if (gatesTitle) {
+      gatesTitle.textContent = bot.isNeon ? '6 Institutional NEON Gates' : '6 Satellite Worker Stages';
+    }
+    if (gatesSummary) {
+      gatesSummary.textContent = bot.isNeon ? `${bot.getPassedGateCount()} / 6 Passed` : bot.paused ? 'Paused' : '6 / 6 Active';
+    }
+
+    if (gatesList) {
+      gatesList.innerHTML = bot.gates
+        .map((g) => {
+          const stCls = bot.paused ? 'idle' : g.passed ? 'pass' : 'fail';
+          const stTxt = bot.paused ? 'PAUSED' : bot.isNeon ? (g.passed ? 'PASS' : 'GATED') : 'ACTIVE';
+          return `<div class="inspector-gate-row">
+            <div class="inspector-gate-left">
+              <span class="inspector-gate-name">${g.label}</span>
+              <span class="inspector-gate-detail" title="${g.detail}">${g.detail}</span>
+            </div>
+            <span class="inspector-gate-state ${stCls}">${stTxt}</span>
+          </div>`;
+        })
+        .join('');
+    }
+
+    // Active Exact-Decimal Bracket Blueprint (when present on NEON-5 / NEON-6)
+    const bracketBox = document.getElementById('inspectorBracketBox');
+    const bracketSide = document.getElementById('inspectorBracketSide');
+    const bracketGrid = document.getElementById('inspectorBracketGrid');
+    if (bracketBox && bracketGrid) {
+      if (bot.bracket) {
+        const t = bot.bracket;
+        bracketBox.style.display = 'flex';
+        if (bracketSide) {
+          bracketSide.textContent = `${t.side} · ${t.notional_usd ? `$${Number(t.notional_usd).toFixed(0)}` : '2.0R'}`;
+          bracketSide.style.color = t.side === 'LONG' ? '#22c55e' : '#f87171';
+        }
+        bracketGrid.innerHTML = `
+          <div class="inspector-bracket-cell"><span>Entry</span><strong>${fmtPrice(t.entry_price)}</strong></div>
+          <div class="inspector-bracket-cell"><span>BE Lock</span><strong>${fmtPrice(t.be_lock_price)}</strong></div>
+          <div class="inspector-bracket-cell"><span>Stop Loss</span><strong class="text-neg">${fmtPrice(t.stop_loss)}</strong></div>
+          <div class="inspector-bracket-cell"><span>Take Profit</span><strong class="text-pos">${fmtPrice(t.take_profit)}</strong></div>
+        `;
+      } else {
+        bracketBox.style.display = 'none';
+      }
+    }
+
+    const pauseBtn = document.getElementById('btnInspectorPause');
+    if (pauseBtn) {
+      pauseBtn.textContent = bot.paused ? 'Resume Bot' : 'Pause Bot';
+      pauseBtn.classList.toggle('accent-alpha', bot.paused);
+    }
+
+    const openNeonBtn = document.getElementById('btnInspectorOpenNeon');
+    const syncNeonBtn = document.getElementById('btnInspectorSyncNeon');
+    if (openNeonBtn) openNeonBtn.style.display = bot.isNeon ? 'inline-flex' : 'none';
+    if (syncNeonBtn) syncNeonBtn.style.display = bot.isNeon ? 'inline-flex' : 'none';
+  }
+
+  function focusBot(botId) {
+    const bot = bots.find((b) => b.id === botId);
+    if (!bot || !canvas) return;
+    selectBot(bot.id);
+
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width || 900;
+    const cssH = rect.height || 430;
+    // Offset horizontal center slightly left when inspector drawer is open on desktop
+    const drawerOffset = cssW > 760 ? 160 : 0;
+    const targetZoom = 1.38;
+    const centerX = (cssW - drawerOffset) * 0.5;
+    const centerY = cssH * 0.5;
+
+    cameraTarget = {
+      zoom: targetZoom,
+      panX: centerX - bot.x * targetZoom,
+      panY: centerY - bot.y * targetZoom
+    };
+  }
+
+  function toggleBotPaused(botId, forcedState) {
+    const bot = bots.find((b) => b.id === botId);
+    if (!bot) return;
+    bot.paused = typeof forcedState === 'boolean' ? forcedState : !bot.paused;
+    updateSwarmSummary();
+    renderFleetRoster();
+    if (selectedBotId === bot.id) {
+      renderInspector();
+    }
+  }
+
+  // --- 8. LIVE NEON TELEMETRY SYNC FOR BOT-05 & BOT-06 ---
+  function applyNeonTelemetryToBots(overview, equityPayload) {
+    const bot5 = bots.find((b) => b.id === 'BOT-05');
+    const bot6 = bots.find((b) => b.id === 'BOT-06');
+    if (!bot5 && !bot6) return;
+
+    const evals = (overview && overview.live_scanner && Array.isArray(overview.live_scanner.evaluations))
+      ? overview.live_scanner.evaluations
+      : [];
+    const sortedEvals = [...evals].sort((a, b) => {
+      if (Boolean(b.approved) !== Boolean(a.approved)) return b.approved ? 1 : -1;
+      return (b.conviction_pct || 0) - (a.conviction_pct || 0);
+    });
+
+    const topEval = sortedEvals[0] || null;
+    const makerEval =
+      sortedEvals.find((ev) => ev.ticket && (!topEval || ev.symbol !== topEval.symbol)) ||
+      sortedEvals[1] ||
+      topEval;
+
+    const eqSummary = equityPayload && equityPayload.summary ? equityPayload.summary : null;
+    const auditNeon = overview && overview.forensic_audit && overview.forensic_audit.neon_counterfactual
+      ? overview.forensic_audit.neon_counterfactual
+      : null;
+
+    if (bot5) {
+      if (topEval) {
+        bot5.pair = fmtPair(topEval.symbol);
+        bot5.convictionPct = Number(topEval.conviction_pct || 0);
+        bot5.vetoReason = topEval.veto_reason || '';
+        bot5.bracket = topEval.ticket || null;
+        if (Array.isArray(topEval.gates) && topEval.gates.length === 6) {
+          bot5.gates = topEval.gates.map((g) => ({
+            key: g.gate,
+            label: g.gate,
+            passed: Boolean(g.passed),
+            detail: g.detail || ''
+          }));
+        }
+        bot5.stateText = topEval.approved
+          ? `APPROVED · ${topEval.side}`
+          : `${bot5.getPassedGateCount()}/6 GATES · ${bot5.pair.split('/')[0]}`;
+      }
+      if (eqSummary) {
+        bot5.pnlText = fmtUsd(eqSummary.neon_final_pnl_usd, true);
+        bot5.pnlPositive = Number(eqSummary.neon_final_pnl_usd) >= 0;
+        bot5.winRateText = `${eqSummary.win_rate_pct}% WR`;
+      }
+    }
+
+    if (bot6) {
+      if (makerEval) {
+        bot6.pair = fmtPair(makerEval.symbol);
+        bot6.convictionPct = Number(makerEval.conviction_pct || 0);
+        bot6.vetoReason = makerEval.veto_reason || '';
+        bot6.bracket = makerEval.ticket || null;
+        if (Array.isArray(makerEval.gates) && makerEval.gates.length === 6) {
+          bot6.gates = makerEval.gates.map((g) => ({
+            key: g.gate,
+            label: g.gate,
+            passed: Boolean(g.passed),
+            detail: g.detail || ''
+          }));
+        }
+        bot6.stateText = makerEval.approved
+          ? `MAKER 2bps · READY`
+          : `ARBITER · ${bot6.getPassedGateCount()}/6G`;
+      }
+      if (auditNeon) {
+        bot6.pnlText = fmtUsd(auditNeon.net_pnl_usd, true);
+        bot6.pnlPositive = Number(auditNeon.net_pnl_usd) >= 0;
+        bot6.winRateText = `${auditNeon.win_rate_pct}% WR`;
+      }
+    }
+
+    renderFleetRoster();
+    renderInspector();
+  }
+
+  async function syncNeonTelemetry() {
+    const labelEl = document.getElementById('swarmNeonSyncLabel');
+    if (typeof window.axios === 'undefined') return;
+
+    try {
+      const [ovRes, eqRes] = await Promise.all([
+        window.axios.get('/api/neon/overview', { timeout: 9000 }),
+        window.axios.get('/api/neon/equity-curve', {
+          params: { scope: 'CORE_BASKET', mirror_bull: 'false', initial_equity: 200 },
+          timeout: 9000
+        })
+      ]);
+
+      const overview = ovRes && ovRes.data && ovRes.data.success ? ovRes.data : null;
+      const equityPayload = eqRes && eqRes.data && eqRes.data.success ? eqRes.data.equity_curve : null;
+
+      if (!overview && !equityPayload) {
+        throw new Error('Empty NEON telemetry payload');
+      }
+
+      cachedNeonOverview = overview;
+      cachedNeonEquity = equityPayload;
+      applyNeonTelemetryToBots(overview, equityPayload);
+
+      // Subtle worker pulse on NEON bots when live sync succeeds
+      ['BOT-05', 'BOT-06'].forEach((id) => {
+        const b = bots.find((x) => x.id === id);
+        if (b && !b.paused) {
+          b.workers.forEach((w, idx) => {
+            if (b.gates[idx] && b.gates[idx].passed) {
+              w.activePulse = 0.75;
+            }
+          });
+        }
+      });
+
+      if (labelEl) {
+        labelEl.classList.remove('standby');
+        labelEl.textContent = `NEON Live · ${fmtUtcClock()}`;
+      }
+    } catch (err) {
+      if (labelEl) {
+        labelEl.classList.add('standby');
+        labelEl.textContent = 'NEON Telemetry: Standby';
+      }
+    }
+  }
+
+  // --- 9. COORDINATE TRANSFORMATIONS & HIT TESTING ---
   function screenToWorld(sx, sy) {
     return {
       x: (sx - panX) / zoom,
@@ -385,7 +962,7 @@
     for (let i = bots.length - 1; i >= 0; i--) {
       const b = bots[i];
       const dist = Math.hypot(wx - b.x, wy - b.y);
-      if (dist <= b.radius + 14) {
+      if (dist <= b.radius + 16) {
         return b;
       }
     }
@@ -403,9 +980,7 @@
   }
 
   function resetView() {
-    panX = 0;
-    panY = 0;
-    zoom = 1.0;
+    cameraTarget = { panX: 0, panY: 0, zoom: 1.0 };
     bots.forEach((b) => {
       b.isCustomPosition = false;
       b.isDragged = false;
@@ -416,9 +991,9 @@
     }
   }
 
-  // --- 7. LIGHTNING EXECUTION STRIKE EFFECT ---
+  // --- 10. LIGHTNING EXECUTION STRIKE EFFECT ---
   function triggerLightningStrike(bot, beacon) {
-    if (!canvas) return;
+    if (!canvas || bot.paused) return;
     const bx = beacon.worldX;
     const by = beacon.worldY;
 
@@ -432,17 +1007,16 @@
       segments: createJaggedLine(bot.x, bot.y, bx, by)
     });
 
-    // Spawn burst particles
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 14; i++) {
       const ang = Math.random() * Math.PI * 2;
-      const spd = 20 + Math.random() * 80;
+      const spd = 20 + Math.random() * 75;
       particles.push({
         x: bx,
         y: by,
         vx: Math.cos(ang) * spd,
         vy: Math.sin(ang) * spd,
         color: bot.accent,
-        life: 0.8
+        life: 0.75
       });
     }
   }
@@ -454,21 +1028,33 @@
       const t = i / steps;
       const lx = x1 + (x2 - x1) * t;
       const ly = y1 + (y2 - y1) * t;
-      const offset = (Math.random() - 0.5) * 24;
+      const offset = (Math.random() - 0.5) * 22;
       pts.push({ x: lx + offset, y: ly + offset });
     }
     pts.push({ x: x2, y: y2 });
     return pts;
   }
 
-  // --- 8. BOTSWARM BRIDGE API ---
+  // --- 11. BOTSWARM BRIDGE API ---
   window.BotSwarmBridge = {
     setTopology: function (data) {
       if (!data || !data.bots || !Array.isArray(data.bots)) return;
       bots = data.bots.map((b) => new BotNode(b, 0, 0));
       botsCount = bots.length;
+      updateFleetControlsUI();
       updateSwarmSummary();
+      renderFleetRoster();
+      renderInspector();
     },
+
+    setFleetSize: function (count) {
+      initBots(Number(count));
+    },
+
+    focusBot: focusBot,
+    selectBot: selectBot,
+    setBotPaused: toggleBotPaused,
+    syncNeonTelemetry: syncNeonTelemetry,
 
     upsertBeacon: function (beaconData) {
       if (!beaconData || !beaconData.id) return;
@@ -485,18 +1071,18 @@
         b.ttl = 8.0;
       }
 
-      // If status is LOCKED, assign to closest bot
-      if (b.status === 'LOCKED' && bots.length > 0) {
-        let chosenBot = bots[0];
+      const activeBots = bots.filter((bot) => !bot.paused);
+      if (b.status === 'LOCKED' && activeBots.length > 0) {
+        let chosenBot = activeBots[0];
         let minDist = Infinity;
-        bots.forEach((bot) => {
+        activeBots.forEach((bot) => {
           const d = Math.hypot(bot.x - b.worldX, bot.y - b.worldY);
           if (d < minDist) {
             minDist = d;
             chosenBot = bot;
           }
         });
-        chosenBot.stateText = `LOCKED • ${b.symbol}`;
+        chosenBot.stateText = `LOCK · ${b.symbol.split('/')[0]}`;
         chosenBot.stateTime = 3.0;
         chosenBot.lockedBeaconId = b.id;
         triggerLightningStrike(chosenBot, b);
@@ -506,24 +1092,24 @@
     emitWorkerSignal: function (signal) {
       if (!signal || !signal.botId || !signal.workerId) return;
       const bot = bots.find((b) => b.id === signal.botId);
-      if (!bot) return;
+      if (!bot || bot.paused) return;
 
       const worker = bot.workers.find((w) => w.id === signal.workerId);
       if (worker) {
         worker.currentPill = signal.label || `• ${signal.state || 'ACTIVE'}`;
-        worker.pillTime = 2.5;
+        worker.pillTime = 2.4;
         worker.activePulse = 1.0;
       }
     },
 
     emitTradeFill: function (fill) {
       if (!fill || !fill.symbol) return;
-      const bot = bots.find((b) => b.id === fill.botId) || bots[0];
+      const bot = bots.find((b) => b.id === fill.botId && !b.paused) || bots.find((b) => !b.paused);
       if (bot) {
-        bot.stateText = `FILL • ${fill.pnl || '+1.00%'}`;
-        bot.stateTime = 4.0;
+        bot.stateText = `FILL · ${fill.pnl || '+1.00%'}`;
+        bot.stateTime = 3.8;
       }
-      let b = beacons.get(fill.beaconId);
+      const b = beacons.get(fill.beaconId);
       if (b) {
         b.status = 'CAPTURED';
       }
@@ -532,22 +1118,21 @@
     resetView: resetView
   };
 
-  // --- 9. WEBSOCKET TELEMETRY CLIENT ---
+  // --- 12. WEBSOCKET TELEMETRY CLIENT ---
   function connectWebSocket(customUrl) {
     if (wsSocket) {
       try { wsSocket.close(); } catch (e) {}
     }
 
     const targetUrl = customUrl || wsUrl;
-    setModeBadge('connecting', 'CONNECTING...');
+    setModeBadge('connecting', 'CONNECTING');
 
     try {
       wsSocket = new WebSocket(targetUrl);
 
       wsSocket.onopen = function () {
         isLiveWS = true;
-        setModeBadge('live', 'LIVE WS STREAM');
-        console.log('[BotSwarmBridge] WebSocket connected to', targetUrl);
+        setModeBadge('live', 'LIVE WS');
       };
 
       wsSocket.onmessage = function (event) {
@@ -589,27 +1174,28 @@
     const badge = document.getElementById('modeBadge');
     const label = document.getElementById('modeText');
     if (!badge || !label) return;
-
     badge.className = 'mode-badge ' + mode;
     label.textContent = text;
   }
 
-  // --- 10. AUTONOMOUS DEMO SIMULATION (WHEN WS IDLE) ---
+  // --- 13. AUTONOMOUS DEMO SIMULATION (WHEN WS IDLE) ---
   function runDemoSimulationStep(dt) {
     if (isLiveWS) return;
+    const activeBots = bots.filter((b) => !b.paused);
+    if (!activeBots.length) return;
 
     demoTimer += dt * simulationPace;
-    if (demoTimer > 2.2) {
+    if (demoTimer > 2.3) {
       demoTimer = 0;
 
       const asset = CANDIDATE_ASSETS[Math.floor(Math.random() * CANDIDATE_ASSETS.length)];
       const sym = `${asset}/USDT`;
       const id = `demo-${asset.toLowerCase()}`;
-      const score = Math.random() > 0.35 ? +(0.62 + Math.random() * 0.35).toFixed(2) : +(0.35 + Math.random() * 0.25).toFixed(2);
+      const score = Math.random() > 0.35 ? +(0.64 + Math.random() * 0.33).toFixed(2) : +(0.35 + Math.random() * 0.24).toFixed(2);
       const isLock = score >= 0.62;
 
-      const xN = +(0.10 + Math.random() * 0.80).toFixed(2);
-      const yN = +(0.15 + Math.random() * 0.70).toFixed(2);
+      const xN = +(0.12 + Math.random() * 0.76).toFixed(2);
+      const yN = +(0.16 + Math.random() * 0.68).toFixed(2);
 
       window.BotSwarmBridge.upsertBeacon({
         id: id,
@@ -620,14 +1206,18 @@
         status: isLock ? 'LOCKED' : 'SKIPPED'
       });
 
-      const targetBot = bots[Math.floor(Math.random() * bots.length)];
+      const targetBot = activeBots[Math.floor(Math.random() * activeBots.length)];
       if (isLock) {
+        const scanLabel = targetBot.isNeon
+          ? `• 6-gate adx ${(19 + Math.random() * 14).toFixed(0)}`
+          : `• cvd +${(2.0 + Math.random() * 2.4).toFixed(1)}σ`;
+
         window.BotSwarmBridge.emitWorkerSignal({
           botId: targetBot.id,
           workerId: 'SCAN',
           beaconId: id,
           state: 'TRIANGULATING',
-          label: `• cvd breakout +${(2.0 + Math.random() * 2.5).toFixed(1)}σ`
+          label: scanLabel
         });
 
         setTimeout(() => {
@@ -636,9 +1226,9 @@
             workerId: 'EXEC',
             beaconId: id,
             state: 'LOCK',
-            label: `• maker limit`
+            label: targetBot.isNeon ? '• maker 2bps' : '• limit lock'
           });
-        }, 600);
+        }, 550);
 
         setTimeout(() => {
           if (Math.random() > 0.4) {
@@ -647,28 +1237,29 @@
               beaconId: id,
               symbol: sym,
               side: 'BUY',
-              pnl: `+${(0.8 + Math.random() * 1.6).toFixed(2)}%`
+              pnl: `+${(0.75 + Math.random() * 1.45).toFixed(2)}%`
             });
           }
-        }, 1400);
+        }, 1350);
       } else {
         window.BotSwarmBridge.emitWorkerSignal({
           botId: targetBot.id,
           workerId: 'RISK',
           beaconId: id,
           state: 'VETO',
-          label: '• skip: high spread / noise'
+          label: targetBot.isNeon ? '• gate veto' : '• skip noise'
         });
       }
     }
   }
 
-  // --- 11. POINTER INTERACTION (DRAG BOT, DRAG BEACON, PAN VIEWPORT) ---
+  // --- 14. POINTER INTERACTION (CLICK TO INSPECT, DRAG BOT/BEACON, PAN/ZOOM) ---
   function setupPanAndDrag() {
     function getPointerPos(e) {
       const rect = canvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const touch = e.touches && e.touches[0] ? e.touches[0] : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0] : null);
+      const clientX = touch ? touch.clientX : e.clientX;
+      const clientY = touch ? touch.clientY : e.clientY;
       const sx = clientX - rect.left;
       const sy = clientY - rect.top;
       const wpos = screenToWorld(sx, sy);
@@ -677,21 +1268,21 @@
 
     function onPointerDown(e) {
       if (!canvas) return;
+      cameraTarget = null; // manual interaction cancels smooth camera lerp
       const { sx, sy, wx, wy } = getPointerPos(e);
+      pointerDownScreen = { x: sx, y: sy };
+      pointerDragMoved = false;
 
-      // Check if user clicked a Bot Hub
       const hitBot = findHitBot(wx, wy);
       if (hitBot) {
         draggedBot = hitBot;
         draggedBot.isDragged = true;
-        draggedBot.isCustomPosition = true;
         dragOffset = { x: wx - hitBot.x, y: wy - hitBot.y };
         canvas.classList.add('is-dragging');
         canvas.style.cursor = 'grabbing';
         return;
       }
 
-      // Check if user clicked a Beacon
       const hitBeacon = findHitBeacon(wx, wy);
       if (hitBeacon) {
         draggedBeacon = hitBeacon;
@@ -702,7 +1293,6 @@
         return;
       }
 
-      // Otherwise: Pan viewport
       isPanning = true;
       panStart = { x: sx - panX, y: sy - panY };
       canvas.classList.add('is-panning');
@@ -713,16 +1303,23 @@
       if (!canvas) return;
       const { sx, sy, wx, wy } = getPointerPos(e);
 
-      // 1. Dragging a Bot
+      if (draggedBot || draggedBeacon || isPanning) {
+        if (Math.hypot(sx - pointerDownScreen.x, sy - pointerDownScreen.y) >= 5) {
+          pointerDragMoved = true;
+        }
+      }
+
       if (draggedBot) {
-        if (e.cancelable && e.touches) e.preventDefault();
-        draggedBot.x = wx - dragOffset.x;
-        draggedBot.y = wy - dragOffset.y;
-        draggedBot.updateWorkers(0);
+        if (pointerDragMoved) {
+          if (e.cancelable && e.touches) e.preventDefault();
+          draggedBot.isCustomPosition = true;
+          draggedBot.x = wx - dragOffset.x;
+          draggedBot.y = wy - dragOffset.y;
+          draggedBot.updateWorkers(0);
+        }
         return;
       }
 
-      // 2. Dragging a Beacon
       if (draggedBeacon) {
         if (e.cancelable && e.touches) e.preventDefault();
         draggedBeacon.worldX = wx - dragOffset.x;
@@ -733,7 +1330,6 @@
         return;
       }
 
-      // 3. Panning Viewport
       if (isPanning) {
         if (e.cancelable && e.touches) e.preventDefault();
         panX = sx - panStart.x;
@@ -741,71 +1337,75 @@
         return;
       }
 
-      // 4. Hover State Feedback
       const hitBot = findHitBot(wx, wy);
       const hitBeacon = findHitBeacon(wx, wy);
-
       if (hitBot !== hoveredBot || hitBeacon !== hoveredBeacon) {
         hoveredBot = hitBot;
         hoveredBeacon = hitBeacon;
-        canvas.style.cursor = (hitBot || hitBeacon) ? 'grab' : 'crosshair';
+        canvas.style.cursor = hitBot ? 'pointer' : hitBeacon ? 'grab' : 'grab';
       }
     }
 
     function onPointerUp() {
       if (draggedBot) {
+        const clickedBot = draggedBot;
         draggedBot.isDragged = false;
         draggedBot = null;
+        // Click (<5px move) opens Inspector Drawer without locking custom position
+        if (!pointerDragMoved) {
+          selectBot(clickedBot.id);
+        }
+      } else if (isPanning && !pointerDragMoved && selectedBotId) {
+        // Clicking empty canvas space dismisses Inspector Drawer
+        closeInspector();
       }
+
       if (draggedBeacon) {
         draggedBeacon.isDragged = false;
         draggedBeacon = null;
       }
+
       isPanning = false;
       if (canvas) {
         canvas.classList.remove('is-dragging', 'is-panning');
-        canvas.style.cursor = (hoveredBot || hoveredBeacon) ? 'grab' : 'crosshair';
+        canvas.style.cursor = hoveredBot ? 'pointer' : 'grab';
       }
     }
 
-    // Wheel Zoom around pointer
     function onWheel(e) {
       e.preventDefault();
+      cameraTarget = null;
       const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
       const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      const newZoom = Math.max(0.4, Math.min(2.5, zoom * zoomFactor));
+      const newZoom = Math.max(0.45, Math.min(2.4, zoom * zoomFactor));
 
       panX = sx - (sx - panX) * (newZoom / zoom);
       panY = sy - (sy - panY) * (newZoom / zoom);
       zoom = newZoom;
     }
 
-    // Double-click to reset view
     function onDblClick() {
       resetView();
     }
 
-    // Mouse Listeners
     canvas.addEventListener('mousedown', onPointerDown);
     window.addEventListener('mousemove', onPointerMove);
     window.addEventListener('mouseup', onPointerUp);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('dblclick', onDblClick);
 
-    // Touch Listeners
     canvas.addEventListener('touchstart', onPointerDown, { passive: true });
     window.addEventListener('touchmove', onPointerMove, { passive: false });
     window.addEventListener('touchend', onPointerUp);
   }
 
-  // --- 12. MAIN ANIMATION & RENDER LOOP ---
+  // --- 15. MAIN ANIMATION & RENDER LOOP ---
   function render(time) {
     if (!isRunning) return;
 
-    // Visibility throttle: zero CPU when tab is hidden
     if (document.visibilityState === 'hidden') {
       animFrameId = requestAnimationFrame(render);
       return;
@@ -814,11 +1414,28 @@
     const dt = Math.min(0.1, (time - lastTime) / 1000);
     lastTime = time;
 
+    // Smooth camera focus interpolation
+    if (cameraTarget) {
+      const ease = Math.min(1, dt * 10);
+      panX += (cameraTarget.panX - panX) * ease;
+      panY += (cameraTarget.panY - panY) * ease;
+      zoom += (cameraTarget.zoom - zoom) * ease;
+      if (
+        Math.abs(cameraTarget.panX - panX) < 0.5 &&
+        Math.abs(cameraTarget.panY - panY) < 0.5 &&
+        Math.abs(cameraTarget.zoom - zoom) < 0.004
+      ) {
+        panX = cameraTarget.panX;
+        panY = cameraTarget.panY;
+        zoom = cameraTarget.zoom;
+        cameraTarget = null;
+      }
+    }
+
     const rect = canvas.getBoundingClientRect();
     const cssW = rect.width;
     const cssH = rect.height;
 
-    // Visibility & 0-size guard: if deck container is hidden, do not draw and do not collapse bots
     if (cssW <= 0 || cssH <= 0) {
       animFrameId = requestAnimationFrame(render);
       return;
@@ -832,28 +1449,44 @@
       canvas.height = targetH;
     }
 
-    // Reset transform to 1 CSS unit = 1 pixel
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
     ctx.save();
-    // Apply pan & zoom
     ctx.translate(panX, panY);
     ctx.scale(zoom, zoom);
 
-    // Infinite/Extended Radar Grid
+    // Subtle Radar Coordinate Grid
     const gridMax = Math.max(cssW, cssH) * 2;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.04)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(cssW * 0.5, -gridMax); ctx.lineTo(cssW * 0.5, gridMax);
-    ctx.moveTo(-gridMax, cssH * 0.5); ctx.lineTo(gridMax, cssH * 0.5);
-    ctx.arc(cssW * 0.5, cssH * 0.5, cssW * 0.22, 0, Math.PI * 2);
-    ctx.arc(cssW * 0.5, cssH * 0.5, cssW * 0.44, 0, Math.PI * 2);
+    ctx.moveTo(cssW * 0.5, -gridMax);
+    ctx.lineTo(cssW * 0.5, gridMax);
+    ctx.moveTo(-gridMax, cssH * 0.5);
+    ctx.lineTo(gridMax, cssH * 0.5);
+    ctx.arc(cssW * 0.5, cssH * 0.5, cssW * 0.21, 0, Math.PI * 2);
+    ctx.arc(cssW * 0.5, cssH * 0.5, cssW * 0.42, 0, Math.PI * 2);
     ctx.stroke();
 
+    // Subtle Neural Link Line between BOT-05 (NEON-5) & BOT-06 (NEON-6) when both active
+    const b5 = bots.find((b) => b.id === 'BOT-05');
+    const b6 = bots.find((b) => b.id === 'BOT-06');
+    if (b5 && b6) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(b5.x, b5.y);
+      ctx.lineTo(b6.x, b6.y);
+      ctx.strokeStyle = b5.paused || b6.paused ? 'rgba(100, 116, 139, 0.14)' : 'rgba(34, 211, 238, 0.18)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
     // 1. Update & Draw Bots
-    const coords = getQuadrantCoords(cssW, cssH, bots.length);
+    const coords = getConstellationCoords(cssW, cssH, bots.length);
     bots.forEach((b, i) => {
       if (coords[i]) {
         b.update(dt, coords[i].x, coords[i].y);
@@ -867,7 +1500,7 @@
       if (b.life <= 0) {
         beacons.delete(id);
       } else {
-        b.draw(ctx, cssW, cssH);
+        b.draw(ctx);
       }
     }
 
@@ -887,9 +1520,9 @@
         else ctx.lineTo(pt.x, pt.y);
       });
       ctx.strokeStyle = strike.color;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2.2;
       ctx.shadowColor = strike.color;
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = 12;
       ctx.stroke();
       ctx.restore();
     }
@@ -913,48 +1546,43 @@
 
     ctx.restore();
 
-    // 5. Autonomous Demo Tick (when disconnected from WS)
+    // 5. Autonomous Demo Tick (when WS disconnected)
     runDemoSimulationStep(dt);
 
     animFrameId = requestAnimationFrame(render);
   }
 
-  // --- 13. RESIZE HANDLER ---
+  // --- 16. RESIZE HANDLER ---
   function resizeCanvas() {
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const w = rect.width || (canvas.parentElement ? canvas.parentElement.clientWidth : 0) || window.innerWidth || 1200;
-    const h = rect.height || 480;
+    const h = rect.height || 430;
     if (w > 0 && h > 0) {
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
     }
   }
 
-  // Expose on window so tab switches can immediately trigger canvas layout calculation
   window.resizeSwarmCanvas = resizeCanvas;
   window.resetSwarmView = resetView;
 
-  // --- 14. DOCK CONTROLS & MODAL EVENT BINDING ---
+  // --- 17. CONTROLS, ROSTER & INSPECTOR EVENT BINDING ---
   function setupControls() {
-    // 1. Reset View Button
+    // 1. Reset View
     const btnResetView = document.getElementById('btnResetView');
-    if (btnResetView) {
-      btnResetView.addEventListener('click', resetView);
-    }
+    if (btnResetView) btnResetView.addEventListener('click', resetView);
 
-    // 2. Toggle Bot Count
-    const btnBotCount = document.getElementById('btnBotCount');
-    if (btnBotCount) {
-      btnBotCount.addEventListener('click', () => {
-        const next = botsCount === 4 ? 3 : 4;
-        initBots(next);
-        btnBotCount.textContent = `Bots: ${next}`;
-      });
-    }
+    // 2. Segmented Fleet Size Switcher (6 | 4 | 3)
+    [6, 4, 3].forEach((n) => {
+      const btn = document.getElementById(`btnFleet${n}`);
+      if (btn) {
+        btn.addEventListener('click', () => initBots(n));
+      }
+    });
 
-    // 3. Drop Alpha Lightning Button
+    // 3. Drop Alpha Beacon
     const btnDropAlpha = document.getElementById('btnDropAlpha');
     if (btnDropAlpha) {
       btnDropAlpha.addEventListener('click', () => {
@@ -971,7 +1599,7 @@
       });
     }
 
-    // 4. Cycle Simulation Pace
+    // 4. Simulation Pace
     const btnPace = document.getElementById('btnPace');
     if (btnPace) {
       btnPace.addEventListener('click', () => {
@@ -982,7 +1610,59 @@
       });
     }
 
-    // 5. Modal Open/Close
+    // 5. Roster Bar Event Delegation (Click card -> Inspect; Focus/Pause buttons)
+    const rosterBar = document.getElementById('swarmRosterBar');
+    if (rosterBar) {
+      rosterBar.addEventListener('click', (e) => {
+        const actionBtn = e.target.closest('button[data-action]');
+        if (actionBtn) {
+          e.stopPropagation();
+          const botId = actionBtn.getAttribute('data-bot-id');
+          const action = actionBtn.getAttribute('data-action');
+          if (action === 'focus') focusBot(botId);
+          else if (action === 'pause') toggleBotPaused(botId);
+          return;
+        }
+        const cell = e.target.closest('.swarm-roster-cell[data-bot-id]');
+        if (cell) {
+          selectBot(cell.getAttribute('data-bot-id'));
+        }
+      });
+    }
+
+    // 6. Bot Inspector Drawer Actions
+    const btnCloseInspector = document.getElementById('btnCloseInspector');
+    if (btnCloseInspector) btnCloseInspector.addEventListener('click', closeInspector);
+
+    const btnInspectorFocus = document.getElementById('btnInspectorFocus');
+    if (btnInspectorFocus) {
+      btnInspectorFocus.addEventListener('click', () => {
+        if (selectedBotId) focusBot(selectedBotId);
+      });
+    }
+
+    const btnInspectorPause = document.getElementById('btnInspectorPause');
+    if (btnInspectorPause) {
+      btnInspectorPause.addEventListener('click', () => {
+        if (selectedBotId) toggleBotPaused(selectedBotId);
+      });
+    }
+
+    const btnInspectorSyncNeon = document.getElementById('btnInspectorSyncNeon');
+    if (btnInspectorSyncNeon) {
+      btnInspectorSyncNeon.addEventListener('click', () => syncNeonTelemetry());
+    }
+
+    const btnInspectorOpenNeon = document.getElementById('btnInspectorOpenNeon');
+    if (btnInspectorOpenNeon) {
+      btnInspectorOpenNeon.addEventListener('click', () => {
+        if (typeof window.switchAppView === 'function') {
+          window.switchAppView('neon');
+        }
+      });
+    }
+
+    // 7. Blueprint Modal Open/Close
     const btnBlueprint = document.getElementById('btnBlueprint');
     const modalBackdrop = document.getElementById('modalBackdrop');
     const btnCloseModal = document.getElementById('btnCloseModal');
@@ -1004,7 +1684,17 @@
       });
     }
 
-    // 6. Connect WS in modal
+    // ESC closes Modal or Inspector
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (modalBackdrop && modalBackdrop.classList.contains('open')) {
+        closeModal();
+      } else if (selectedBotId) {
+        closeInspector();
+      }
+    });
+
+    // 8. Connect WS / Demo Mode
     const btnConnectWs = document.getElementById('btnConnectWs');
     const wsUrlInput = document.getElementById('wsUrlInput');
     if (btnConnectWs && wsUrlInput) {
@@ -1017,7 +1707,6 @@
       });
     }
 
-    // 7. Demo Mode button in modal
     const btnDemoMode = document.getElementById('btnDemoMode');
     if (btnDemoMode) {
       btnDemoMode.addEventListener('click', () => {
@@ -1030,7 +1719,7 @@
       });
     }
 
-    // 8. Copy Schema Button
+    // 9. Copy Schema
     const btnCopySchema = document.getElementById('btnCopySchema');
     const schemaContent = document.getElementById('schemaContent');
     const copyFeedback = document.getElementById('copyFeedback');
@@ -1045,82 +1734,72 @@
       });
     }
 
-    // 9. Collapse / Expand Deck
+    // 10. Collapse / Expand Deck
     const btnCollapse = document.getElementById('btnCollapseSwarm');
     const swarmDeck = document.getElementById('swarmDeck');
     if (btnCollapse && swarmDeck) {
       btnCollapse.addEventListener('click', () => {
         const isCollapsed = swarmDeck.classList.toggle('collapsed');
-        btnCollapse.textContent = isCollapsed ? '[ + ] Expand' : '[ - ] Collapse';
-        setTimeout(resizeCanvas, 320);
+        btnCollapse.textContent = isCollapsed ? 'Expand' : 'Collapse';
+        if (!isCollapsed) {
+          setTimeout(resizeCanvas, 60);
+        }
       });
     }
   }
 
-  // --- 15. BOOTSTRAP ENTRY POINT ---
+  // --- 18. BOOTSTRAP ENTRY POINT ---
   function init() {
     canvas = document.getElementById('neuralCanvas');
     if (!canvas) return;
     ctx = canvas.getContext('2d');
 
-    initBots(4);
+    initBots(6);
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
     setupControls();
     setupPanAndDrag();
 
-    // Populate schema box text
     const schemaEl = document.getElementById('schemaContent');
     if (schemaEl) {
-      schemaEl.textContent = `// 1. Direct Frontend Bridge API (window.BotSwarmBridge)
+      schemaEl.textContent = `// 1. 6-Bot Frontend Bridge API (window.BotSwarmBridge)
 window.BotSwarmBridge.setTopology({
   bots: [
-    { id: "BOT-01", name: "LIGHTNING", accent: "#f5c869", pair: "SOL/USDT" },
-    { id: "BOT-02", name: "TIGER", accent: "#38bdf8", pair: "BTC/USDT" },
-    { id: "BOT-03", name: "MACRO", accent: "#c084fc", pair: "ETH/USDT" },
-    { id: "BOT-04", name: "STORM", accent: "#34d399", pair: "BNB/USDT" }
+    { id: "BOT-01", name: "LIGHTNING", role: "Scalp Velocity", accent: "#f5c869", pair: "SOL/USDT" },
+    { id: "BOT-02", name: "TIGER", role: "Prey Radar", accent: "#38bdf8", pair: "BTC/USDT" },
+    { id: "BOT-03", name: "MACRO", role: "Regime Forecast", accent: "#c084fc", pair: "ETH/USDT" },
+    { id: "BOT-04", name: "STORM", role: "Trend Momentum", accent: "#34d399", pair: "BNB/USDT" },
+    { id: "BOT-05", name: "NEON-5", role: "Trend Hunter", strategyKey: "neon-trend", accent: "#22d3ee", pair: "BTC/USDT" },
+    { id: "BOT-06", name: "NEON-6", role: "Maker Arbiter", strategyKey: "neon-maker", accent: "#2dd4bf", pair: "LINK/USDT" }
   ]
 });
 
-window.BotSwarmBridge.upsertBeacon({
-  id: "sig-904",
-  symbol: "SOL/USDT",
-  score: 0.92, // >= 0.62 triggers lock & execution cascade; < 0.62 skips
-  xNorm: 0.51, // normalized viewport X [0.06 .. 0.94]
-  yNorm: 0.48, // normalized viewport Y [0.08 .. 0.90]
-  status: "PEEKING" // "PEEKING" | "LOCKED" | "SKIPPED" | "CAPTURED"
-});
+// 2. Fleet & Interactive Controls
+window.BotSwarmBridge.setFleetSize(6);        // 6 | 4 | 3
+window.BotSwarmBridge.focusBot("BOT-05");     // Smooth camera focus + open Inspector
+window.BotSwarmBridge.setBotPaused("BOT-06", true);
+window.BotSwarmBridge.syncNeonTelemetry();    // Pull live 6-gate telemetry from /api/neon/overview
 
-window.BotSwarmBridge.emitWorkerSignal({
-  botId: "BOT-01",
-  workerId: "SCAN", // "SCAN" | "FLOW" | "RISK" | "VALID" | "EXEC" | "LEDGER"
-  beaconId: "sig-904",
-  state: "TRIANGULATING",
-  label: "• cvd breakout +3.4σ"
-});
-
-window.BotSwarmBridge.emitTradeFill({
-  botId: "BOT-01",
-  beaconId: "sig-904",
-  symbol: "SOL/USDT",
-  side: "BUY",
-  pnl: "+1.42%"
-});
-
-// 2. WebSocket JSON Envelope (ws://localhost:8765/swarm)
+// 3. WebSocket JSON Envelope (/swarm)
 // { "type": "BEACON_UPSERT" | "WORKER_SIGNAL" | "TRADE_FILL" | "TOPOLOGY", "payload": { ... } }`;
     }
 
-    // Auto-attempt connect to WebSocket telemetry hub
+    // Hydrate BOT-05 & BOT-06 with live NEON telemetry and refresh every 15s while visible
+    syncNeonTelemetry();
+    if (neonSyncTimer) clearInterval(neonSyncTimer);
+    neonSyncTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncNeonTelemetry();
+      }
+    }, 15000);
+
     connectWebSocket();
 
-    // Start render loop
     lastTime = performance.now();
     animFrameId = requestAnimationFrame(render);
   }
 
-  // DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {

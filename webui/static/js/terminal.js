@@ -102,6 +102,10 @@
                 if (typeof fetchTigerRadarData === 'function') {
                     fetchTigerRadarData();
                 }
+            } else if (viewName === 'neon') {
+                if (typeof window.loadNeonStrategy === 'function') {
+                    window.loadNeonStrategy();
+                }
             }
         }
 
@@ -368,11 +372,11 @@
             }
         }
 
-        async function loadMacroOverview() {
+        async function loadMacroOverview(retryCount = 0) {
             try {
-                const resp = await axios.get('/api/macro/overview');
+                const resp = await axios.get('/api/macro/overview', { timeout: 8000 });
                 const data = resp.data;
-                if (!data.success) return;
+                if (!data || !data.success) return;
 
                 // Update Breadth Card
                 document.getElementById('dash-breadth-val').textContent = data.breadth_pct;
@@ -470,10 +474,23 @@
                     loadLiveDashboard();
                 }
                 loadGeminiAssessment();
-                loadScalperStatus();
+                if (typeof loadScalperStatus === 'function') {
+                    loadScalperStatus();
+                } else if (typeof loadScalperTelemetry === 'function') {
+                    loadScalperTelemetry();
+                }
 
             } catch (err) {
-                console.error('Failed to load macro overview:', err);
+                const isTransientNetwork = !err || !err.response || err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED';
+                if (isTransientNetwork && retryCount < 2) {
+                    setTimeout(() => loadMacroOverview(retryCount + 1), 1500 * (retryCount + 1));
+                    return;
+                }
+                const topRegime = document.getElementById('topbar-regime-pill');
+                if (topRegime && topRegime.textContent.includes('LOADING')) {
+                    topRegime.textContent = 'REGIME: RECONNECTING...';
+                }
+                console.warn('Macro overview refresh deferred (transient connection):', err && err.message ? err.message : err);
             }
         }
 

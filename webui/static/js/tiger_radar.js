@@ -157,6 +157,19 @@
             this.corePulse = 0;
             this.coreState = 'STALKING'; // 'STALKING', 'POUNCE_READY', 'POUNCING'
 
+            // Interactive Pan & Zoom Camera
+            this.camX = 0;
+            this.camY = 0;
+            this.camZoom = 1.0;
+            this.minZoom = 0.65;
+            this.maxZoom = 2.4;
+            this.isPanning = false;
+            this.didPanDrag = false;
+            this.panStartX = 0;
+            this.panStartY = 0;
+            this.camStartX = 0;
+            this.camStartY = 0;
+
             this.animFrameId = null;
             this.lastTimestamp = performance.now();
 
@@ -166,17 +179,53 @@
         }
 
         initCanvasSize() {
+            if (!this.canvas || !this.canvas.parentElement) return;
             const rect = this.canvas.parentElement.getBoundingClientRect();
             const dpr = window.devicePixelRatio || 1;
-            this.width = rect.width || 700;
-            this.height = rect.height || 580;
-            this.canvas.width = this.width * dpr;
-            this.canvas.height = this.height * dpr;
-            this.ctx.scale(dpr, dpr);
+            const nextW = rect.width > 40 ? rect.width : 700;
+            const nextH = rect.height > 40 ? rect.height : 560;
+            this.width = nextW;
+            this.height = nextH;
+            this.canvas.width = Math.round(this.width * dpr);
+            this.canvas.height = Math.round(this.height * dpr);
+            this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
             this.centerX = this.width / 2;
             this.centerY = this.height / 2;
-            this.maxRadius = Math.min(this.centerX, this.centerY) * 0.82;
+            this.maxRadius = Math.min(this.centerX, this.centerY) * 0.80;
+        }
+
+        screenToWorld(sx, sy) {
+            return {
+                x: (sx - this.centerX - this.camX) / this.camZoom + this.centerX,
+                y: (sy - this.centerY - this.camY) / this.camZoom + this.centerY
+            };
+        }
+
+        updateZoomReadout() {
+            const el = document.getElementById('tigerZoomReadout');
+            if (el) el.textContent = `${Math.round(this.camZoom * 100)}%`;
+        }
+
+        setZoom(newZoom, pivotX, pivotY) {
+            const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
+            const px = (pivotX !== undefined) ? pivotX : this.centerX;
+            const py = (pivotY !== undefined) ? pivotY : this.centerY;
+
+            const before = this.screenToWorld(px, py);
+            this.camZoom = clamped;
+            const afterX = (before.x - this.centerX) * this.camZoom + this.centerX + this.camX;
+            const afterY = (before.y - this.centerY) * this.camZoom + this.centerY + this.camY;
+            this.camX += px - afterX;
+            this.camY += py - afterY;
+            this.updateZoomReadout();
+        }
+
+        resetCamera() {
+            this.camX = 0;
+            this.camY = 0;
+            this.camZoom = 1.0;
+            this.updateZoomReadout();
         }
 
         bindEvents() {
@@ -184,7 +233,50 @@
                 this.initCanvasSize();
             });
 
+            this.canvas.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                this.isPanning = true;
+                this.didPanDrag = false;
+                this.panStartX = e.clientX;
+                this.panStartY = e.clientY;
+                this.camStartX = this.camX;
+                this.camStartY = this.camY;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!this.isPanning) return;
+                const dx = e.clientX - this.panStartX;
+                const dy = e.clientY - this.panStartY;
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+                    this.didPanDrag = true;
+                }
+                if (this.didPanDrag) {
+                    this.camX = this.camStartX + dx;
+                    this.camY = this.camStartY + dy;
+                    const tooltip = document.getElementById('tigerTooltip');
+                    if (tooltip) tooltip.style.display = 'none';
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                this.isPanning = false;
+            });
+
+            this.canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = this.canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const factor = e.deltaY < 0 ? 1.12 : 0.89;
+                this.setZoom(this.camZoom * factor, mx, my);
+            }, { passive: false });
+
+            this.canvas.addEventListener('dblclick', () => {
+                this.resetCamera();
+            });
+
             this.canvas.addEventListener('mousemove', (e) => {
+                if (this.isPanning && this.didPanDrag) return;
                 const rect = this.canvas.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
@@ -198,6 +290,10 @@
             });
 
             this.canvas.addEventListener('click', (e) => {
+                if (this.didPanDrag) {
+                    this.didPanDrag = false;
+                    return;
+                }
                 if (this.hoveredNode) {
                     this.selectedPrey = this.hoveredNode.symbol;
                     this.triggerLightningDischarge(this.hoveredNode);
@@ -210,26 +306,29 @@
 
         handleMouseMove(mx, my, clientX, clientY) {
             const tooltip = document.getElementById('tigerTooltip');
+            const world = this.screenToWorld(mx, my);
+            const wx = world.x;
+            const wy = world.y;
             let found = null;
 
-            // Check prey nodes
+            // Check prey nodes in world space
             for (const prey of this.activePrey) {
                 if (!prey._x || !prey._y) continue;
-                const dx = mx - prey._x;
-                const dy = my - prey._y;
-                const hitRadius = (prey._radius || 18) + 6;
+                const dx = wx - prey._x;
+                const dy = wy - prey._y;
+                const hitRadius = (prey._radius || 18) + 8;
                 if (dx * dx + dy * dy <= hitRadius * hitRadius) {
                     found = prey;
                     break;
                 }
             }
 
-            // Check quarantined nodes
+            // Check quarantined nodes in world space
             if (!found) {
                 for (const q of (this.quarantineNodes || [])) {
-                    const dx = mx - q.x;
-                    const dy = my - q.y;
-                    if (dx * dx + dy * dy <= 16 * 16) {
+                    const dx = wx - q.x;
+                    const dy = wy - q.y;
+                    if (dx * dx + dy * dy <= 18 * 18) {
                         found = {
                             symbol: q.symbol,
                             is_quarantined: true,
@@ -577,6 +676,11 @@
             const ctx = this.ctx;
             ctx.clearRect(0, 0, this.width, this.height);
 
+            ctx.save();
+            ctx.translate(this.centerX + this.camX, this.centerY + this.camY);
+            ctx.scale(this.camZoom, this.camZoom);
+            ctx.translate(-this.centerX, -this.centerY);
+
             // 1. Polar Background Grid Rings
             this.renderPolarGrid(ctx);
 
@@ -603,6 +707,8 @@
 
             // 9. Shimmer Plasma Waves
             this.renderShimmers(ctx);
+
+            ctx.restore();
         }
 
         // --------------------------------------------------------------------
@@ -1027,6 +1133,8 @@
 
         if (!tigerRadarEngine) {
             tigerRadarEngine = new TigerRadarEngine('tigerRadarCanvas', tigerAudioSynth);
+        } else {
+            setTimeout(() => tigerRadarEngine.initCanvasSize(), 40);
         }
 
         // Bind Audio Toggle
@@ -1240,5 +1348,17 @@
 
     window.initTigerRadar = initTigerRadar;
     window.fetchTigerRadarData = fetchTigerRadarData;
+    window.resizeTigerRadarCanvas = function () {
+        if (tigerRadarEngine) tigerRadarEngine.initCanvasSize();
+    };
+    window.tigerZoomIn = function () {
+        if (tigerRadarEngine) tigerRadarEngine.setZoom(tigerRadarEngine.camZoom * 1.18);
+    };
+    window.tigerZoomOut = function () {
+        if (tigerRadarEngine) tigerRadarEngine.setZoom(tigerRadarEngine.camZoom * 0.85);
+    };
+    window.tigerResetView = function () {
+        if (tigerRadarEngine) tigerRadarEngine.resetCamera();
+    };
 
 })();

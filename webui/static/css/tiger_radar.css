@@ -1,47 +1,33 @@
-/* ==========================================================================
-   STALKING TIGER — MICROSTRUCTURAL PREY RADAR (CYBER-MATRIX STYLES)
-   Author: Kronos Lead Trade Quant Designer
-   Theme: Obsidian Deep-Space (#070a0f) + Electric Cyan (#00f0ff) + Volt Gold (#ffd700)
-   ========================================================================== */
-
-:root {
-    --tiger-bg: #070a0f;
-    --tiger-panel: #0d121d;
-    --tiger-border: rgba(0, 240, 255, 0.22);
-    --tiger-cyan: #00f0ff;
-    --tiger-gold: #ffd700;
-    --tiger-violet: #bd00ff;
-    --tiger-green: #00ff88;
-    --tiger-red: #ff2255;
-    --tiger-dim: #4a5d78;
-    --tiger-glow-cyan: 0 0 18px rgba(0, 240, 255, 0.45);
-    --tiger-glow-gold: 0 0 16px rgba(255, 215, 0, 0.5);
-    --tiger-glow-red: 0 0 16px rgba(255, 34, 85, 0.5);
-}
+/* ============================================================================
+ * STALKING TIGER — MICROSTRUCTURAL PREY RADAR COCKPIT
+ * Harmonized with Kronos Obsidian Institutional Design System + Pan/Zoom & Split
+ * ============================================================================ */
 
 #view-tiger {
-    background: radial-gradient(circle at 50% 20%, #0d1525 0%, #070a0f 75%);
-    color: #e6edf3;
-    padding: 20px 24px;
-    min-height: calc(100vh - 60px);
-    box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
 }
 
 /* Master Header Strip */
 .tiger-header-bar {
     display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    margin-bottom: 18px;
+}
+
+.tiger-header-top {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 14px;
-    background: linear-gradient(90deg, rgba(0, 240, 255, 0.08) 0%, rgba(13, 18, 29, 0.95) 100%);
-    border: 1px solid var(--tiger-border);
-    border-left: 5px solid var(--tiger-cyan);
-    border-radius: 8px;
-    padding: 12px 18px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .tiger-title-group {
@@ -51,288 +37,369 @@
 }
 
 .tiger-title-icon {
-    font-size: 26px;
-    filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.7));
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.32);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
 }
 
 .tiger-title-text {
-    font-size: 18px;
-    font-weight: 900;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    background: linear-gradient(90deg, #ffffff, var(--tiger-cyan));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--text-primary);
 }
 
 .tiger-title-sub {
     font-size: 11px;
-    color: var(--tiger-dim);
-    letter-spacing: 0.5px;
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
+    color: var(--text-muted);
     margin-top: 2px;
 }
 
-.tiger-metrics-strip {
+.tiger-header-actions {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 8px;
     flex-wrap: wrap;
+}
+
+/* Proportional 6-Metric Strip */
+.tiger-metrics-strip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .tiger-metric-pill {
     display: flex;
     flex-direction: column;
-    padding: 4px 10px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 5px;
+    gap: 3px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    min-width: 0;
 }
 
 .tiger-metric-label {
-    font-size: 9px;
+    font-size: 9.5px;
     font-weight: 700;
-    color: var(--tiger-dim);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tiger-metric-val {
-    font-size: 12px;
-    font-weight: 800;
-    font-family: var(--font-mono, monospace);
-    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Audio Synthesizer Toggle */
+/* Audio SFX Toggle Button */
 .tiger-audio-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    background: rgba(13, 18, 29, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: var(--tiger-dim);
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.8px;
+    height: 32px;
+    padding: 0 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.tiger-audio-btn.active {
-    border-color: var(--tiger-cyan);
-    color: #fff;
-    background: rgba(0, 240, 255, 0.12);
-    box-shadow: var(--tiger-glow-cyan);
-}
-
-.tiger-audio-btn:hover {
-    transform: translateY(-1px);
-    border-color: var(--tiger-cyan);
-}
-
-/* Big Red Round CONTRA Toggle Button */
-.btn-tiger-contra-round {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    background: rgba(45, 10, 20, 0.9);
-    border: 2px solid #ff2255;
-    color: #ff6688;
-    padding: 7px 16px;
-    border-radius: 30px;
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 0.8px;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+.tiger-audio-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-active);
+}
+.tiger-audio-btn.active {
+    background: rgba(56, 189, 248, 0.16);
+    border-color: rgba(56, 189, 248, 0.5);
+    color: var(--accent-cyan);
+}
+
+/* CONTRA Mode Button inside Tiger View */
+.btn-tiger-contra-round {
+    height: 32px;
+    padding: 0 12px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    border-radius: var(--radius-sm);
+    color: #fca5a5;
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 0 10px rgba(255, 34, 85, 0.25);
-    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
 }
-
 .btn-tiger-contra-round:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 18px rgba(255, 34, 85, 0.6);
-    color: #fff;
-    border-color: #ff0055;
+    background: rgba(239, 68, 68, 0.22);
+    border-color: var(--accent-red);
+    color: #ffffff;
 }
-
 .btn-tiger-contra-round.active {
-    background: linear-gradient(135deg, #ff0055 0%, #b3003b 100%) !important;
-    border-color: #ff3377 !important;
-    color: #ffffff !important;
-    box-shadow: 0 0 25px rgba(255, 0, 85, 0.85), inset 0 0 10px rgba(255, 255, 255, 0.4) !important;
-    animation: pulse-contra-glow 1.2s infinite alternate;
+    background: #dc2626;
+    border-color: #ef4444;
+    color: #ffffff;
 }
-
 .tiger-contra-dot {
-    width: 9px;
-    height: 9px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: #ff2255;
-    box-shadow: 0 0 5px #ff2255;
-    transition: all 0.25s ease;
+    background: var(--accent-red);
+    display: inline-block;
 }
-
 .btn-tiger-contra-round.active .tiger-contra-dot {
     background: #ffffff;
-    box-shadow: 0 0 8px #ffffff, 0 0 16px #ff0055;
 }
 
-@keyframes pulse-contra-glow {
-    0% { box-shadow: 0 0 15px rgba(255, 0, 85, 0.6); transform: scale(1.0); }
-    100% { box-shadow: 0 0 28px rgba(255, 0, 85, 1.0); transform: scale(1.04); }
-}
-
-/* Master Grid: Left Canvas (65%), Right Tactical Deck (35%) */
+/* Main Resizable 2-Column Cockpit Layout */
 .tiger-main-grid {
-    display: grid;
-    grid-template-columns: minmax(620px, 1.8fr) minmax(360px, 1fr);
-    gap: 20px;
-    margin-bottom: 20px;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 18px;
+    min-height: 600px;
 }
 
-@media (max-width: 1200px) {
-    .tiger-main-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Radar Canvas Card */
+/* Left: Interactive Pannable & Zoomable Canvas Radar */
 .tiger-radar-card {
+    flex: 1 1 58%;
+    min-width: 360px;
     position: relative;
-    background: #080c14;
-    border: 1px solid var(--tiger-border);
-    border-radius: 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
     display: flex;
     flex-direction: column;
+}
+
+.tiger-v-splitter {
+    width: 14px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tiger-v-splitter::before {
+    content: "";
+    width: 3px;
+    height: 44px;
+    border-radius: 99px;
+    background: rgba(148, 163, 184, 0.28);
+    transition: background 0.15s ease, height 0.15s ease;
+}
+.tiger-v-splitter:hover::before,
+.tiger-v-splitter.dragging::before {
+    background: var(--accent-cyan);
+    height: 72px;
 }
 
 .tiger-radar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 18px;
-    border-bottom: 1px solid rgba(0, 240, 255, 0.12);
-    background: rgba(13, 18, 29, 0.7);
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
 }
 
 .tiger-radar-title {
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--tiger-cyan);
-    display: flex;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    letter-spacing: 0.5px;
 }
 
 .tiger-canvas-wrap {
     position: relative;
+    flex: 1;
+    min-height: 540px;
     width: 100%;
-    height: 580px;
-    background: radial-gradient(circle at center, #0b1322 0%, #060910 80%);
-    cursor: crosshair;
+    background: radial-gradient(circle at center, #0c1629 0%, #070b12 72%);
+    overflow: hidden;
 }
 
 #tigerRadarCanvas {
+    display: block;
     width: 100%;
     height: 100%;
-    display: block;
+    cursor: grab;
+}
+#tigerRadarCanvas:active {
+    cursor: grabbing;
 }
 
-/* Radar Overlays (HUD elements over Canvas) */
+/* Radar Pan/Zoom Controls HUD */
+.tiger-canvas-controls {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(13, 19, 31, 0.88);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    backdrop-filter: blur(8px);
+}
+
+.tiger-cam-btn {
+    height: 26px;
+    min-width: 26px;
+    padding: 0 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+.tiger-cam-btn:hover {
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+}
+
+.tiger-zoom-readout {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0 6px;
+    min-width: 42px;
+    text-align: center;
+}
+
+/* Radar Overlay Legend & Contract */
 .tiger-hud-legend {
     position: absolute;
     bottom: 12px;
-    left: 14px;
+    left: 12px;
+    background: rgba(13, 19, 31, 0.86);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 10.5px;
+    color: var(--text-secondary);
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    background: rgba(7, 10, 15, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(8px);
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-family: var(--font-mono, monospace);
+    flex-direction: column;
+    gap: 5px;
     pointer-events: none;
+    backdrop-filter: blur(6px);
 }
 
 .tiger-legend-item {
     display: flex;
     align-items: center;
-    gap: 5px;
-    color: #abb2bf;
+    gap: 7px;
 }
 
 .tiger-legend-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
+    flex-shrink: 0;
 }
 
 .tiger-hud-radar-stats {
     position: absolute;
-    top: 14px;
-    right: 14px;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(13, 19, 31, 0.86);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 7px 11px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 4px;
-    background: rgba(7, 10, 15, 0.75);
-    border: 1px solid rgba(0, 240, 255, 0.15);
-    backdrop-filter: blur(8px);
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-family: var(--font-mono, monospace);
-    font-size: 10px;
+    gap: 2px;
     pointer-events: none;
+    backdrop-filter: blur(6px);
 }
 
-/* Tactical Right Deck */
+/* Right: Draggable Tactical Deck */
 .tiger-tactical-deck {
+    flex: 0 0 42%;
+    min-width: 340px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 14px;
 }
 
 .tiger-card {
-    background: var(--tiger-panel);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
 }
 
 .tiger-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(0, 0, 0, 0.25);
+    gap: 10px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
 }
 
 .tiger-card-title {
     font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    display: flex;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: inline-flex;
     align-items: center;
     gap: 7px;
-    color: #e6edf3;
 }
 
 .tiger-card-body {
     padding: 12px 14px;
 }
 
-/* 5 Hot Prey Rows */
+/* 5 Hot Prey Leaderboard List */
 .tiger-prey-list {
     display: flex;
     flex-direction: column;
@@ -341,218 +408,251 @@
 
 .tiger-prey-row {
     display: grid;
-    grid-template-columns: 28px 1fr auto auto;
+    grid-template-columns: 32px minmax(0, 1fr) 84px 80px;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 6px;
-    transition: all 0.2s ease;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 9px 10px;
     cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
 }
-
 .tiger-prey-row:hover {
-    border-color: var(--tiger-cyan);
-    background: rgba(0, 240, 255, 0.06);
-    transform: translateX(2px);
+    border-color: rgba(56, 189, 248, 0.45);
+    background: var(--bg-elevated);
 }
-
 .tiger-prey-row.selected {
-    border-color: var(--tiger-gold);
-    background: rgba(255, 215, 0, 0.08);
+    border-color: var(--accent-cyan);
+    background: rgba(56, 189, 248, 0.09);
 }
 
 .tiger-prey-rank {
-    font-family: var(--font-mono, monospace);
-    font-weight: 900;
+    font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--tiger-gold);
+    font-weight: 800;
+    color: var(--accent-cyan);
     text-align: center;
 }
 
 .tiger-prey-info {
     display: flex;
     flex-direction: column;
+    gap: 3px;
+    min-width: 0;
 }
 
 .tiger-prey-symbol {
+    font-size: 12.5px;
     font-weight: 800;
-    font-size: 13px;
-    color: #fff;
-    letter-spacing: 0.5px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
 }
 
 .tiger-prey-meta {
     font-size: 10px;
-    font-family: var(--font-mono, monospace);
-    color: var(--tiger-dim);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tiger-prey-price {
-    font-family: var(--font-mono, monospace);
+    font-family: var(--font-mono);
     font-size: 12px;
     font-weight: 700;
     text-align: right;
+    color: var(--text-primary);
 }
 
 .tiger-prey-badge {
-    padding: 3px 7px;
-    border-radius: 4px;
-    font-size: 9px;
-    font-weight: 800;
-    font-family: var(--font-mono, monospace);
-    text-transform: uppercase;
-}
-
-/* Advisory Consultant Panel */
-.tiger-adv-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-.tiger-adv-item {
-    background: rgba(0, 0, 0, 0.35);
-    padding: 8px 10px;
-    border-radius: 5px;
-    border-left: 3px solid var(--tiger-cyan);
-}
-
-.tiger-adv-label {
-    font-size: 9px;
+    font-size: 9.5px;
     font-weight: 700;
-    color: var(--tiger-dim);
+    font-family: var(--font-mono);
+    padding: 3px 6px;
+    border-radius: 4px;
+    text-align: center;
+    display: inline-block;
+    width: 100%;
     text-transform: uppercase;
 }
 
-.tiger-adv-val {
-    font-size: 11px;
-    font-weight: 800;
-    font-family: var(--font-mono, monospace);
-    color: #fff;
-    margin-top: 2px;
-}
-
-/* Quarantined Vault Strip */
-.tiger-quarantine-box {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px;
-    background: rgba(255, 34, 85, 0.05);
-    border: 1px dashed rgba(255, 34, 85, 0.25);
-    border-radius: 6px;
-}
-
-.tiger-quarantine-pill {
-    background: rgba(255, 34, 85, 0.15);
-    color: #ff6b8b;
-    border: 1px solid rgba(255, 34, 85, 0.3);
-    padding: 3px 7px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 800;
-    font-family: var(--font-mono, monospace);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-/* Real-Time Microstructural Event Tape */
-.tiger-tape-card {
-    background: var(--tiger-panel);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.tiger-tape-feed {
-    height: 140px;
-    overflow-y: auto;
-    padding: 8px 12px;
-    font-family: var(--font-mono, monospace);
-    font-size: 11px;
-    line-height: 1.5;
-    background: #05080e;
-    display: flex;
-    flex-direction: column-reverse;
-}
-
-.tiger-tape-entry {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    padding: 2px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.tiger-tape-time {
-    color: var(--tiger-dim);
-    font-size: 10px;
-}
-
-.tiger-tape-tag {
-    font-weight: 800;
-    padding: 1px 4px;
-    border-radius: 2px;
-    font-size: 9px;
-}
-
-.tiger-tape-tag-scan { background: rgba(0, 240, 255, 0.2); color: var(--tiger-cyan); }
-.tiger-tape-tag-popin { background: rgba(0, 255, 136, 0.2); color: var(--tiger-green); }
-.tiger-tape-tag-popout { background: rgba(255, 34, 85, 0.2); color: var(--tiger-red); }
-.tiger-tape-tag-cvd { background: rgba(255, 215, 0, 0.2); color: var(--tiger-gold); }
-.tiger-tape-tag-ws { background: rgba(189, 0, 255, 0.2); color: var(--tiger-violet); }
-.tiger-tape-tag-stagnant { background: rgba(255, 165, 0, 0.2); color: #ffa500; }
-.tiger-tape-tag-evict { background: rgba(255, 34, 85, 0.25); color: #ff3366; }
-.tiger-tape-tag-swap { background: rgba(0, 240, 255, 0.25); color: #00f0ff; }
-
-/* Micro Dynamic Strength Meter */
 .tiger-strength-bar-wrap {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-top: 3px;
+    margin-top: 2px;
 }
 .tiger-strength-bar {
     flex: 1;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.08);
+    height: 4px;
+    background: rgba(148, 163, 184, 0.14);
     border-radius: 2px;
     overflow: hidden;
 }
 .tiger-strength-fill {
     height: 100%;
     border-radius: 2px;
-    transition: width 0.3s ease, background 0.3s ease;
+    transition: width 0.35s ease, background 0.35s ease;
 }
 .tiger-strength-pct-label {
-    font-size: 9px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
     font-weight: 700;
-    font-family: var(--font-mono, monospace);
     min-width: 28px;
     text-align: right;
 }
 
-.tiger-tape-msg {
-    color: #c9d1d9;
-    flex: 1;
+/* Advisory Consultant Monitor Grid */
+.tiger-adv-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
 }
 
-/* Tooltip on Canvas Hover */
-.tiger-tooltip {
-    position: absolute;
-    display: none;
-    background: rgba(7, 10, 15, 0.92);
-    border: 1px solid var(--tiger-cyan);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-family: var(--font-mono, monospace);
+.tiger-adv-item {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+}
+
+.tiger-adv-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+}
+
+.tiger-adv-val {
+    font-size: 11.5px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+/* Quarantine Box */
+.tiger-quarantine-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tiger-quarantine-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-family: var(--font-mono);
     font-size: 11px;
-    color: #fff;
+    font-weight: 700;
+}
+
+/* Event Tape */
+.tiger-tape-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.tiger-tape-feed {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: var(--bg-subtle);
+}
+
+.tiger-tape-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    line-height: 1.45;
+}
+.tiger-tape-entry:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.tiger-tape-time {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.tiger-tape-tag {
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.tiger-tape-tag-popin { color: var(--accent-green-bright); }
+.tiger-tape-tag-popout { color: var(--accent-red-soft); }
+.tiger-tape-tag-cvd { color: var(--accent-amber); }
+.tiger-tape-tag-scan { color: var(--accent-cyan); }
+.tiger-tape-tag-ws { color: var(--accent-purple); }
+.tiger-tape-tag-stagnant { color: var(--accent-amber); }
+.tiger-tape-tag-evict { color: var(--accent-red-soft); }
+.tiger-tape-tag-swap { color: var(--accent-orange); }
+.tiger-tape-msg { color: var(--text-secondary); }
+
+/* Canvas Hover Tooltip */
+.tiger-tooltip {
+    position: fixed;
     pointer-events: none;
-    z-index: 100;
-    box-shadow: var(--tiger-glow-cyan);
-    min-width: 160px;
+    background: rgba(13, 19, 31, 0.96);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    z-index: 9999;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    display: none;
+    min-width: 215px;
+}
+
+@media (max-width: 1280px) {
+    .tiger-metrics-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1060px) {
+    .tiger-main-grid {
+        flex-direction: column;
+        gap: 16px;
+    }
+    .tiger-v-splitter {
+        display: none;
+    }
+    .tiger-radar-card,
+    .tiger-tactical-deck {
+        flex: none;
+        width: 100% !important;
+        min-width: 0;
+    }
+    .tiger-canvas-wrap {
+        min-height: 440px;
+    }
+}
+
+@media (max-width: 640px) {
+    .tiger-metrics-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .tiger-adv-grid {
+        grid-template-columns: 1fr;
+    }
 }

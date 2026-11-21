@@ -1,0 +1,22 @@
+{
+  "strategy_name": "NEON Regime-Adaptive Pullback-Resumption",
+  "version": "1.0.0",
+  "enabled": true,
+  "execution_mode": "MAKER_FIRST_LIMIT",
+  "risk_per_trade_pct": 1.5,
+  "max_leverage": 3.5,
+  "max_concurrent_positions": 3,
+  "min_adx_14": 18.0,
+  "max_atr_extension": 2.2,
+  "sl_atr_multiplier": 1.4,
+  "min_noise_floor_sl_pct": 0.75,
+  "tp_r_multiple": 2.0,
+  "be_lock_r_multiple": 0.85,
+  "trail_start_r_multiple": 1.3,
+  "max_hold_hours": 12,
+  "sl_cooldown_minutes": 45,
+  "session_gate_enabled": true,
+  "allow_quarantined_symbols": false,
+  "maker_fee_rate": 0.0002,
+  "taker_fee_rate": 0.00045
+}
