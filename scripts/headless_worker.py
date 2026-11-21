@@ -282,6 +282,31 @@ def execute_live_cycle():
         from src.quant.capital_recycler import CapitalRecycler
         recycler = CapitalRecycler()
         active_positions = live_summary.get("positions", [])
+
+        # Dynamic Global Post-Exit Quarantine Reflex: Detect any position exited on Binance across entire portfolio
+        global previous_live_symbols
+        current_symbols = {p.get("symbol") for p in active_positions if p.get("symbol")}
+        if previous_live_symbols:
+            exited_symbols = previous_live_symbols - current_symbols
+            for exited_sym in exited_symbols:
+                quant_bot.register_symbol_cooldown(
+                    symbol=exited_sym,
+                    current_time_utc=now_u,
+                    duration_seconds=900,
+                    reason="EXCHANGE_BRACKET_EXIT_QUARANTINE"
+                )
+                apex_scalper.register_symbol_cooldown(
+                    symbol=exited_sym,
+                    current_time_utc=now_u,
+                    duration_seconds=900,
+                    reason="EXCHANGE_BRACKET_EXIT_QUARANTINE"
+                )
+                logger.info(
+                    "[COOLDOWN] Live position on %s closed/exited on Binance. 15-minute post-exit quarantine activated.",
+                    exited_sym
+                )
+        previous_live_symbols = current_symbols
+
         for pos in active_positions:
             sym = pos.get("symbol")
             entry_px = Decimal(str(pos.get("entry_price", "0")))
@@ -559,18 +584,6 @@ def execute_apex_scalp_step():
 
         active_symbols = {p.get("symbol") for p in live_acc.get("positions", [])}
 
-        # Global Concurrency Clamp: Max 9 positions total across portfolio
-        max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
-        if len(active_symbols) >= max_portfolio_positions:
-            return
-
-        # Dedicated Strategy Allocation: Strictly 3 Scalp trades
-        max_scalp_positions = int(os.getenv("KRONOS_MAX_SCALP_POSITIONS", "3"))
-        scalp_active_symbols = quant_bot.executor.scalp_active_symbols
-        active_scalps = active_symbols.intersection(scalp_active_symbols)
-        if len(active_scalps) >= max_scalp_positions or not apex_scalper.is_slot_available:
-            return
-
         # Dynamic Post-Exit Quarantine Reflex:
         # Detect any position that was active in the previous check and has now been closed/exited
         # (e.g. owner manually took profit on BTC/ETH on Binance, or exchange algo bracket triggered)
@@ -582,20 +595,32 @@ def execute_apex_scalp_step():
                     apex_scalper.register_symbol_cooldown(
                         symbol=exited_sym,
                         current_time_utc=now_utc,
-                        duration_seconds=3600,
-                        reason="OWNER_MANUAL_CAPITAL_ROTATION"
+                        duration_seconds=900,
+                        reason="EXCHANGE_BRACKET_EXIT_QUARANTINE"
                     )
                     quant_bot.register_symbol_cooldown(
                         symbol=exited_sym,
                         current_time_utc=now_utc,
-                        duration_seconds=3600,
-                        reason="OWNER_MANUAL_CAPITAL_ROTATION"
+                        duration_seconds=900,
+                        reason="EXCHANGE_BRACKET_EXIT_QUARANTINE"
                     )
                     logger.info(
-                        "[COOLDOWN] Position on %s closed/exited (manual or exchange fill). 1-hour post-exit quarantine activated for capital rotation.",
+                        "[COOLDOWN] Position on %s closed/exited (manual or exchange fill). 15-minute post-exit quarantine activated for capital rotation.",
                         exited_sym
                     )
         previous_live_symbols = active_symbols
+
+        # Global Concurrency Clamp: Max 9 positions total across portfolio
+        max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
+        if len(active_symbols) >= max_portfolio_positions:
+            return
+
+        # Dedicated Strategy Allocation: Strictly 3 Scalp trades
+        max_scalp_positions = int(os.getenv("KRONOS_MAX_SCALP_POSITIONS", "3"))
+        scalp_active_symbols = quant_bot.executor.scalp_active_symbols
+        active_scalps = active_symbols.intersection(scalp_active_symbols)
+        if len(active_scalps) >= max_scalp_positions or not apex_scalper.is_slot_available:
+            return
 
         quarantined_symbols = set(guardrails.get("quarantined_symbols", []))
         cooldown_dur = int(guardrails.get("post_exit_cooldown_seconds", 900))

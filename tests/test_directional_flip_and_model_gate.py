@@ -77,3 +77,52 @@ def test_neural_model_fail_safe_gate():
         assert dec.approved is False
         assert dec.veto_gate_failed == "NEURAL_MODEL_OFFLINE"
         assert "Kronos Foundation Neural Model is offline/unloaded" in dec.veto_reason
+
+
+def test_post_exit_quarantine_cooldown():
+    """Verify that a symbol in post-exit quarantine is strictly vetoed from re-entry."""
+    bot = QuantBotOrchestrator()
+    t_exit = datetime.datetime(2026, 11, 16, 10, 0, tzinfo=datetime.timezone.utc)
+    bot.register_symbol_cooldown("ETHUSDT", t_exit, duration_seconds=900, reason="POST_TP_COOLDOWN")
+
+    mock_traj = {
+        "ETHUSDT": TrajectoryVerdict(
+            symbol="ETHUSDT",
+            current_price=Decimal("1830.00"),
+            terminal_price=Decimal("1810.00"),
+            path_high=Decimal("1835.00"),
+            path_low=Decimal("1805.00"),
+            raw_drift=Decimal("-0.0109"),
+            dynamic_take_profit=Decimal("1810.00"),
+            dynamic_stop_loss=Decimal("1845.00"),
+            proposed_side="SHORT",
+            horizon_hours=12,
+            rationale="Test Bearish Drift"
+        )
+    }
+
+    # 1. 5 minutes later: within 15-minute quarantine -> Vetoed
+    t_5m = t_exit + datetime.timedelta(minutes=5)
+    report_5m = bot.run_scan_cycle(
+        account_equity=Decimal("200.00"),
+        current_time_utc=t_5m,
+        mock_trajectories=mock_traj,
+        execution_mode="PAPER"
+    )
+    eth_dec = report_5m.decisions.get("ETHUSDT")
+    assert eth_dec is not None
+    assert eth_dec.approved is False
+    assert eth_dec.veto_gate_failed == "POST_EXIT_COOLDOWN"
+    assert "post-exit quarantine cooldown" in eth_dec.veto_reason
+
+    # 2. 16 minutes later: quarantine expired -> Cooldown cleared
+    t_16m = t_exit + datetime.timedelta(minutes=16)
+    report_16m = bot.run_scan_cycle(
+        account_equity=Decimal("200.00"),
+        current_time_utc=t_16m,
+        mock_trajectories=mock_traj,
+        execution_mode="PAPER"
+    )
+    eth_dec_16m = report_16m.decisions.get("ETHUSDT")
+    assert eth_dec_16m is not None
+    assert eth_dec_16m.veto_gate_failed != "POST_EXIT_COOLDOWN"

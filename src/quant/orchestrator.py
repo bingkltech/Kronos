@@ -96,6 +96,7 @@ class QuantBotOrchestrator:
 
         # Post-Exit Quarantine / Cooldown tracker (symbol -> {expires_utc, reason, ...})
         self.symbol_cooldowns: Dict[str, Dict[str, Any]] = {}
+        self._previous_active_symbols: set = set()
         # Directional Flip Hysteresis tracker (symbol -> {side, timestamp_utc})
         self.recent_directional_exits: Dict[str, Dict[str, Any]] = {}
 
@@ -226,7 +227,15 @@ class QuantBotOrchestrator:
             closed_by_price = self.executor.check_bracket_price_triggers(current_prices, current_time_utc=current_time_utc)
             for pos in closed_by_price:
                 hit = 1 if pos.close_reason == "TAKE_PROFIT_TRIGGERED" else 0
-                if hit == 0 and pos.realized_pnl_usd < Decimal("0"):
+                is_loss = (hit == 0 and pos.realized_pnl_usd < Decimal("0"))
+                cd_dur = 1800 if is_loss else self.cooldown_seconds
+                self.register_symbol_cooldown(
+                    pos.symbol,
+                    pos.close_time_utc or current_time_utc,
+                    duration_seconds=cd_dur,
+                    reason=f"POST_{pos.close_reason or 'EXIT'}_COOLDOWN"
+                )
+                if is_loss:
                     self.record_directional_loss(pos.symbol, pos.side, pos.close_time_utc or current_time_utc)
                 conf = getattr(pos, "forecast_confidence", Decimal("0.65"))
                 self.learning_governor.record_outcome(TradeOutcome(
@@ -245,17 +254,47 @@ class QuantBotOrchestrator:
         elif execution_mode == "LIVE":
             # Active Live Temporal Sweeper (Lesson #17: Hard 12-Hour Stale Expiry)
             self.sweep_temporal_exits(current_time_utc=current_time_utc, execution_mode="LIVE")
-            # Ingest recent live closed trades for directional flip hysteresis
+
+            # Post-Exit Quarantine Reflex: Detect positions that exited on exchange
+            current_sym_set = set(active_symbols)
+            if self._previous_active_symbols:
+                exited_symbols = self._previous_active_symbols - current_sym_set
+                for ex_sym in exited_symbols:
+                    self.register_symbol_cooldown(
+                        symbol=ex_sym,
+                        current_time_utc=current_time_utc,
+                        duration_seconds=self.cooldown_seconds,
+                        reason="POST_BRACKET_EXIT_COOLDOWN"
+                    )
+                    logger.info(
+                        "[POST-EXIT COOLDOWN] Exchange position closed on %s. %ds quarantine activated.",
+                        ex_sym, self.cooldown_seconds
+                    )
+            self._previous_active_symbols = current_sym_set
+
+            # Ingest recent live closed trades for directional flip hysteresis and cooldown
             try:
                 for ct in getattr(self.executor, "closed_trades", [])[-15:]:
-                    if ct.get("result") == "LOSS" or Decimal(str(ct.get("realized_pnl_usd", 0))) < Decimal("0"):
-                        c_sym = ct.get("symbol")
-                        c_side = ct.get("side")
-                        c_time_str = ct.get("close_time") or ct.get("timestamp_utc")
-                        if c_sym and c_side and c_time_str:
-                            c_dt = datetime.datetime.fromisoformat(str(c_time_str))
-                            if c_dt.tzinfo is None:
-                                c_dt = c_dt.replace(tzinfo=datetime.timezone.utc)
+                    c_sym = ct.get("symbol")
+                    c_side = ct.get("side")
+                    c_time_str = ct.get("close_time") or ct.get("timestamp_utc")
+                    pnl_dec = Decimal(str(ct.get("realized_pnl_usd", 0)))
+                    is_loss = ct.get("result") == "LOSS" or pnl_dec < Decimal("0")
+                    if c_sym and c_time_str:
+                        c_dt = datetime.datetime.fromisoformat(str(c_time_str))
+                        if c_dt.tzinfo is None:
+                            c_dt = c_dt.replace(tzinfo=datetime.timezone.utc)
+                        cd_duration = 1800 if is_loss else self.cooldown_seconds
+                        elapsed = (current_time_utc - c_dt).total_seconds()
+                        if 0.0 <= elapsed < float(cd_duration):
+                            if not self.is_symbol_in_cooldown(c_sym, current_time_utc):
+                                self.register_symbol_cooldown(
+                                    c_sym,
+                                    c_dt,
+                                    duration_seconds=cd_duration,
+                                    reason="POST_STOP_LOSS_COOLDOWN" if is_loss else "POST_TAKE_PROFIT_COOLDOWN"
+                                )
+                        if is_loss and c_side:
                             self.record_directional_loss(c_sym, c_side, c_dt)
             except Exception as e:
                 logger.debug("Error ingesting recent live losses: %s", e)
