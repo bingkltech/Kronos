@@ -6,6 +6,7 @@
   "description": "Kronos Quant Terminal — AI Multi-Horizon Futures Platform",
   "scripts": {
     "sync:aistudio": "python scripts/sync_aistudio.py",
+    "push:aistudio": "python scripts/push_to_aistudio.py",
     "dev": "tsx watch server.ts",
     "start": "tsx server.ts",
     "build": "tsc --noEmit",
