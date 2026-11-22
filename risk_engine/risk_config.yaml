@@ -59,8 +59,8 @@ max_portfolio_avg_correlation: "0.80"
 
 # 6. Layer 2: Pre-Trade OMS Defense (Mandatory SL, Stop Geometry, Scale-Aware Fat-Finger)
 max_single_order_notional_usd: "25000.00"
-small_account_fat_finger_floor_usd: "100.00"
-fat_finger_equity_multiple: "0.50"      # Small accounts: max($100, 0.50 * equity)
+small_account_fat_finger_floor_usd: "120.00"
+fat_finger_equity_multiple: "0.50"      # Small accounts: max($120, 0.50 * equity)
 fat_finger_hard_veto: true
 max_order_book_depth_pct: "0.10"
 max_price_collar_pct: "0.015"

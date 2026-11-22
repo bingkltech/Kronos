@@ -23,7 +23,7 @@ import subprocess
 import logging
 import datetime
 import threading
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
 from typing import Optional, Dict, Any, Set, Tuple, List
 
 # Ensure workspace root is in sys.path
@@ -883,10 +883,12 @@ def execute_neon_cycle():
             else:
                 target_notional = min(raw_notional, fat_finger_cap)
 
-            qty = (target_notional / entry_px).quantize(fmt_qty, rounding=ROUND_HALF_UP)
+            qty = (target_notional / entry_px).quantize(fmt_qty, rounding=ROUND_DOWN)
             if qty < fmt_qty:
                 qty = fmt_qty
             notional = qty * entry_px
+
+            conviction_dec = Decimal(str(cand.get("conviction_pct", 100) / 100.0))
 
             from src.quant.kev_risk_arbiter import TradeTicket
             ticket = TradeTicket(
@@ -901,7 +903,8 @@ def execute_neon_cycle():
                 risk_budget_usd=equity * Decimal("0.015"),
                 reward_risk_ratio=Decimal("2.0"),
                 net_expected_gain_pct=Decimal("0.02"),
-                is_scalp=False
+                is_scalp=False,
+                forecast_confidence=conviction_dec
             )
 
             p_state, m_snap = quant_bot.executor.fetch_live_risk_snapshots(
