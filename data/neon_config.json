@@ -5,7 +5,7 @@
   "execution_mode": "MAKER_FIRST_LIMIT",
   "risk_per_trade_pct": 1.5,
   "max_leverage": 3.5,
-  "max_concurrent_positions": 2,
+  "max_concurrent_positions": 4,
   "min_adx_14": 18.0,
   "max_atr_extension": 2.2,
   "sl_atr_multiplier": 1.4,

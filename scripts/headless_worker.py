@@ -79,7 +79,7 @@ def _build_workspace_risk_config() -> RiskConfig:
     # Enforce portfolio concurrency cap (Max 9 trades total: 6 macro + 3 scalp)
     max_conc = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
     updates["max_concurrent_positions"] = max_conc
-    updates["tier1_max_concurrent_positions"] = max(1, max_conc // 3)
+    updates["tier1_max_concurrent_positions"] = max(4, max_conc // 3)
     return _dc_replace(cfg, **updates) if updates else cfg
 
 
@@ -374,10 +374,23 @@ def execute_live_cycle():
         )
         return
 
+    # Dedicated Trade Space Reservation for NEON Bot:
+    # Always guarantee at least 1 open portfolio trade slot strictly reserved for NEON.
+    # Macro entries will yield/hold whenever remaining portfolio capacity <= reserved space.
+    neon_reserved_space = int(os.getenv("KRONOS_NEON_RESERVED_SLOTS", "1"))
+    unreserved_portfolio_space = max(0, (max_portfolio_positions - len(active_positions)) - neon_reserved_space)
+    if unreserved_portfolio_space <= 0:
+        logger.info(
+            "[SLOT RESERVATION] %d slot(s) strictly reserved for NEON bot (%d/%d held). Macro entry held to guarantee NEON trade space.",
+            neon_reserved_space,
+            len(active_positions),
+            max_portfolio_positions
+        )
+        return
+
     remaining_quota = (live_trade_cap - live_session_trades) if live_trade_cap is not None else 1
     macro_available = max_macro_positions - len(macro_positions)
-    portfolio_available = max_portfolio_positions - len(active_positions)
-    macro_entry_cap = min(remaining_quota, macro_available, portfolio_available)
+    macro_entry_cap = min(remaining_quota, macro_available, unreserved_portfolio_space)
     report = quant_bot.run_scan_cycle(
         account_equity=equity,
         lookback_data_map=lookbacks if lookbacks else None,
@@ -811,18 +824,23 @@ def execute_neon_cycle():
         if not live_candles:
             return
 
-        # Count active live positions
-        active_live_positions = [
-            p for p in quant_bot.executor.active_positions.values()
-            if p.state == PositionState.BRACKETS_ACTIVE
+        # Count active live positions directly from Binance exchange summary + in-memory positions
+        live_positions = [
+            p for p in live_summary.get("positions", [])
+            if Decimal(str(p.get("position_amount", p.get("position_amt", 0)))) != Decimal("0")
         ]
+        active_symbols = {p.get("symbol") for p in live_positions if p.get("symbol")}
+        for p in quant_bot.executor.active_positions.values():
+            if p.state == PositionState.BRACKETS_ACTIVE:
+                active_symbols.add(p.symbol)
+        open_position_count = len(active_symbols)
 
         neon_cfg = load_neon_config()
         scan = evaluate_neon_universe(
             tickers=live_tickers,
             account_equity=equity,
             config=neon_cfg,
-            open_position_count=len(active_live_positions),
+            open_position_count=open_position_count,
             live_candles_map=live_candles
         )
 
@@ -842,19 +860,24 @@ def execute_neon_cycle():
             len(approved_candidates)
         )
 
-        max_concurrent = int(neon_cfg.get("max_concurrent_positions", 2))
+        max_concurrent = int(neon_cfg.get("max_concurrent_positions", 4))
+        max_portfolio_positions = int(os.getenv("KRONOS_MAX_CONCURRENT_POSITIONS", "9"))
 
         for cand in approved_candidates:
             if not live_trading_enabled or not _has_trade_quota_remaining():
                 break
-            if len(active_live_positions) >= max_concurrent:
-                logger.info("[NEON] Max concurrent positions reached (%d/%d). Holding for exits.", len(active_live_positions), max_concurrent)
+            if open_position_count >= max_concurrent or open_position_count >= max_portfolio_positions:
+                logger.info(
+                    "[NEON] Max concurrent positions reached (%d held: %s / max %d). Holding for exits.",
+                    open_position_count,
+                    list(active_symbols),
+                    max_concurrent
+                )
                 break
 
             sym = cand["symbol"]
             side = "BUY" if cand["side"] == "LONG" else "SELL"
 
-            active_symbols = {p.symbol for p in active_live_positions}
             if sym in active_symbols:
                 continue
 
@@ -923,6 +946,8 @@ def execute_neon_cycle():
                 logger.warning("[NEON-LIVE] Order rejected on Binance: %s", live_res.close_reason)
                 continue
 
+            active_symbols.add(sym)
+            open_position_count += 1
             _record_live_trade_dispatch(sym, "NEON")
             dispatched_qty = live_res.quantity if getattr(live_res, "quantity", Decimal("0")) > Decimal("0") else qty
             logger.info(
