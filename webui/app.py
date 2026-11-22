@@ -1200,6 +1200,11 @@ def _load_bot_settings():
             else:
                 live_trading_enabled = True
 
+            if "trade_cap" in cfg and cfg["trade_cap"] is not None:
+                quota_mgr.trade_cap = int(cfg["trade_cap"])
+            if "session_trades" in cfg and cfg["session_trades"] is not None:
+                quota_mgr.session_trades = max(0, int(cfg["session_trades"]))
+
             if "enabled" in cfg:
                 bot_autopilot_enabled = bool(cfg["enabled"])
             else:
@@ -1234,6 +1239,10 @@ def _load_bot_settings():
             if "contra_mode" in cfg:
                 c_mode = bool(cfg["contra_mode"])
                 quant_bot.set_contra_mode(c_mode)
+            if not live_trading_enabled:
+                print(f">> [Bot Memory] Restored STANDBY_PAUSED state from disk ({BOT_SETTINGS_FILE}). Live trading remains paused across reboot/restart.")
+            else:
+                print(f">> [Bot Memory] Restored ACTIVE state from disk ({BOT_SETTINGS_FILE}). Cap: {quota_mgr.session_trades}/{quota_mgr.trade_cap}, Interval: {live_trading_interval}s.")
     except Exception as e:
         print(f">> [Bot Memory] Warning loading settings: {e}")
 
@@ -1246,6 +1255,8 @@ def _save_bot_settings():
             "interval_seconds": bot_autopilot_interval,
             "live_trading_enabled": live_trading_enabled,
             "live_trading_interval": live_trading_interval,
+            "trade_cap": quota_mgr.trade_cap,
+            "session_trades": quota_mgr.session_trades,
             "live_last_cycle_summary": live_last_cycle_summary,
             "last_cycle_summary": bot_last_cycle_summary,
             "gemini_auto_apply": gemini_auto_apply,
@@ -2508,6 +2519,11 @@ def post_neon_config():
         from src.quant.neon_strategy import save_neon_config
         req_data = request.get_json(silent=True) or {}
         updated = save_neon_config(req_data)
+        if aws_bridge and aws_bridge.is_connected():
+            try:
+                aws_bridge.post_remote_json('/api/neon/config', req_data)
+            except Exception as bridge_err:
+                logger.warning("Failed forwarding neon config to AWS: %s", bridge_err)
         return jsonify({
             "success": True,
             "config": updated,
@@ -3007,9 +3023,32 @@ def get_live_status():
 
         # Zero-Whitelist Tap: Prioritize direct remote telemetry from AWS EC2
         if aws_bridge and aws_bridge.is_connected():
+            def _sync_local_with_remote(payload):
+                global live_trading_enabled, bot_autopilot_enabled
+                changed = False
+                if "autopilot" in payload and isinstance(payload["autopilot"], dict):
+                    rem_en = payload["autopilot"].get("enabled")
+                    if rem_en is not None and rem_en != live_trading_enabled:
+                        live_trading_enabled = bool(rem_en)
+                        if live_trading_enabled:
+                            bot_autopilot_enabled = False
+                        changed = True
+                if "trade_quota" in payload and isinstance(payload["trade_quota"], dict):
+                    t_cap = payload["trade_quota"].get("trade_cap")
+                    s_trades = payload["trade_quota"].get("session_trades")
+                    if t_cap is not None and quota_mgr.trade_cap != int(t_cap):
+                        quota_mgr.trade_cap = int(t_cap)
+                        changed = True
+                    if s_trades is not None and quota_mgr.session_trades != int(s_trades):
+                        quota_mgr.session_trades = int(s_trades)
+                        changed = True
+                if changed:
+                    _save_bot_settings()
+
             cached = aws_bridge._cached_live_status
             if cached and cached.get("success"):
                 res = dict(cached)
+                _sync_local_with_remote(res)
                 if "live_account" in res and isinstance(res["live_account"], dict) and "positions" in res["live_account"]:
                     res["live_account"]["positions"] = _enrich_positions(res["live_account"]["positions"])
                 if "positions" in res:
@@ -3021,6 +3060,7 @@ def get_live_status():
             remote_data = aws_bridge.fetch_remote_json('/api/live/status', timeout=2.5)
             if remote_data and remote_data.get("success"):
                 res = dict(remote_data)
+                _sync_local_with_remote(res)
                 if "live_account" in res and isinstance(res["live_account"], dict) and "positions" in res["live_account"]:
                     res["live_account"]["positions"] = _enrich_positions(res["live_account"]["positions"])
                 if "positions" in res:
@@ -3148,6 +3188,18 @@ def toggle_live_trading():
         if aws_bridge and aws_bridge.is_connected():
             remote_res = aws_bridge.post_remote_json('/api/live/toggle', data)
             if remote_res and remote_res.get("success"):
+                with live_account_lock, bot_autopilot_lock:
+                    if "live_trading_enabled" in remote_res:
+                        live_trading_enabled = bool(remote_res["live_trading_enabled"])
+                    if "trade_cap" in remote_res and remote_res["trade_cap"] is not None:
+                        quota_mgr.trade_cap = int(remote_res["trade_cap"])
+                    if "session_trades" in remote_res and remote_res["session_trades"] is not None:
+                        quota_mgr.session_trades = int(remote_res["session_trades"])
+                    if "interval_seconds" in remote_res and remote_res["interval_seconds"] is not None:
+                        live_trading_interval = max(10, int(remote_res["interval_seconds"]))
+                    if live_trading_enabled:
+                        bot_autopilot_enabled = False
+                    _save_bot_settings()
                 return jsonify(remote_res)
 
         with live_account_lock, bot_autopilot_lock:

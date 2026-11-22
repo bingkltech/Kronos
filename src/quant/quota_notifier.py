@@ -68,10 +68,17 @@ class QuotaNotifier:
             logger.warning("Could not load quota state: %s", e)
 
     def save_state(self) -> None:
-        """Persists quota state to disk."""
+        """Persists quota state to disk, preserving other persistent settings."""
         try:
             os.makedirs(os.path.dirname(self.quota_path), exist_ok=True)
-            payload = {
+            existing = {}
+            if os.path.exists(self.quota_path):
+                try:
+                    with open(self.quota_path, "r", encoding="utf-8") as f:
+                        existing = json.load(f)
+                except Exception:
+                    pass
+            existing.update({
                 "live_trading_enabled": self.is_active,
                 "live_trade_cap": self.trade_cap,
                 "live_session_trades": self.session_trades,
@@ -79,10 +86,10 @@ class QuotaNotifier:
                 "scalp_trades": self.scalp_trades,
                 "live_cap_reached_utc": self.cap_reached_utc.isoformat() if self.cap_reached_utc else None,
                 "updated_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            }
+            })
             tmp = self.quota_path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+                json.dump(existing, f, indent=2)
             os.replace(tmp, self.quota_path)
         except Exception as e:
             logger.debug("Could not save quota state: %s", e)

@@ -295,3 +295,48 @@ def test_capital_recycler_and_risk_config_sweetspots():
 
     assert DEFAULT_RISK_CONFIG.stale_trade_hours == 4
 
+
+def test_quota_and_pause_settings_persistence(tmp_path):
+    """Verify that pausing the bot and configuring custom settings persists across reloads/reboots."""
+    quota_file = str(tmp_path / "aws_trade_quota.json")
+
+    # 1. Initialize with custom settings
+    notifier = QuotaNotifier(quota_path=quota_file)
+    notifier.trade_cap = 15
+    notifier.session_trades = 3
+    notifier.is_active = False  # User manually paused the bot
+
+    # Initial save
+    notifier.save_state()
+
+    # Verify custom keys are preserved in json
+    with open(quota_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert data["live_trading_enabled"] is False
+    assert data["live_trade_cap"] == 15
+    assert data["live_session_trades"] == 3
+
+    # Manually simulate additional headless worker keys stored in quota file
+    data["sole_live_engine"] = "NEON_V1"
+    data["scan_interval_sec"] = 45
+    data["contra_mode"] = True
+    with open(quota_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+    # 2. Re-instantiate QuotaNotifier (simulate server reboot / restart)
+    reloaded = QuotaNotifier(quota_path=quota_file)
+    assert reloaded.is_active is False  # MUST REMAIN PAUSED!
+    assert reloaded.trade_cap == 15
+    assert reloaded.session_trades == 3
+    assert reloaded.trades_remaining == 12
+
+    # 3. Subsequent save_state from QuotaNotifier must NOT wipe out existing custom keys
+    reloaded.save_state()
+    with open(quota_file, "r", encoding="utf-8") as f:
+        re_saved = json.load(f)
+    assert re_saved["live_trading_enabled"] is False
+    assert re_saved["sole_live_engine"] == "NEON_V1"
+    assert re_saved["scan_interval_sec"] == 45
+    assert re_saved["contra_mode"] is True
+
+

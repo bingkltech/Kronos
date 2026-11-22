@@ -163,23 +163,33 @@ state_lock = threading.Lock()
 def _save_quota_state() -> None:
     try:
         os.makedirs(os.path.dirname(QUOTA_STATE_PATH), exist_ok=True)
-        payload = {
+        existing = {}
+        if os.path.exists(QUOTA_STATE_PATH):
+            try:
+                with open(QUOTA_STATE_PATH, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                pass
+        existing.update({
             "live_trading_enabled": live_trading_enabled,
             "live_trade_cap": live_trade_cap,
             "live_session_trades": live_session_trades,
             "live_cap_reached_utc": live_cap_reached_utc.isoformat() if live_cap_reached_utc else None,
+            "sole_live_engine": sole_live_engine,
+            "scan_interval_sec": scan_interval_sec,
+            "contra_mode": getattr(quant_bot, "contra_mode", False),
             "updated_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
+        })
         tmp_path = QUOTA_STATE_PATH + ".tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+            json.dump(existing, f, indent=2)
         os.replace(tmp_path, QUOTA_STATE_PATH)
     except Exception as e:
         logger.debug("Could not save quota state: %s", e)
 
 
 def _load_quota_state() -> None:
-    global live_trading_enabled, live_trade_cap, live_session_trades, live_cap_reached_utc, sole_live_engine
+    global live_trading_enabled, live_trade_cap, live_session_trades, live_cap_reached_utc, sole_live_engine, scan_interval_sec
     if not os.path.exists(QUOTA_STATE_PATH):
         return
     try:
@@ -187,6 +197,10 @@ def _load_quota_state() -> None:
             d = json.load(f)
         if "sole_live_engine" in d:
             sole_live_engine = str(d["sole_live_engine"])
+        if "scan_interval_sec" in d:
+            scan_interval_sec = max(10, int(d["scan_interval_sec"]))
+        if "contra_mode" in d and hasattr(quant_bot, "set_contra_mode"):
+            quant_bot.set_contra_mode(bool(d["contra_mode"]))
         if "live_trading_enabled" in d:
             live_trading_enabled = bool(d["live_trading_enabled"])
         if "live_trade_cap" in d:
@@ -198,6 +212,12 @@ def _load_quota_state() -> None:
         # Safety invariant: if cap already reached, enforce STANDBY_PAUSED
         if live_trade_cap is not None and live_session_trades >= live_trade_cap:
             live_trading_enabled = False
+
+        if not live_trading_enabled:
+            logger.info("[AUTOPILOT MEMORY] Restored STANDBY_PAUSED state from disk (%s). Bot remains paused across reboot/restart.", QUOTA_STATE_PATH)
+        else:
+            logger.info("[AUTOPILOT MEMORY] Restored ACTIVE state from disk (%s). Cap: %s/%s, Interval: %ds, Engine: %s, Contra: %s.",
+                        QUOTA_STATE_PATH, live_session_trades, live_trade_cap or "unlimited", scan_interval_sec, sole_live_engine, getattr(quant_bot, "contra_mode", False))
     except Exception as e:
         logger.warning("Could not load quota state: %s", e)
 
@@ -1130,13 +1150,17 @@ def scalper_status():
 
 @app.route('/api/live/toggle', methods=['POST'])
 def toggle_live():
-    global live_trading_enabled, live_trade_cap, live_session_trades, live_cap_reached_utc
+    global live_trading_enabled, live_trade_cap, live_session_trades, live_cap_reached_utc, sole_live_engine, scan_interval_sec
     data = request.get_json(silent=True) or {}
     with state_lock:
+        if "sole_live_engine" in data:
+            sole_live_engine = str(data["sole_live_engine"]).strip()
+        if "interval_seconds" in data:
+            scan_interval_sec = max(10, int(data["interval_seconds"]))
         if "trade_cap" in data:
             cap_val = data["trade_cap"]
             live_trade_cap = int(cap_val) if cap_val is not None and int(cap_val) > 0 else 50
-        if data.get("reset_trade_count"):
+        if data.get("reset_trade_count") or data.get("reset_quota"):
             live_session_trades = 0
             live_cap_reached_utc = None
         if "enabled" in data:
@@ -1152,6 +1176,8 @@ def toggle_live():
         "live_trading_enabled": live_trading_enabled,
         "trade_cap": live_trade_cap,
         "session_trades": live_session_trades,
+        "sole_live_engine": sole_live_engine,
+        "interval_seconds": scan_interval_sec,
         "message": f"AWS Live Trading {'ACTIVATED' if live_trading_enabled else 'PAUSED'}"
                    + (f" (Auto-Pause Cap: {live_session_trades}/{live_trade_cap} trades)." if live_trade_cap else ".")
     })
@@ -1176,6 +1202,7 @@ def toggle_contra():
     new_state = bool(payload["contra_mode"]) if "contra_mode" in payload else not curr
     quant_bot.set_contra_mode(new_state)
     logger.warning("[CONTRA] AWS Daemon Contra Trading Mode set to %s", new_state)
+    _save_quota_state()
     return jsonify({
         "success": True,
         "contra_mode": new_state,
@@ -1189,6 +1216,29 @@ def get_contra_status_aws():
         "success": True,
         "contra_mode": getattr(quant_bot, "contra_mode", False)
     })
+
+@app.route('/api/neon/config', methods=['GET', 'POST'])
+def handle_neon_config():
+    """Get or update NEON Strategy configuration on AWS Headless Daemon."""
+    try:
+        from src.quant.neon_strategy import load_neon_config, save_neon_config
+        if request.method == 'POST':
+            req_data = request.get_json(silent=True) or {}
+            updated = save_neon_config(req_data)
+            logger.info("[NEON CONFIG] Updated on AWS Headless Daemon: %s", updated)
+            return jsonify({
+                "success": True,
+                "config": updated,
+                "message": f"AWS NEON Strategy configuration updated ({'ACTIVE' if updated.get('enabled') else 'STANDBY'})."
+            })
+        else:
+            return jsonify({
+                "success": True,
+                "config": load_neon_config()
+            })
+    except Exception as e:
+        logger.error("Error in /api/neon/config: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/tiger/radar', methods=['GET'])

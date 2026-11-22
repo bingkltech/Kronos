@@ -23,9 +23,9 @@
   },
   "last_cycle_summary": {
     "success": true,
-    "timestamp": "2026-11-22T14:52:02.208458+00:00",
+    "timestamp": "2026-11-22T18:46:56.398225+00:00",
     "macro_regime": "BULL_EXPANSION",
-    "breadth_pct": "65.2%",
+    "breadth_pct": "91.7%",
     "evaluated_count": 0,
     "dispatched_count": 0,
     "decisions": [],
@@ -1085,5 +1085,5 @@
   "gemini_auto_apply": true,
   "latest_gemini_assessment": null,
   "contra_mode": false,
-  "updated_at": "2026-11-22T14:52:04.021726+00:00"
+  "updated_at": "2026-11-22T18:46:58.125314+00:00"
 }
