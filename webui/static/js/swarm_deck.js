@@ -118,6 +118,10 @@
   let cameraTarget = null; // { panX, panY, zoom }
   let cachedNeonOverview = null;
   let cachedNeonEquity = null;
+  let cachedNeonWinSim = null;
+  let neonSwarmSimMode = 'live'; // 'live' | 'win'
+  let neonWinReplayIdx = 0;
+  let neonWinPulseTimer = 0;
   let neonSyncTimer = null;
 
   // Pan, Zoom & Dragging state
@@ -902,21 +906,158 @@
     renderInspector();
   }
 
+  function updateSwarmNeonModeButtons() {
+    const liveBtn = document.getElementById('btnSwarmModeLive');
+    const winBtn = document.getElementById('btnSwarmModeWin');
+    if (liveBtn) liveBtn.classList.toggle('active', neonSwarmSimMode === 'live');
+    if (winBtn) winBtn.classList.toggle('active', neonSwarmSimMode === 'win');
+  }
+
+  function applyNeonWinSimToBots(sim) {
+    if (!sim || !sim.bots) return;
+    cachedNeonWinSim = sim;
+    const b5 = bots.find((b) => b.id === 'BOT-05');
+    const b6 = bots.find((b) => b.id === 'BOT-06');
+    const n5 = sim.bots.neon5;
+    const n6 = sim.bots.neon6;
+    const trades = Array.isArray(sim.recent_trades) ? sim.recent_trades : [];
+    const last5 = trades.find((t) => t.bot_id === 'BOT-05') || trades[0] || null;
+    const last6 = trades.find((t) => t.bot_id === 'BOT-06') || trades[1] || last5;
+
+    const buildWinGates = (botStats, tradeSample) => [
+      { key: 'SESSION', label: 'SESSION_GATE', passed: true, detail: 'Prime UTC Alpha Liquidity Window (Active)' },
+      { key: 'UNIVERSE', label: 'TIER1_UNIVERSE', passed: true, detail: `${tradeSample ? tradeSample.symbol : 'BTCUSDT'} Tier-1 Core` },
+      { key: 'REGIME', label: 'REGIME_TREND', passed: true, detail: `${sim.fleet_summary.active_regime} · PF ${botStats.profit_factor}x` },
+      { key: 'ADX', label: 'ADX_STRENGTH', passed: true, detail: `Avg ${botStats.avg_r_multiple}R · ${botStats.longest_win_streak}W streak` },
+      { key: 'EXTENSION', label: 'ANTI_CHASE', passed: true, detail: `Max DD -${botStats.max_drawdown_pct}% (Bounded)` },
+      { key: 'FEE_HURDLE', label: 'MAKER_2BPS', passed: true, detail: `Saved ${fmtUsd(botStats.maker_fee_savings_usd, false)} vs taker` }
+    ];
+
+    if (b5 && n5) {
+      b5.pair = fmtPair(last5 ? last5.symbol : 'BTCUSDT');
+      b5.role = `Trend Hunter · WIN SIM (+${n5.return_pct}%)`;
+      b5.pnlText = fmtUsd(n5.net_pnl_usd, true);
+      b5.pnlPositive = n5.net_pnl_usd >= 0;
+      b5.winRateText = `${n5.win_rate_pct}% WR`;
+      b5.convictionPct = 94;
+      b5.gates = buildWinGates(n5, last5);
+      b5.stateText = `APPROVED · +${n5.return_pct}%`;
+      if (last5) {
+        const entry = Number(last5.entry_price || 90000);
+        const exit = Number(last5.exit_price || entry * 1.02);
+        const isLong = last5.side === 'LONG';
+        b5.bracket = {
+          side: last5.side,
+          notional_usd: last5.notional_usd,
+          entry_price: entry,
+          be_lock_price: isLong ? entry * 1.004 : entry * 0.996,
+          stop_loss: isLong ? entry * 0.9885 : entry * 1.0115,
+          take_profit: exit
+        };
+      }
+      b5.workers.forEach((w) => {
+        w.activePulse = 1.0;
+      });
+    }
+
+    if (b6 && n6) {
+      b6.pair = fmtPair(last6 ? last6.symbol : 'ETHUSDT');
+      b6.role = `Maker Arbiter · WIN SIM (+${n6.return_pct}%)`;
+      b6.pnlText = fmtUsd(n6.net_pnl_usd, true);
+      b6.pnlPositive = n6.net_pnl_usd >= 0;
+      b6.winRateText = `${n6.win_rate_pct}% WR`;
+      b6.convictionPct = 96;
+      b6.gates = buildWinGates(n6, last6);
+      b6.stateText = `APPROVED · +${n6.return_pct}%`;
+      if (last6) {
+        const entry = Number(last6.entry_price || 3200);
+        const exit = Number(last6.exit_price || entry * 1.018);
+        const isLong = last6.side === 'LONG';
+        b6.bracket = {
+          side: last6.side,
+          notional_usd: last6.notional_usd,
+          entry_price: entry,
+          be_lock_price: isLong ? entry * 1.003 : entry * 0.997,
+          stop_loss: isLong ? entry * 0.989 : entry * 1.011,
+          take_profit: exit
+        };
+      }
+      b6.workers.forEach((w) => {
+        w.activePulse = 1.0;
+      });
+    }
+
+    const labelEl = document.getElementById('swarmNeonSyncLabel');
+    if (labelEl) {
+      labelEl.classList.remove('standby');
+      labelEl.textContent = `NEON WIN SIM · ${fmtUsd(sim.fleet_summary.net_pnl_usd, true)} (+${sim.fleet_summary.return_pct}%) · ${sim.monte_carlo.win_probability_pct}% P(Win)`;
+    }
+
+    renderFleetRoster();
+    renderInspector();
+  }
+
+  async function setNeonSimMode(mode, preloadedSim) {
+    const next = mode === 'win' ? 'win' : 'live';
+    neonSwarmSimMode = next;
+    updateSwarmNeonModeButtons();
+
+    if (next === 'win') {
+      if (botsCount < 6) {
+        initBots(6);
+      }
+      if (preloadedSim && preloadedSim.bots) {
+        applyNeonWinSimToBots(preloadedSim);
+        return;
+      }
+      if (typeof window.axios === 'undefined') return;
+      const labelEl = document.getElementById('swarmNeonSyncLabel');
+      if (labelEl) labelEl.textContent = 'NEON WIN SIM: Computing...';
+      try {
+        const resp = await window.axios.get('/api/neon/win-simulation', {
+          params: { scenario: 'REALISTIC_LIVE_FRICTION', initial_equity: 1000, horizon_days: 90 },
+          timeout: 12000
+        });
+        if (resp.data && resp.data.success && resp.data.simulation) {
+          applyNeonWinSimToBots(resp.data.simulation);
+        }
+      } catch (err) {
+        if (labelEl) {
+          labelEl.classList.add('standby');
+          labelEl.textContent = 'NEON WIN SIM: Offline';
+        }
+      }
+    } else {
+      await syncNeonTelemetry();
+    }
+  }
+
   async function syncNeonTelemetry() {
+    if (neonSwarmSimMode === 'win') {
+      if (cachedNeonWinSim) {
+        applyNeonWinSimToBots(cachedNeonWinSim);
+      } else {
+        await setNeonSimMode('win');
+      }
+      return;
+    }
+
     const labelEl = document.getElementById('swarmNeonSyncLabel');
     if (typeof window.axios === 'undefined') return;
 
     try {
-      const [ovRes, eqRes] = await Promise.all([
+      const [ovRes, eqRes, dynRes] = await Promise.all([
         window.axios.get('/api/neon/overview', { timeout: 9000 }),
         window.axios.get('/api/neon/equity-curve', {
           params: { scope: 'CORE_BASKET', mirror_bull: 'false', initial_equity: 200 },
           timeout: 9000
-        })
+        }),
+        window.axios.get('/api/neon/dynamic-state', { timeout: 9000 }).catch(() => null)
       ]);
 
       const overview = ovRes && ovRes.data && ovRes.data.success ? ovRes.data : null;
       const equityPayload = eqRes && eqRes.data && eqRes.data.success ? eqRes.data.equity_curve : null;
+      const dynState = dynRes && dynRes.data && dynRes.data.success ? dynRes.data.dynamic_state : null;
 
       if (!overview && !equityPayload) {
         throw new Error('Empty NEON telemetry payload');
@@ -925,6 +1066,27 @@
       cachedNeonOverview = overview;
       cachedNeonEquity = equityPayload;
       applyNeonTelemetryToBots(overview, equityPayload);
+
+      if (dynState) {
+        const tier = dynState.bleed_telemetry ? dynState.bleed_telemetry.circuit_tier : 'NOMINAL';
+        const score = dynState.bleed_telemetry ? dynState.bleed_telemetry.bleed_score : 0;
+        const regime = dynState.microstructure ? String(dynState.microstructure.regime || '').replace(/_/g, ' ') : '';
+        const effRisk = dynState.adaptive_params ? dynState.adaptive_params.effective_risk_pct : null;
+        const b5 = bots.find((x) => x.id === 'BOT-05');
+        const b6 = bots.find((x) => x.id === 'BOT-06');
+        if (b5 && regime) b5.role = `Trend Hunter · ${regime}`;
+        if (b6) b6.role = `Maker Arbiter · ${tier} (${effRisk ? `${effRisk}%` : '2bps'})`;
+        renderFleetRoster();
+        renderInspector();
+
+        if (labelEl) {
+          labelEl.classList.remove('standby');
+          labelEl.textContent = `NEON v2 · ${tier} (${score}/100) · ${fmtUtcClock()}`;
+        }
+      } else if (labelEl) {
+        labelEl.classList.remove('standby');
+        labelEl.textContent = `NEON Live · ${fmtUtcClock()}`;
+      }
 
       // Subtle worker pulse on NEON bots when live sync succeeds
       ['BOT-05', 'BOT-06'].forEach((id) => {
@@ -937,11 +1099,6 @@
           });
         }
       });
-
-      if (labelEl) {
-        labelEl.classList.remove('standby');
-        labelEl.textContent = `NEON Live · ${fmtUtcClock()}`;
-      }
     } catch (err) {
       if (labelEl) {
         labelEl.classList.add('standby');
@@ -1055,6 +1212,7 @@
     selectBot: selectBot,
     setBotPaused: toggleBotPaused,
     syncNeonTelemetry: syncNeonTelemetry,
+    setNeonSimMode: setNeonSimMode,
 
     upsertBeacon: function (beaconData) {
       if (!beaconData || !beaconData.id) return;
@@ -1180,6 +1338,51 @@
 
   // --- 13. AUTONOMOUS DEMO SIMULATION (WHEN WS IDLE) ---
   function runDemoSimulationStep(dt) {
+    // Live NEON Win Simulation Replay pulses for BOT-05 & BOT-06 (works even when WS is connected)
+    if (neonSwarmSimMode === 'win' && cachedNeonWinSim && Array.isArray(cachedNeonWinSim.recent_trades)) {
+      neonWinPulseTimer += dt * simulationPace;
+      if (neonWinPulseTimer > 2.4) {
+        neonWinPulseTimer = 0;
+        const winTrades = cachedNeonWinSim.recent_trades.filter((t) => t.is_win);
+        if (winTrades.length > 0) {
+          const tr = winTrades[neonWinReplayIdx % winTrades.length];
+          neonWinReplayIdx += 1;
+          const targetBot = bots.find((b) => b.id === tr.bot_id && !b.paused);
+          if (targetBot) {
+            const bid = `neonwin-${tr.trade_id}`;
+            const sym = fmtPair(tr.symbol);
+            const beacon = new Beacon({
+              id: bid,
+              symbol: sym,
+              score: 0.96,
+              xNorm: +(0.24 + Math.random() * 0.56).toFixed(2),
+              yNorm: +(0.46 + Math.random() * 0.36).toFixed(2),
+              status: 'CAPTURED'
+            });
+            beacons.set(bid, beacon);
+            targetBot.pair = sym;
+            targetBot.stateText = `WIN +${Number(tr.r_multiple).toFixed(1)}R · ${fmtUsd(tr.net_pnl_usd, true)}`;
+            targetBot.stateTime = 2.8;
+            triggerLightningStrike(targetBot, beacon);
+            window.BotSwarmBridge.emitWorkerSignal({
+              botId: targetBot.id,
+              workerId: 'LEDGER',
+              beaconId: bid,
+              state: 'WIN',
+              label: `• ${fmtUsd(tr.net_pnl_usd, true)} (+${Number(tr.r_multiple).toFixed(1)}R)`
+            });
+            window.BotSwarmBridge.emitWorkerSignal({
+              botId: targetBot.id,
+              workerId: 'EXEC',
+              beaconId: bid,
+              state: 'MAKER',
+              label: `• 2bps ${tr.side}`
+            });
+          }
+        }
+      }
+    }
+
     if (isLiveWS) return;
     const activeBots = bots.filter((b) => !b.paused);
     if (!activeBots.length) return;
@@ -1581,6 +1784,16 @@
         btn.addEventListener('click', () => initBots(n));
       }
     });
+
+    // 2b. Segmented NEON Bot Mode Switcher (Live | Win Sim)
+    const btnSwarmModeLive = document.getElementById('btnSwarmModeLive');
+    const btnSwarmModeWin = document.getElementById('btnSwarmModeWin');
+    if (btnSwarmModeLive) {
+      btnSwarmModeLive.addEventListener('click', () => setNeonSimMode('live'));
+    }
+    if (btnSwarmModeWin) {
+      btnSwarmModeWin.addEventListener('click', () => setNeonSimMode('win'));
+    }
 
     // 3. Drop Alpha Beacon
     const btnDropAlpha = document.getElementById('btnDropAlpha');

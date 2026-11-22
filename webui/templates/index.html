@@ -135,6 +135,12 @@
                 </div>
 
                 <div class="swarm-topbar-right">
+                    <div class="swarm-seg-group" role="group" aria-label="NEON bot telemetry mode">
+                        <span class="swarm-seg-prefix">NEON</span>
+                        <button type="button" class="swarm-seg-btn active" id="btnSwarmModeLive">Live</button>
+                        <button type="button" class="swarm-seg-btn" id="btnSwarmModeWin">Win Sim</button>
+                    </div>
+
                     <div class="swarm-seg-group" role="group" aria-label="Swarm fleet size">
                         <span class="swarm-seg-prefix">Fleet</span>
                         <button type="button" class="swarm-seg-btn active" id="btnFleet6" data-fleet="6">6</button>
@@ -2754,6 +2760,541 @@
             </div>
         </div>
 
+        <!-- NEON v2.0 Dynamic Adaptive Quant Engine & AI-Assisted Bleed Auditor -->
+        <div class="panel" id="neon-dynamic-ai-panel" data-drag-item="neon-dynamic-ai" data-collapsible="true">
+            <div class="panel-header neon-eq-header">
+                <div class="panel-header-left">
+                    <div class="panel-title-group">
+                        <span class="panel-title">NEON v2.0 Dynamic Adaptive Engine &amp; AI Bleed Auditor</span>
+                        <span class="panel-subtitle" id="neon-dyn-subtitle">Real-time volatility &amp; Kelly scaling · Drawdown bleed circuit · AI root-cause diagnosis &amp; 1-click surgical patching</span>
+                    </div>
+                </div>
+                <div class="panel-header-actions neon-eq-controls">
+                    <div class="neon-seg-group" role="group" aria-label="Dynamic telemetry mode">
+                        <button type="button" id="neon-bleed-mode-live" class="neon-seg-btn active" onclick="setNeonDynamicTelemetryMode('live')">Live Telemetry</button>
+                        <button type="button" id="neon-bleed-mode-win" class="neon-seg-btn" onclick="setNeonDynamicTelemetryMode('win')">Win Simulation</button>
+                        <button type="button" id="neon-bleed-mode-drill" class="neon-seg-btn" onclick="setNeonDynamicTelemetryMode('bleed')">Bleed Stress Drill</button>
+                    </div>
+                    <button type="button" id="neon-dyn-adapt-btn" class="btn-secondary btn-sm" onclick="toggleNeonDynamicFlag('dynamic_adaptation_enabled')">Auto-Adapt: ON</button>
+                    <button type="button" id="neon-dyn-guard-btn" class="btn-secondary btn-sm" onclick="toggleNeonDynamicFlag('auto_bleed_guard_enabled')">Bleed Guard: ON</button>
+                    <button type="button" class="btn-secondary btn-sm" onclick="loadNeonDynamicState()">Refresh</button>
+                </div>
+            </div>
+
+            <div class="panel-body-collapsible">
+                <!-- Band 1: Hairline Dynamic Microstructure & Bleed Health Strip -->
+                <div class="neon-dyn-health-strip">
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Microstructure Regime</span>
+                        <span class="neon-eq-stat-val text-cyan" id="neon-dyn-regime">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Bleed Circuit Tier</span>
+                        <span class="neon-eq-stat-val text-pos" id="neon-dyn-tier">NOMINAL · 0/100</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Rolling 10T Expectancy</span>
+                        <span class="neon-eq-stat-val" id="neon-dyn-exp">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Drawdown / Loss Streak</span>
+                        <span class="neon-eq-stat-val" id="neon-dyn-dd-streak">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Adaptive Risk (Kelly)</span>
+                        <span class="neon-eq-stat-val text-cyan" id="neon-dyn-risk-mult">--</span>
+                    </div>
+                </div>
+
+                <!-- Band 2: Two-Column Dynamic Quant Telemetry vs AI Bleed Assessment -->
+                <div class="neon-dyn-split">
+                    <!-- Left: Real-Time Adaptive Overrides & Per-Symbol Bleed Health -->
+                    <div class="neon-dyn-col">
+                        <div class="neon-dyn-col-head">
+                            <span class="neon-dyn-col-title">Live Adaptive Parameter Matrix</span>
+                            <span class="neon-dyn-col-meta" id="neon-dyn-vol-meta">ATR Vol Ratio: --x · Avg ADX: --</span>
+                        </div>
+
+                        <div class="neon-dyn-param-grid" id="neon-dyn-param-grid">
+                            <div class="neon-dyn-param-item">
+                                <span class="neon-dyn-param-lbl">Risk / Trade</span>
+                                <span class="neon-dyn-param-val" id="ndp-risk">--</span>
+                            </div>
+                            <div class="neon-dyn-param-item">
+                                <span class="neon-dyn-param-lbl">Min ADX(14)</span>
+                                <span class="neon-dyn-param-val" id="ndp-adx">--</span>
+                            </div>
+                            <div class="neon-dyn-param-item">
+                                <span class="neon-dyn-param-lbl">Stop Buffer</span>
+                                <span class="neon-dyn-param-val" id="ndp-sl">--</span>
+                            </div>
+                            <div class="neon-dyn-param-item">
+                                <span class="neon-dyn-param-lbl">TP Target</span>
+                                <span class="neon-dyn-param-val" id="ndp-tp">--</span>
+                            </div>
+                            <div class="neon-dyn-param-item">
+                                <span class="neon-dyn-param-lbl">Max Slots</span>
+                                <span class="neon-dyn-param-val" id="ndp-slots">--</span>
+                            </div>
+                            <div class="neon-dyn-param-item">
+                                <span class="neon-dyn-param-lbl">SL Cooldown</span>
+                                <span class="neon-dyn-param-val" id="ndp-cd">--</span>
+                            </div>
+                        </div>
+
+                        <div class="neon-dyn-triggers" id="neon-dyn-triggers">
+                            <div class="neon-dyn-trigger-line">Evaluating live bleed sensors...</div>
+                        </div>
+
+                        <div class="neon-dyn-col-head" style="margin-top: 12px;">
+                            <span class="neon-dyn-col-title">Per-Symbol Bleed Health (Tier-1 Core)</span>
+                            <span class="neon-dyn-col-meta" id="neon-dyn-feedrag">Fee Drag: --%</span>
+                        </div>
+                        <div class="neon-dyn-symbols-list" id="neon-dyn-symbols-list"></div>
+                    </div>
+
+                    <!-- Right: Server-Side Gemini AI Bleed Assessment & Surgical Patch -->
+                    <div class="neon-dyn-col neon-dyn-ai-col">
+                        <div class="neon-dyn-col-head">
+                            <span class="neon-dyn-col-title">AI-Assisted Bleed Assessment</span>
+                            <span class="neon-dyn-col-meta" id="neon-ai-audit-meta">Ready for on-demand quant audit</span>
+                        </div>
+
+                        <div class="neon-ai-prompt-row">
+                            <input type="text" id="neon-ai-focus-input" class="field-input neon-ai-focus-input" placeholder="Optional quant focus (e.g., Audit SOL stop-outs or fee drag during NY open)..." maxlength="260">
+                            <button type="button" id="neon-ai-run-btn" class="btn-primary btn-sm" onclick="runNeonAiBleedAudit()">Run AI Bleed Audit</button>
+                        </div>
+
+                        <div id="neon-ai-error-box" class="neon-ai-error-box" style="display: none;"></div>
+
+                        <div id="neon-ai-empty-state" class="neon-ai-empty-state">
+                            Run an AI Bleed Assessment to inspect active drawdown vectors, losing streaks, fee drag, and regime mismatches — and generate a bounded 1-click parameter remediation patch.
+                        </div>
+
+                        <div id="neon-ai-result-wrap" class="neon-ai-result-wrap" style="display: none;">
+                            <div class="neon-ai-verdict-head">
+                                <div class="neon-ai-headline" id="neon-ai-headline">--</div>
+                                <div class="neon-ai-verdict-meta" id="neon-ai-verdict-meta">--</div>
+                            </div>
+                            <p class="neon-ai-summary" id="neon-ai-summary"></p>
+
+                            <div class="neon-ai-subhead">Root-Cause Bleed Vectors</div>
+                            <div class="neon-ai-causes" id="neon-ai-causes"></div>
+
+                            <div class="neon-ai-subhead">Surgical Remediation Plan</div>
+                            <ul class="neon-ai-plan-list" id="neon-ai-plan-list"></ul>
+
+                            <div class="neon-ai-patch-bar">
+                                <div class="neon-ai-patch-preview" id="neon-ai-patch-preview"></div>
+                                <button type="button" id="neon-ai-apply-btn" class="btn-primary btn-sm" onclick="applyNeonAiPatch()">Apply AI Patch</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEON Dual-Bot Win Simulator (NEON-5 Trend Hunter + NEON-6 Maker Arbiter) -->
+        <div class="panel" id="neon-win-sim-panel" data-drag-item="neon-win-sim" data-collapsible="true">
+            <div class="panel-header neon-eq-header">
+                <div class="panel-header-left">
+                    <div class="panel-title-group">
+                        <span class="panel-title">NEON Bots Near-Realistic Execution &amp; Win Simulator (NEON-5 &amp; NEON-6)</span>
+                        <span class="panel-subtitle" id="neon-win-subtitle">Empirical Tier-1 bootstrap · 4-state Markov regimes · Taker SL slippage, 8h funding &amp; missed limit fills</span>
+                    </div>
+                </div>
+                <div class="panel-header-actions neon-eq-controls">
+                    <select id="neon-win-scenario" class="neon-eq-select" aria-label="Win simulation scenario" onchange="runNeonWinSimulationUI({ scenario: this.value })">
+                        <option value="REALISTIC_LIVE_FRICTION" selected>Near-Realistic Live Friction</option>
+                        <option value="FAVORABLE_TREND_REALISTIC">Favorable Trend (Real Friction)</option>
+                        <option value="CHOP_STRESS_REALISTIC">Chop &amp; Vol-Shock Stress</option>
+                        <option value="IDEAL_ZERO_FRICTION">Ideal Ceiling (Zero Friction A/B)</option>
+                    </select>
+
+                    <select id="neon-win-equity" class="neon-eq-select" aria-label="Starting capital" onchange="runNeonWinSimulationUI({ initialEquity: Number(this.value) })">
+                        <option value="200">$200 Base</option>
+                        <option value="1000" selected>$1,000 Base</option>
+                        <option value="5000">$5,000 Base</option>
+                        <option value="10000">$10,000 Base</option>
+                    </select>
+
+                    <select id="neon-win-candle-mode" class="neon-eq-select" aria-label="Candlestick decision mode" onchange="runNeonWinSimulationUI({ candlestickMode: this.value })">
+                        <option value="OFF" selected>Candles: Off (Baseline)</option>
+                        <option value="VETO_CONFIRM">Candles: Veto &amp; Maker Gate</option>
+                        <option value="DIRECT_TRIGGER">Candles: Top-25 Trigger</option>
+                    </select>
+
+                    <div class="neon-seg-group" role="group" aria-label="Simulation horizon">
+                        <button type="button" id="neon-win-horizon-30" class="neon-seg-btn" onclick="runNeonWinSimulationUI({ horizonDays: 30 })">30D</button>
+                        <button type="button" id="neon-win-horizon-90" class="neon-seg-btn active" onclick="runNeonWinSimulationUI({ horizonDays: 90 })">90D</button>
+                        <button type="button" id="neon-win-horizon-180" class="neon-seg-btn" onclick="runNeonWinSimulationUI({ horizonDays: 180 })">180D</button>
+                    </div>
+
+                    <button type="button" id="neon-win-compound-btn" class="btn-primary btn-sm" onclick="toggleNeonWinCompounding()">Compounding: ON</button>
+                    <button type="button" id="neon-win-run-btn" class="btn-secondary btn-sm" onclick="runNeonWinSimulationUI({ reroll: true })">Re-Roll Path</button>
+                    <button type="button" class="btn-primary btn-sm" onclick="syncWinSimToSwarmDeck()">Sync to Swarm Deck</button>
+                </div>
+            </div>
+
+            <div class="panel-body-collapsible">
+                <!-- Band 1: 5-Metric Win Simulation Verdict Strip -->
+                <div class="neon-dyn-health-strip">
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Simulation Verdict &amp; Net Profit</span>
+                        <span class="neon-eq-stat-val text-pos" id="neon-win-verdict">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Account Growth</span>
+                        <span class="neon-eq-stat-val text-cyan" id="neon-win-final-eq">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Monte Carlo Win Prob &amp; WR</span>
+                        <span class="neon-eq-stat-val text-pos" id="neon-win-prob">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Profit Factor / Expectancy</span>
+                        <span class="neon-eq-stat-val" id="neon-win-pf">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Max DD / Maker Savings</span>
+                        <span class="neon-eq-stat-val" id="neon-win-dd">--</span>
+                        <span class="neon-win-sub-meta" id="neon-win-fees">--</span>
+                    </div>
+                </div>
+
+                <!-- Band 2: NEON-5 Trend Hunter vs NEON-6 Maker Arbiter Split -->
+                <div class="neon-win-bots-grid">
+                    <div class="neon-win-bot-col">
+                        <div class="neon-win-bot-head">
+                            <div>
+                                <div class="neon-win-bot-title text-cyan">BOT-05 · NEON-5 Trend Hunter</div>
+                                <div class="neon-win-bot-sub" id="neon-win-b5-equity">$500.00 → --</div>
+                            </div>
+                            <div class="neon-win-bot-pnl text-pos" id="neon-win-b5-pnl">--</div>
+                        </div>
+                        <div class="neon-win-bot-metrics">
+                            <span id="neon-win-b5-wr">--</span>
+                            <span aria-hidden="true">·</span>
+                            <span id="neon-win-b5-pf">--</span>
+                            <span aria-hidden="true">·</span>
+                            <span id="neon-win-b5-dd">--</span>
+                        </div>
+                        <div class="neon-win-bot-foot" id="neon-win-b5-best">--</div>
+                    </div>
+
+                    <div class="neon-win-bot-col neon-win-bot-col-right">
+                        <div class="neon-win-bot-head">
+                            <div>
+                                <div class="neon-win-bot-title text-pos">BOT-06 · NEON-6 Maker Arbiter</div>
+                                <div class="neon-win-bot-sub" id="neon-win-b6-equity">$500.00 → --</div>
+                            </div>
+                            <div class="neon-win-bot-pnl text-pos" id="neon-win-b6-pnl">--</div>
+                        </div>
+                        <div class="neon-win-bot-metrics">
+                            <span id="neon-win-b6-wr">--</span>
+                            <span aria-hidden="true">·</span>
+                            <span id="neon-win-b6-pf">--</span>
+                            <span aria-hidden="true">·</span>
+                            <span id="neon-win-b6-dd">--</span>
+                        </div>
+                        <div class="neon-win-bot-foot" id="neon-win-b6-best">--</div>
+                    </div>
+                </div>
+
+                <!-- Band 3: D3.js Monte Carlo Fan Chart & Dual-Bot Comparison -->
+                <div class="neon-win-chart-section">
+                    <div class="neon-win-chart-toolbar">
+                        <div class="neon-win-chart-legend" id="neon-win-chart-legend"></div>
+                        <div class="neon-seg-group" role="group" aria-label="Win chart mode">
+                            <button type="button" id="neon-win-chart-fleet" class="neon-seg-btn active" onclick="setNeonWinChartMode('fleet')">Fleet + MC Fan ($)</button>
+                            <button type="button" id="neon-win-chart-bots" class="neon-seg-btn" onclick="setNeonWinChartMode('bots')">NEON-5 vs NEON-6 (%)</button>
+                        </div>
+                    </div>
+                    <div class="neon-win-chart-wrap">
+                        <div id="neon-win-chart-host" class="neon-win-chart-host"></div>
+                        <div id="neon-win-tooltip" class="neon-win-tooltip" style="display: none;"></div>
+                    </div>
+                    <div class="neon-win-mc-bar" id="neon-win-mc-summary">Computing 250-path Monte Carlo probability envelope...</div>
+                </div>
+
+                <!-- Band 3.5: Real-World Binance Futures Friction Audit Waterfall -->
+                <div class="neon-win-friction-strip">
+                    <div class="neon-win-friction-head">
+                        <span class="neon-dyn-col-title">Execution Reality &amp; Friction Audit Waterfall</span>
+                        <span class="neon-dyn-col-meta" id="neon-win-regime-mix">Markov Regimes: --</span>
+                    </div>
+                    <div class="neon-win-friction-grid">
+                        <div class="neon-win-fric-cell">
+                            <span class="neon-eq-stat-lbl">Gross Signal PnL</span>
+                            <span class="neon-win-fric-val" id="nwf-gross">--</span>
+                        </div>
+                        <div class="neon-win-fric-cell">
+                            <span class="neon-eq-stat-lbl">Exchange Fees (M/T)</span>
+                            <span class="neon-win-fric-val text-neg" id="nwf-fees">--</span>
+                        </div>
+                        <div class="neon-win-fric-cell">
+                            <span class="neon-eq-stat-lbl">SL &amp; Spread Slippage</span>
+                            <span class="neon-win-fric-val text-neg" id="nwf-slip">--</span>
+                        </div>
+                        <div class="neon-win-fric-cell">
+                            <span class="neon-eq-stat-lbl">8h Funding Carry</span>
+                            <span class="neon-win-fric-val text-neg" id="nwf-fund">--</span>
+                        </div>
+                        <div class="neon-win-fric-cell">
+                            <span class="neon-eq-stat-lbl">Missed Win Limits</span>
+                            <span class="neon-win-fric-val text-amber" id="nwf-missed">--</span>
+                        </div>
+                        <div class="neon-win-fric-cell">
+                            <span class="neon-eq-stat-lbl">Blended Cost / Guard</span>
+                            <span class="neon-win-fric-val" id="nwf-bps">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Band 4: Simulated Dual-Bot Execution Ledger -->
+                <div class="neon-win-ledger-wrap">
+                    <div class="neon-dyn-col-head" style="padding: 10px 18px 8px;">
+                        <span class="neon-dyn-col-title">Simulated Dual-Bot Execution Ledger (Latest 20 Trades)</span>
+                        <span class="neon-dyn-col-meta">Exact Decimal · Maker/Taker Split · Real SL Slippage &amp; 8h Funding</span>
+                    </div>
+                    <div class="table-scroll-wrap" data-pannable="x">
+                        <table class="quant-table">
+                            <thead>
+                                <tr>
+                                    <th>Day / Regime</th>
+                                    <th>Bot</th>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Fill Rail</th>
+                                    <th>R-Mult</th>
+                                    <th>Friction ($)</th>
+                                    <th>Net PnL</th>
+                                    <th>Fleet Equity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="neon-win-trades-tbody">
+                                <tr><td colspan="9" class="empty-cell">Running Near-Realistic NEON Simulation...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEON Reality Gap Panel: Simulated Win/Loss vs. Observed Historical Live Binance Outcomes -->
+        <div class="panel" id="neon-reality-gap-panel" data-drag-item="neon-reality-gap" data-collapsible="true">
+            <div class="panel-header neon-eq-header">
+                <div class="panel-header-left">
+                    <div class="panel-title-group">
+                        <span class="panel-title">Reality Gap Audit: Simulated NEON vs. Observed Live Binance</span>
+                        <span class="panel-subtitle" id="neon-rg-subtitle">Exact-Decimal variance in Win/Loss rate, Profit Factor, Fee Drag, and Execution Slippage against real Binance Futures ledger</span>
+                    </div>
+                </div>
+                <div class="panel-header-actions neon-eq-controls">
+                    <div class="neon-seg-group" role="group" aria-label="Observed Binance live cohort">
+                        <button type="button" id="neon-rg-cohort-all" class="neon-seg-btn active" onclick="setNeonRealityGapCohort('ALL_LIVE')">All 293 Live Trades</button>
+                        <button type="button" id="neon-rg-cohort-gated" class="neon-seg-btn" onclick="setNeonRealityGapCohort('NEON_GATED_LIVE')">NEON-Gated Live</button>
+                    </div>
+                    <button type="button" class="btn-secondary btn-sm" onclick="runNeonWinSimulationUI()">Recalculate Gap</button>
+                </div>
+            </div>
+
+            <div class="panel-body-collapsible">
+                <!-- Band 1: 5-Metric Reality Gap Variance KPI Strip -->
+                <div class="neon-dyn-health-strip">
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Calibration Fidelity</span>
+                        <span class="neon-eq-stat-val text-pos" id="neon-rg-calibration">--</span>
+                        <span class="neon-win-sub-meta" id="neon-rg-scenario-tag">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Win / Loss Rate Gap</span>
+                        <span class="neon-eq-stat-val" id="neon-rg-wr-gap">--</span>
+                        <span class="neon-win-sub-meta" id="neon-rg-wr-sub">Sim --% vs Live --%</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Profit Factor Variance</span>
+                        <span class="neon-eq-stat-val" id="neon-rg-pf-gap">--</span>
+                        <span class="neon-win-sub-meta" id="neon-rg-pf-sub">Sim --x vs Live --x</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Fee Drag Variance</span>
+                        <span class="neon-eq-stat-val" id="neon-rg-fee-gap">--</span>
+                        <span class="neon-win-sub-meta" id="neon-rg-fee-sub">Sim -- bps vs Live -- bps</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Slippage Variance</span>
+                        <span class="neon-eq-stat-val" id="neon-rg-slip-gap">--</span>
+                        <span class="neon-win-sub-meta" id="neon-rg-slip-sub">Sim -- bps vs Live -- bps</span>
+                    </div>
+                </div>
+
+                <!-- Band 2: Visual Fee Drag & Slippage Variance Comparison Bars -->
+                <div class="neon-rg-bars-grid">
+                    <div class="neon-rg-bar-card">
+                        <div class="neon-rg-bar-head">
+                            <span class="neon-dyn-col-title">Fee Drag Variance (% of Gross Profit &amp; bps)</span>
+                            <span class="neon-dyn-col-meta" id="neon-rg-fee-delta-label">--</span>
+                        </div>
+                        <div class="neon-rg-bar-rows" id="neon-rg-fee-bars"></div>
+                    </div>
+
+                    <div class="neon-rg-bar-card neon-rg-bar-card-right">
+                        <div class="neon-rg-bar-head">
+                            <span class="neon-dyn-col-title">Slippage &amp; All-In Friction Variance (bps / Notional)</span>
+                            <span class="neon-dyn-col-meta" id="neon-rg-slip-delta-label">--</span>
+                        </div>
+                        <div class="neon-rg-bar-rows" id="neon-rg-slip-bars"></div>
+                    </div>
+                </div>
+
+                <!-- Band 3: Diagnostic Verdict Headline & Slippage Methodology -->
+                <div class="neon-rg-verdict-bar">
+                    <div class="neon-rg-headline" id="neon-rg-headline">Computing Reality Gap against observed live Binance Futures ledger...</div>
+                    <div class="neon-rg-footnote" id="neon-rg-footnote">--</div>
+                </div>
+
+                <!-- Band 4: Full Exact-Decimal Variance Comparison Matrix -->
+                <div class="table-scroll-wrap" data-pannable="x">
+                    <table class="quant-table">
+                        <thead>
+                            <tr>
+                                <th>Execution Metric</th>
+                                <th>Simulated NEON</th>
+                                <th>Observed Live Binance</th>
+                                <th>Reality Gap (Sim − Live)</th>
+                                <th>Calibration Signal</th>
+                                <th>Forensic Evidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="neon-rg-tbody">
+                            <tr><td colspan="6" class="empty-cell">Loading Reality Gap variance matrix...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEON Top 25 Candlestick Confluence Engine (ATR & Volume Weighted Decision Gate) -->
+        <div class="panel" id="neon-candlestick-panel" data-drag-item="neon-candlesticks" data-collapsible="true">
+            <div class="panel-header neon-eq-header">
+                <div class="panel-header-left">
+                    <div class="panel-title-group">
+                        <span class="panel-title">Top 25 Candlestick Confluence Engine &amp; Decision Gate Audit</span>
+                        <span class="panel-subtitle" id="neon-cs-subtitle">ATR(14) &amp; Vol/SMA20 normalized Top 25 bullish/bearish scanner · Empirical 512-bar hit rates &amp; 3-mode A/B edge test</span>
+                    </div>
+                </div>
+                <div class="panel-header-actions neon-eq-controls">
+                    <select id="neon-cs-symbol" class="neon-eq-select" aria-label="Candlestick scan symbol" onchange="setNeonCandlestickSymbol(this.value)">
+                        <option value="BTCUSDT" selected>BTCUSDT</option>
+                        <option value="ETHUSDT">ETHUSDT</option>
+                        <option value="SOLUSDT">SOLUSDT</option>
+                        <option value="BNBUSDT">BNBUSDT</option>
+                        <option value="LINKUSDT">LINKUSDT</option>
+                    </select>
+
+                    <div class="neon-seg-group" role="group" aria-label="Candlestick timeframe">
+                        <button type="button" id="neon-cs-tf-15m" class="neon-seg-btn" onclick="setNeonCandlestickInterval('15m')">15m</button>
+                        <button type="button" id="neon-cs-tf-1h" class="neon-seg-btn active" onclick="setNeonCandlestickInterval('1h')">1h</button>
+                        <button type="button" id="neon-cs-tf-4h" class="neon-seg-btn" onclick="setNeonCandlestickInterval('4h')">4h</button>
+                    </div>
+
+                    <div class="neon-seg-group" role="group" aria-label="Candlestick decision role">
+                        <button type="button" id="neon-cs-mode-OFF" class="neon-seg-btn active" onclick="setNeonCandlestickMode('OFF')">Off</button>
+                        <button type="button" id="neon-cs-mode-VETO_CONFIRM" class="neon-seg-btn" onclick="setNeonCandlestickMode('VETO_CONFIRM')">Veto Gate</button>
+                        <button type="button" id="neon-cs-mode-DIRECT_TRIGGER" class="neon-seg-btn" onclick="setNeonCandlestickMode('DIRECT_TRIGGER')">Top-25 Trigger</button>
+                    </div>
+
+                    <button type="button" id="neon-cs-scan-btn" class="btn-secondary btn-sm" onclick="loadNeonCandlesticks()">Scan Candles</button>
+                </div>
+            </div>
+
+            <div class="panel-body-collapsible">
+                <!-- Band 1: 5-Metric Candlestick Confluence KPI Strip -->
+                <div class="neon-dyn-health-strip">
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Composite Candle Bias (-100 to +100)</span>
+                        <span class="neon-eq-stat-val" id="neon-cs-score">--</span>
+                        <span class="neon-win-sub-meta" id="neon-cs-score-sub">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">NEON Gate Recommendation</span>
+                        <span class="neon-eq-stat-val" id="neon-cs-gate">--</span>
+                        <span class="neon-win-sub-meta" id="neon-cs-gate-sub">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Active Formations (5 Bars)</span>
+                        <span class="neon-eq-stat-val" id="neon-cs-counts">--</span>
+                        <span class="neon-win-sub-meta" id="neon-cs-counts-sub">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Dominant Active Pattern</span>
+                        <span class="neon-eq-stat-val" id="neon-cs-top-pat">--</span>
+                        <span class="neon-win-sub-meta" id="neon-cs-top-pat-sub">--</span>
+                    </div>
+                    <div class="neon-eq-stat">
+                        <span class="neon-eq-stat-lbl">Simulated Mode Edge vs. Off</span>
+                        <span class="neon-eq-stat-val text-pos" id="neon-cs-edge-delta">--</span>
+                        <span class="neon-win-sub-meta" id="neon-cs-edge-sub">--</span>
+                    </div>
+                </div>
+
+                <!-- Band 2: 3-Mode Empirical A/B Impact Matrix (Off vs Veto Gate vs Direct Trigger) -->
+                <div class="neon-cs-ab-wrap">
+                    <div class="neon-dyn-col-head" style="padding: 11px 18px 8px;">
+                        <span class="neon-dyn-col-title">Decision-Mode Empirical A/B Comparison (Identical Seed · Near-Realistic Binance Friction)</span>
+                        <span class="neon-dyn-col-meta">Click any mode to apply directly to Win Simulator &amp; Reality Gap Audit</span>
+                    </div>
+                    <div class="neon-cs-ab-grid" id="neon-cs-ab-grid">
+                        <div class="neon-ai-empty-state">Running 3-mode Candlestick A/B benchmark...</div>
+                    </div>
+                </div>
+
+                <!-- Band 3: Core Tier-1 5-Asset Candlestick Radar -->
+                <div class="neon-cs-fleet-wrap">
+                    <div class="neon-dyn-col-head" style="padding: 10px 18px 8px;">
+                        <span class="neon-dyn-col-title">Core Tier-1 Universe Live Candle Bias</span>
+                        <span class="neon-dyn-col-meta">Select an asset to inspect all 25 empirical formations</span>
+                    </div>
+                    <div class="neon-cs-fleet-strip" id="neon-cs-fleet-strip"></div>
+                </div>
+
+                <!-- Band 4: Filterable Top 25 Candlestick Pattern Matrix -->
+                <div class="neon-cs-table-wrap">
+                    <div class="neon-cs-table-toolbar">
+                        <span class="neon-dyn-col-title">Top 25 Candlestick Catalog &amp; Real 512-Bar Hit Rates</span>
+                        <div class="neon-seg-group" role="group" aria-label="Filter candlestick patterns">
+                            <button type="button" id="neon-cs-filter-ALL" class="neon-seg-btn active" onclick="setNeonCandlestickFilter('ALL')">All 25</button>
+                            <button type="button" id="neon-cs-filter-ACTIVE" class="neon-seg-btn" onclick="setNeonCandlestickFilter('ACTIVE')">Active Now</button>
+                            <button type="button" id="neon-cs-filter-BULLISH" class="neon-seg-btn" onclick="setNeonCandlestickFilter('BULLISH')">Bullish (11)</button>
+                            <button type="button" id="neon-cs-filter-BEARISH" class="neon-seg-btn" onclick="setNeonCandlestickFilter('BEARISH')">Bearish (11)</button>
+                            <button type="button" id="neon-cs-filter-INDECISION" class="neon-seg-btn" onclick="setNeonCandlestickFilter('INDECISION')">Indecision (3)</button>
+                            <button type="button" id="neon-cs-filter-TIER_1" class="neon-seg-btn" onclick="setNeonCandlestickFilter('TIER_1')">Tier-1 Core (10)</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll-wrap table-max-h-360" data-pannable="x">
+                        <table class="quant-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Candlestick Pattern</th>
+                                    <th>Bias</th>
+                                    <th>Family / Tier</th>
+                                    <th>Live Status (5 Bars)</th>
+                                    <th>512-Bar Count</th>
+                                    <th>Real 3-Bar Hit Rate</th>
+                                    <th>NEON Gate Role</th>
+                                </tr>
+                            </thead>
+                            <tbody id="neon-cs-tbody">
+                                <tr><td colspan="8" class="empty-cell">Scanning 512 real OHLCV candles across Core Tier-1 universe...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- D3.js Equity Curve: NEON Strategy vs. Buy-and-Hold -->
         <div class="panel" id="neon-equity-curve-panel" data-drag-item="neon-equity-curve" data-collapsible="true">
             <div class="panel-header neon-eq-header">
@@ -3159,6 +3700,8 @@
     <script src="/static/js/yearly_matrix.js"></script>
     <script src="/static/js/tiger_radar.js"></script>
     <script src="/static/js/neon_equity_d3.js"></script>
+    <script src="/static/js/neon_win_sim.js"></script>
+    <script src="/static/js/neon_candlesticks.js"></script>
     <script src="/static/js/neon_strategy.js"></script>
     <script src="/static/js/workspace_interactions.js"></script>
 </body>

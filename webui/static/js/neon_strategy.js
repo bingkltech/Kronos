@@ -2,6 +2,17 @@
     'use strict';
 
     let neonCachedData = null;
+    let neonDynamicState = null;
+    let neonDynamicMode = 'live'; // 'live' | 'win' | 'bleed'
+    let neonLatestAiPatch = null;
+
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
 
     function fmtUsd(val, showSign) {
         const num = Number(val || 0);
@@ -242,6 +253,13 @@
             if (typeof window.loadNeonEquityCurve === 'function') {
                 window.loadNeonEquityCurve();
             }
+            if (typeof window.runNeonWinSimulationUI === 'function' && !window.getLatestNeonWinSimulation?.()) {
+                window.runNeonWinSimulationUI();
+            }
+            if (typeof window.loadNeonCandlesticks === 'function') {
+                window.loadNeonCandlesticks();
+            }
+            loadNeonDynamicState();
         } catch (err) {
             if (typeof window.showKronosToast === 'function') {
                 window.showKronosToast('Failed to load NEON Strategy telemetry.', 'error');
@@ -346,9 +364,328 @@
         }
     }
 
+    // =========================================================================
+    // NEON v2.0 Dynamic Adaptive Engine & AI-Assisted Bleed Auditor
+    // =========================================================================
+
+    function tierColorClass(tier) {
+        if (tier === 'CRITICAL_BLEED_LOCK') return 'text-neg';
+        if (tier === 'BLEED_WARNING') return 'text-neg';
+        if (tier === 'WATCH') return 'text-amber';
+        return 'text-pos';
+    }
+
+    function renderDynamicState(dyn) {
+        if (!dyn) return;
+        neonDynamicState = dyn;
+        const micro = dyn.microstructure || {};
+        const bleed = dyn.bleed_telemetry || {};
+        const ap = dyn.adaptive_params || {};
+
+        const liveBtn = document.getElementById('neon-bleed-mode-live');
+        const winBtn = document.getElementById('neon-bleed-mode-win');
+        const drillBtn = document.getElementById('neon-bleed-mode-drill');
+        if (liveBtn) liveBtn.classList.toggle('active', neonDynamicMode === 'live');
+        if (winBtn) winBtn.classList.toggle('active', neonDynamicMode === 'win');
+        if (drillBtn) drillBtn.classList.toggle('active', neonDynamicMode === 'bleed');
+
+        const adaptBtn = document.getElementById('neon-dyn-adapt-btn');
+        if (adaptBtn) {
+            adaptBtn.textContent = `Auto-Adapt: ${dyn.dynamic_adaptation_enabled ? 'ON' : 'OFF'}`;
+            adaptBtn.className = dyn.dynamic_adaptation_enabled ? 'btn-primary btn-sm' : 'btn-secondary btn-sm';
+        }
+        const guardBtn = document.getElementById('neon-dyn-guard-btn');
+        if (guardBtn) {
+            guardBtn.textContent = `Bleed Guard: ${dyn.auto_bleed_guard_enabled ? 'ON' : 'OFF'}`;
+            guardBtn.className = dyn.auto_bleed_guard_enabled ? 'btn-primary btn-sm' : 'btn-secondary btn-sm';
+        }
+
+        setElText('neon-dyn-regime', String(micro.regime || 'NORMAL_BALANCED').replace(/_/g, ' '));
+        const tierEl = document.getElementById('neon-dyn-tier');
+        if (tierEl) {
+            const modeTag =
+                bleed.data_mode === 'BLEED_STRESS_DRILL'
+                    ? ' [DRILL]'
+                    : bleed.data_mode === 'WIN_SIMULATION'
+                    ? ' [WIN SIM]'
+                    : '';
+            tierEl.textContent = `${String(bleed.circuit_tier || 'NOMINAL').replace(/_/g, ' ')} · ${bleed.bleed_score ?? 0}/100${modeTag}`;
+            tierEl.className = `neon-eq-stat-val ${tierColorClass(bleed.circuit_tier)}`;
+        }
+
+        const expEl = document.getElementById('neon-dyn-exp');
+        if (expEl) {
+            const expVal = Number(bleed.rolling_10_expectancy_usd || 0);
+            expEl.textContent = `${fmtUsd(expVal, true)}/trade · ${bleed.rolling_10_win_rate_pct ?? 0}% WR`;
+            expEl.className = `neon-eq-stat-val ${expVal >= 0 ? 'text-pos' : 'text-neg'}`;
+        }
+
+        const ddStreakEl = document.getElementById('neon-dyn-dd-streak');
+        if (ddStreakEl) {
+            ddStreakEl.textContent = `-${bleed.current_drawdown_pct ?? 0}% DD · ${bleed.consecutive_losses ?? 0}L streak`;
+            ddStreakEl.className = `neon-eq-stat-val ${(bleed.current_drawdown_pct >= 2.5 || bleed.consecutive_losses >= 3) ? 'text-neg' : 'text-cyan'}`;
+        }
+
+        setElText('neon-dyn-risk-mult', `${ap.effective_risk_pct ?? 1.5}% (${ap.risk_multiplier ?? 1}x · Kelly ${ap.kelly_half_pct ?? 1}%)`);
+        setElText('neon-dyn-vol-meta', `ATR Vol Ratio: ${micro.vol_expansion_ratio ?? 1}x · Avg ADX: ${micro.avg_adx_14 ?? 20} · Avg ATR: ${micro.avg_atr_pct ?? 0}%`);
+        setElText('neon-dyn-feedrag', `Fee Drag: ${bleed.fee_drag_ratio_pct ?? 0}% · Vel: ${fmtUsd(bleed.bleed_velocity_usd_per_trade, true)}/t`);
+
+        const fmtDiff = (base, eff, suffix) => {
+            const changed = Number(base) !== Number(eff);
+            return changed ? `${base}${suffix} → ${eff}${suffix}` : `${eff}${suffix}`;
+        };
+        setElText('ndp-risk', fmtDiff(ap.base_risk_pct, ap.effective_risk_pct, '%'));
+        setElText('ndp-adx', fmtDiff(ap.base_min_adx, ap.effective_min_adx, ''));
+        setElText('ndp-sl', fmtDiff(ap.base_sl_atr, ap.effective_sl_atr, 'x ATR'));
+        setElText('ndp-tp', fmtDiff(ap.base_tp_r, ap.effective_tp_r, 'R'));
+        setElText('ndp-slots', fmtDiff(ap.base_max_slots, ap.effective_max_slots, ''));
+        setElText('ndp-cd', fmtDiff(ap.base_cooldown_min, ap.effective_cooldown_min, 'm'));
+
+        const trigBox = document.getElementById('neon-dyn-triggers');
+        if (trigBox) {
+            const lines = [...(ap.adaptation_reasons || []), ...(bleed.triggers || [])];
+            trigBox.innerHTML = lines
+                .map((line) => `<div class="neon-dyn-trigger-line">${escapeHtml(line)}</div>`)
+                .join('');
+        }
+
+        const symBox = document.getElementById('neon-dyn-symbols-list');
+        if (symBox && Array.isArray(bleed.symbol_health)) {
+            symBox.innerHTML = bleed.symbol_health
+                .map((s) => {
+                    const stCls = s.status === 'BLEEDING' ? 'text-neg' : s.status === 'DRIFTING' ? 'text-amber' : 'text-pos';
+                    const pnlCls = s.net_pnl_usd >= 0 ? 'text-pos' : 'text-neg';
+                    return `<div class="neon-dyn-sym-row">
+                        <span class="mono"><strong>${escapeHtml(s.symbol)}</strong></span>
+                        <span class="mono text-muted">${s.trades}T (${s.win_rate_pct}% WR)</span>
+                        <span class="mono ${pnlCls}"><strong>${fmtUsd(s.net_pnl_usd, true)}</strong></span>
+                        <span class="mono ${stCls}">${escapeHtml(s.status)}</span>
+                    </div>`;
+                })
+                .join('');
+        }
+
+        if (dyn.latest_ai_assessment) {
+            renderAiAssessment(dyn.latest_ai_assessment);
+        }
+    }
+
+    function renderAiAssessment(a) {
+        if (!a) return;
+        neonLatestAiPatch = a.recommended_config_patch || null;
+
+        const emptyEl = document.getElementById('neon-ai-empty-state');
+        const wrapEl = document.getElementById('neon-ai-result-wrap');
+        const errEl = document.getElementById('neon-ai-error-box');
+        if (emptyEl) emptyEl.style.display = 'none';
+        if (errEl) errEl.style.display = 'none';
+        if (wrapEl) wrapEl.style.display = 'flex';
+
+        const ts = String(a.timestamp_utc || '').replace('T', ' ').slice(0, 19) + ' UTC';
+        setElText('neon-ai-audit-meta', `${a.model || 'gemini-4-hydrogen'} · ${ts} · ${a.confidence_pct ?? 85}% conf`);
+        setElText('neon-ai-headline', a.diagnosis_headline || 'NEON Bleed Audit Complete');
+
+        const vm = document.getElementById('neon-ai-verdict-meta');
+        if (vm) {
+            const modeTag =
+                a.data_mode === 'BLEED_STRESS_DRILL'
+                    ? ' · Stress Drill'
+                    : a.data_mode === 'WIN_SIMULATION'
+                    ? ' · Win Simulation'
+                    : ' · Live';
+            vm.textContent = `${String(a.bleed_severity || 'NOMINAL').replace(/_/g, ' ')} · Score ${a.bleed_score_at_audit ?? 0}/100${modeTag}`;
+            vm.className = `neon-ai-verdict-meta ${tierColorClass(a.bleed_severity)}`;
+        }
+
+        setElText('neon-ai-summary', `${a.executive_summary || ''} ${a.expected_impact_summary ? `Expected Impact: ${a.expected_impact_summary}` : ''}`.trim());
+
+        const causesEl = document.getElementById('neon-ai-causes');
+        if (causesEl) {
+            const causes = Array.isArray(a.root_causes) ? a.root_causes : [];
+            causesEl.innerHTML = causes.length
+                ? causes
+                      .map((c) => {
+                          const sevCls = c.severity === 'CRITICAL' || c.severity === 'HIGH' ? 'text-neg' : c.severity === 'MEDIUM' ? 'text-amber' : 'text-cyan';
+                          return `<div class="neon-ai-cause-row">
+                              <div class="neon-ai-cause-top">
+                                  <span class="mono"><strong>${escapeHtml(c.category)}</strong></span>
+                                  <span class="mono ${sevCls}">${escapeHtml(c.severity)}</span>
+                              </div>
+                              <div class="neon-ai-cause-desc">${escapeHtml(c.evidence)} — ${escapeHtml(c.impact)}</div>
+                          </div>`;
+                      })
+                      .join('')
+                : '<div class="neon-dyn-trigger-line">No severe bleed vectors detected.</div>';
+        }
+
+        const planEl = document.getElementById('neon-ai-plan-list');
+        if (planEl) {
+            const steps = Array.isArray(a.surgical_remediation_plan) ? a.surgical_remediation_plan : [];
+            planEl.innerHTML = steps.map((s) => `<li>${escapeHtml(s)}</li>`).join('');
+        }
+
+        const previewEl = document.getElementById('neon-ai-patch-preview');
+        const applyBtn = document.getElementById('neon-ai-apply-btn');
+        if (previewEl && neonLatestAiPatch) {
+            const p = neonLatestAiPatch;
+            const qList = Array.isArray(a.symbols_to_quarantine) && a.symbols_to_quarantine.length
+                ? ` · Watch/Quarantine: ${a.symbols_to_quarantine.join(', ')}`
+                : '';
+            previewEl.textContent = `Patch: Risk ${p.risk_per_trade_pct}% · ADX >= ${p.min_adx_14} · SL ${p.sl_atr_multiplier}x ATR · TP ${p.tp_r_multiple}R · Slots ${p.max_concurrent_positions} · Cooldown ${p.sl_cooldown_minutes}m${qList}`;
+            if (applyBtn) applyBtn.disabled = false;
+        }
+    }
+
+    async function loadNeonDynamicState() {
+        try {
+            const resp = await axios.get('/api/neon/dynamic-state', {
+                params: {
+                    simulate_bleed: neonDynamicMode === 'bleed' ? 'true' : 'false',
+                    simulate_win: neonDynamicMode === 'win' ? 'true' : 'false',
+                },
+                timeout: 12000,
+            });
+            if (resp.data && resp.data.success && resp.data.dynamic_state) {
+                renderDynamicState(resp.data.dynamic_state);
+            }
+        } catch (err) {
+            console.warn('Failed to load NEON dynamic state:', err);
+        }
+    }
+
+    function setNeonDynamicTelemetryMode(mode) {
+        const next = mode === 'bleed' ? 'bleed' : mode === 'win' ? 'win' : 'live';
+        if (next === neonDynamicMode) return;
+        neonDynamicMode = next;
+        loadNeonDynamicState();
+    }
+
+    function setNeonBleedDrillMode(enableDrill) {
+        setNeonDynamicTelemetryMode(enableDrill ? 'bleed' : 'live');
+    }
+
+    async function toggleNeonDynamicFlag(flagName) {
+        if (!neonDynamicState) return;
+        const currentVal = Boolean(neonDynamicState[flagName]);
+        try {
+            const resp = await axios.post('/api/neon/dynamic-mode', {
+                [flagName]: !currentVal,
+                simulate_bleed: neonDynamicMode === 'bleed',
+                simulate_win: neonDynamicMode === 'win',
+            });
+            if (resp.data && resp.data.success) {
+                if (resp.data.dynamic_state) renderDynamicState(resp.data.dynamic_state);
+                if (typeof window.showKronosToast === 'function') {
+                    window.showKronosToast(resp.data.message || 'Dynamic mode updated.', 'success');
+                }
+            }
+        } catch (err) {
+            if (typeof window.showKronosToast === 'function') {
+                window.showKronosToast('Failed to update NEON dynamic mode.', 'error');
+            }
+        }
+    }
+
+    async function runNeonAiBleedAudit() {
+        const btn = document.getElementById('neon-ai-run-btn');
+        const errEl = document.getElementById('neon-ai-error-box');
+        const focusInput = document.getElementById('neon-ai-focus-input');
+        const focusNote = focusInput ? focusInput.value.trim() : '';
+
+        if (errEl) {
+            errEl.style.display = 'none';
+            errEl.textContent = '';
+        }
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Auditing Telemetry...';
+        }
+
+        try {
+            const resp = await axios.post(
+                '/api/neon/ai-bleed-audit',
+                {
+                    simulate_bleed: neonDynamicMode === 'bleed',
+                    simulate_win: neonDynamicMode === 'win',
+                    focus_note: focusNote,
+                },
+                { timeout: 60000 }
+            );
+            if (resp.data && resp.data.success && resp.data.assessment) {
+                renderAiAssessment(resp.data.assessment);
+                if (typeof window.showKronosToast === 'function') {
+                    window.showKronosToast(
+                        `AI Strategy Audit complete (${resp.data.assessment.bleed_severity}). Review & apply patch below.`,
+                        'success'
+                    );
+                }
+            } else {
+                throw new Error((resp.data && resp.data.error) || 'AI Strategy Audit failed.');
+            }
+        } catch (err) {
+            const msg =
+                (err && err.response && err.response.data && err.response.data.error) ||
+                (err && err.message) ||
+                'AI Strategy Audit request failed.';
+            if (errEl) {
+                errEl.textContent = msg;
+                errEl.style.display = 'block';
+            }
+            if (typeof window.showKronosToast === 'function') {
+                window.showKronosToast(msg, 'error');
+            }
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Run AI Bleed Audit';
+            }
+        }
+    }
+
+    async function applyNeonAiPatch() {
+        if (!neonLatestAiPatch) return;
+        const btn = document.getElementById('neon-ai-apply-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Applying...';
+        }
+        try {
+            const resp = await axios.post('/api/neon/ai-apply-patch', {
+                patch: neonLatestAiPatch,
+                simulate_bleed: neonDynamicMode === 'bleed',
+                simulate_win: neonDynamicMode === 'win',
+            });
+            if (resp.data && resp.data.success) {
+                if (typeof window.showKronosToast === 'function') {
+                    window.showKronosToast(resp.data.message || 'AI remediation patch applied.', 'success');
+                }
+                if (resp.data.dynamic_state) renderDynamicState(resp.data.dynamic_state);
+                await loadNeonStrategy();
+                if (window.BotSwarmBridge && typeof window.BotSwarmBridge.syncNeonTelemetry === 'function') {
+                    window.BotSwarmBridge.syncNeonTelemetry();
+                }
+            }
+        } catch (err) {
+            if (typeof window.showKronosToast === 'function') {
+                window.showKronosToast('Failed to apply AI remediation patch.', 'error');
+            }
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Apply AI Patch';
+            }
+        }
+    }
+
     window.loadNeonStrategy = loadNeonStrategy;
     window.saveNeonStrategyConfig = saveNeonStrategyConfig;
     window.toggleNeonEngine = toggleNeonEngine;
     window.runNeonInteractiveBacktest = runNeonInteractiveBacktest;
     window.dispatchNeonTicket = dispatchNeonTicket;
+    window.loadNeonDynamicState = loadNeonDynamicState;
+    window.setNeonDynamicTelemetryMode = setNeonDynamicTelemetryMode;
+    window.setNeonBleedDrillMode = setNeonBleedDrillMode;
+    window.toggleNeonDynamicFlag = toggleNeonDynamicFlag;
+    window.runNeonAiBleedAudit = runNeonAiBleedAudit;
+    window.applyNeonAiPatch = applyNeonAiPatch;
 })();

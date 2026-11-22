@@ -44,13 +44,15 @@ export interface NeonStrategyConfig {
   sl_cooldown_minutes: number; // Default 45m anti-revenge guard
   session_gate_enabled: boolean; // Default true
   allow_quarantined_symbols: boolean; // Default false
+  dynamic_adaptation_enabled: boolean; // Default true — real-time volatility & ADX scaling
+  auto_bleed_guard_enabled: boolean; // Default true — automatic half-Kelly & drawdown circuit breaker
   maker_fee_rate: number; // 0.0002 (2 bps)
   taker_fee_rate: number; // 0.00045 (4.5 bps with BNB discount)
 }
 
 export const DEFAULT_NEON_CONFIG: NeonStrategyConfig = {
-  strategy_name: 'NEON Regime-Adaptive Pullback-Resumption',
-  version: '1.0.0',
+  strategy_name: 'NEON Dynamic Regime-Adaptive Quant Engine',
+  version: '2.0.0',
   enabled: true,
   execution_mode: 'MAKER_FIRST_LIMIT',
   risk_per_trade_pct: 1.5,
@@ -67,6 +69,8 @@ export const DEFAULT_NEON_CONFIG: NeonStrategyConfig = {
   sl_cooldown_minutes: 45,
   session_gate_enabled: true,
   allow_quarantined_symbols: false,
+  dynamic_adaptation_enabled: true,
+  auto_bleed_guard_enabled: true,
   maker_fee_rate: 0.0002,
   taker_fee_rate: 0.00045,
 };
@@ -88,6 +92,7 @@ export function saveNeonConfig(patch: Partial<NeonStrategyConfig>): NeonStrategy
     max_leverage: Math.min(10, Math.max(1, Number(patch.max_leverage ?? current.max_leverage))),
     max_concurrent_positions: Math.min(5, Math.max(1, Math.round(Number(patch.max_concurrent_positions ?? current.max_concurrent_positions)))),
     min_adx_14: Math.min(40, Math.max(10, Number(patch.min_adx_14 ?? current.min_adx_14))),
+    sl_atr_multiplier: Math.min(2.5, Math.max(0.9, Number(patch.sl_atr_multiplier ?? current.sl_atr_multiplier))),
     sl_cooldown_minutes: Math.min(180, Math.max(0, Math.round(Number(patch.sl_cooldown_minutes ?? current.sl_cooldown_minutes)))),
     tp_r_multiple: Math.min(4.0, Math.max(1.2, Number(patch.tp_r_multiple ?? current.tp_r_multiple))),
   };

@@ -37,6 +37,19 @@ import {
   NEON_CORE_UNIVERSE,
   NEON_QUARANTINED_SYMBOLS,
 } from './src/server/neonStrategy.js';
+import {
+  computeNeonDynamicState,
+  runNeonAiBleedAssessment,
+} from './src/server/neonDynamicAi.js';
+import {
+  NeonWinScenarioId,
+  computeCandlestickModeBenchmarks,
+  runNeonWinSimulation,
+} from './src/server/neonWinSimulator.js';
+import {
+  normalizeCandlestickMode,
+  scanNeonCandlestickUniverse,
+} from './src/server/neonCandlestickEngine.js';
 
 const PORT = parseInt(process.env.PORT || process.env.KRONOS_PORT || '3000', 10);
 const HOST = process.env.KRONOS_HOST || '0.0.0.0';
@@ -1745,6 +1758,249 @@ app.post('/api/neon/execute', async (req: Request, res: Response) => {
   }
 });
 
+// NEON v2.0 Dynamic Adaptive Quant State & AI-Assisted Bleed Auditor Routes
+app.get('/api/neon/dynamic-state', async (req: Request, res: Response) => {
+  try {
+    const simulateBleed = String(req.query.simulate_bleed || 'false').toLowerCase() === 'true';
+    const simulateWin = String(req.query.simulate_win || 'false').toLowerCase() === 'true';
+    const config = loadNeonConfig();
+    const tickers = await fetchBinanceTickers();
+    const dynamicState = await computeNeonDynamicState({
+      tickers,
+      equityUsd: paperCurrentEquity,
+      openPositionCount: paperOpenPositions.length,
+      config,
+      simulateBleed,
+      simulateWin,
+    });
+    res.json({ success: true, dynamic_state: dynamicState });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.post('/api/neon/dynamic-mode', async (req: Request, res: Response) => {
+  try {
+    const patch: Record<string, boolean> = {};
+    if (typeof req.body?.dynamic_adaptation_enabled === 'boolean') {
+      patch.dynamic_adaptation_enabled = req.body.dynamic_adaptation_enabled;
+    }
+    if (typeof req.body?.auto_bleed_guard_enabled === 'boolean') {
+      patch.auto_bleed_guard_enabled = req.body.auto_bleed_guard_enabled;
+    }
+    const updated = saveNeonConfig(patch);
+    const tickers = await fetchBinanceTickers();
+    const dynamicState = await computeNeonDynamicState({
+      tickers,
+      equityUsd: paperCurrentEquity,
+      openPositionCount: paperOpenPositions.length,
+      config: updated,
+      simulateBleed: Boolean(req.body?.simulate_bleed),
+      simulateWin: Boolean(req.body?.simulate_win),
+    });
+    res.json({
+      success: true,
+      config: updated,
+      dynamic_state: dynamicState,
+      message: `NEON Dynamic Controls updated (Auto-Adapt: ${updated.dynamic_adaptation_enabled ? 'ON' : 'OFF'} · Bleed Guard: ${updated.auto_bleed_guard_enabled ? 'ON' : 'OFF'}).`,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.post('/api/neon/ai-bleed-audit', async (req: Request, res: Response) => {
+  try {
+    const simulateBleed = Boolean(req.body?.simulate_bleed ?? false);
+    const simulateWin = Boolean(req.body?.simulate_win ?? false);
+    const focusNote = typeof req.body?.focus_note === 'string' ? req.body.focus_note : undefined;
+    const config = loadNeonConfig();
+    const tickers = await fetchBinanceTickers();
+    const dynamicState = await computeNeonDynamicState({
+      tickers,
+      equityUsd: paperCurrentEquity,
+      openPositionCount: paperOpenPositions.length,
+      config,
+      simulateBleed,
+      simulateWin,
+    });
+    const assessment = await runNeonAiBleedAssessment({
+      dynamicState,
+      config,
+      focusNote,
+    });
+    res.json({
+      success: true,
+      assessment,
+      dynamic_state: {
+        ...dynamicState,
+        latest_ai_assessment: assessment,
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status = message.includes('GEMINI_API_KEY') ? 503 : 500;
+    res.status(status).json({ success: false, error: message });
+  }
+});
+
+app.post('/api/neon/ai-apply-patch', async (req: Request, res: Response) => {
+  try {
+    const patch = req.body?.patch;
+    if (!patch || typeof patch !== 'object') {
+      res.status(400).json({ success: false, error: 'Missing AI remediation patch payload.' });
+      return;
+    }
+    const updated = saveNeonConfig({
+      risk_per_trade_pct: patch.risk_per_trade_pct,
+      min_adx_14: patch.min_adx_14,
+      tp_r_multiple: patch.tp_r_multiple,
+      sl_atr_multiplier: patch.sl_atr_multiplier,
+      sl_cooldown_minutes: patch.sl_cooldown_minutes,
+      max_concurrent_positions: patch.max_concurrent_positions,
+      session_gate_enabled: patch.session_gate_enabled,
+      enabled: patch.enabled,
+    });
+    const tickers = await fetchBinanceTickers();
+    const dynamicState = await computeNeonDynamicState({
+      tickers,
+      equityUsd: paperCurrentEquity,
+      openPositionCount: paperOpenPositions.length,
+      config: updated,
+      simulateBleed: Boolean(req.body?.simulate_bleed),
+      simulateWin: Boolean(req.body?.simulate_win),
+    });
+    res.json({
+      success: true,
+      config: updated,
+      dynamic_state: dynamicState,
+      message: `Applied AI Remediation Patch: Risk ${updated.risk_per_trade_pct}% · ADX >= ${updated.min_adx_14} · SL ${updated.sl_atr_multiplier}x ATR · TP ${updated.tp_r_multiple}R · Cooldown ${updated.sl_cooldown_minutes}m.`,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// NEON Dual-Bot (NEON-5 & NEON-6) Near-Realistic Win Simulator + 250-Path Monte Carlo Envelope
+app.get('/api/neon/win-simulation', async (req: Request, res: Response) => {
+  try {
+    const scenario = String(req.query.scenario || 'REALISTIC_LIVE_FRICTION').toUpperCase() as NeonWinScenarioId;
+    const initialEquity = Number(req.query.initial_equity ?? 1000);
+    const horizonDays = Number(req.query.horizon_days ?? 90);
+    const seed = req.query.seed ? Number(req.query.seed) : undefined;
+    const dynamicCompounding = String(req.query.dynamic_compounding ?? 'true').toLowerCase() !== 'false';
+    const candlestickMode = normalizeCandlestickMode(String(req.query.candlestick_mode || 'OFF'));
+    const [config, tickers] = [loadNeonConfig(), await fetchBinanceTickers()];
+
+    const simulation = await runNeonWinSimulation({
+      scenario,
+      initial_equity_usd: initialEquity,
+      horizon_days: horizonDays,
+      seed,
+      dynamic_compounding: dynamicCompounding,
+      candlestick_mode: candlestickMode,
+      config,
+      tickers,
+    });
+    res.json({ success: true, simulation });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.post('/api/neon/win-simulation', async (req: Request, res: Response) => {
+  try {
+    const scenario = String(req.body?.scenario || 'REALISTIC_LIVE_FRICTION').toUpperCase() as NeonWinScenarioId;
+    const initialEquity = Number(req.body?.initial_equity ?? 1000);
+    const horizonDays = Number(req.body?.horizon_days ?? 90);
+    const seed = req.body?.seed ? Number(req.body.seed) : undefined;
+    const dynamicCompounding = req.body?.dynamic_compounding !== false;
+    const candlestickMode = normalizeCandlestickMode(String(req.body?.candlestick_mode || 'OFF'));
+    const [config, tickers] = [loadNeonConfig(), await fetchBinanceTickers()];
+
+    const simulation = await runNeonWinSimulation({
+      scenario,
+      initial_equity_usd: initialEquity,
+      horizon_days: horizonDays,
+      seed,
+      dynamic_compounding: dynamicCompounding,
+      candlestick_mode: candlestickMode,
+      config,
+      tickers,
+    });
+    res.json({ success: true, simulation });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.get('/api/neon/reality-gap', async (req: Request, res: Response) => {
+  try {
+    const scenario = String(req.query.scenario || 'REALISTIC_LIVE_FRICTION').toUpperCase() as NeonWinScenarioId;
+    const initialEquity = Number(req.query.initial_equity ?? 1000);
+    const horizonDays = Number(req.query.horizon_days ?? 90);
+    const seed = req.query.seed ? Number(req.query.seed) : undefined;
+    const dynamicCompounding = String(req.query.dynamic_compounding ?? 'true').toLowerCase() !== 'false';
+    const candlestickMode = normalizeCandlestickMode(String(req.query.candlestick_mode || 'OFF'));
+    const [config, tickers] = [loadNeonConfig(), await fetchBinanceTickers()];
+
+    const simulation = await runNeonWinSimulation({
+      scenario,
+      initial_equity_usd: initialEquity,
+      horizon_days: horizonDays,
+      seed,
+      dynamic_compounding: dynamicCompounding,
+      candlestick_mode: candlestickMode,
+      config,
+      tickers,
+    });
+    res.json({
+      success: true,
+      reality_gap: simulation.reality_gap,
+      scenario: simulation.scenario,
+      candlestick_mode: simulation.candlestick_mode,
+      horizon_days: simulation.horizon_days,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+// NEON Top 25 Candlestick Confluence Engine + 3-Mode Empirical A/B Impact Matrix
+app.get('/api/neon/candlesticks', async (req: Request, res: Response) => {
+  try {
+    const symbol = String(req.query.symbol || 'BTCUSDT').toUpperCase();
+    const interval = String(req.query.interval || '1h').toLowerCase();
+    const mode = normalizeCandlestickMode(String(req.query.mode || 'VETO_CONFIRM'));
+    const scenario = String(req.query.scenario || 'REALISTIC_LIVE_FRICTION').toUpperCase() as NeonWinScenarioId;
+    const initialEquity = Number(req.query.initial_equity ?? 1000);
+    const horizonDays = Number(req.query.horizon_days ?? 90);
+    const seed = req.query.seed ? Number(req.query.seed) : 20261121;
+    const includeBenchmarks = String(req.query.include_benchmarks ?? 'true').toLowerCase() !== 'false';
+
+    const [scan, config, tickers] = await Promise.all([
+      scanNeonCandlestickUniverse({ symbol, interval, active_mode: mode }),
+      Promise.resolve(loadNeonConfig()),
+      fetchBinanceTickers(),
+    ]);
+
+    if (includeBenchmarks) {
+      scan.mode_benchmarks = await computeCandlestickModeBenchmarks({
+        scenario,
+        initial_equity_usd: initialEquity,
+        horizon_days: horizonDays,
+        seed,
+        config,
+        tickers,
+      });
+    }
+
+    res.json({ success: true, candlesticks: scan });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 // ============================================================================
 // HTTP Server + Multiplexed Swarm WebSocket Telemetry Hub (/swarm on port 3000)
 // ============================================================================
@@ -1768,8 +2024,8 @@ wsServer.on('connection', (socket: WebSocket) => {
     JSON.stringify({
       type: 'heartbeat',
       timestamp_utc: new Date().toISOString(),
-      bots: 4,
-      workers: 24,
+      bots: 6,
+      workers: 36,
       status: 'ONLINE',
     })
   );
