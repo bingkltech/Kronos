@@ -1102,15 +1102,26 @@ def get_macro_overview():
             except Exception as err:
                 logger.debug("Local executor live account query: %s", err)
 
-        # Enrich active positions if scalp
+        # Enrich active positions with distinct bot identity (MACRO / NEON / LIGHTNING)
         if live_account and "positions" in live_account:
             active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
             enriched_pos = []
             for p in live_account.get("positions", []):
                 pd = dict(p)
-                is_sc = bool(pd.get("is_scalp")) or (active_scalp_sym is not None and pd.get("symbol") == active_scalp_sym)
-                pd["is_scalp"] = is_sc
-                pd["trade_type"] = "SCALP" if is_sc else "MACRO"
+                sym = pd.get("symbol")
+                bot_tag = pd.get("bot_tag") or pd.get("trade_type")
+                if not bot_tag or bot_tag in ("SCALP", "MACRO"):
+                    if pd.get("is_scalp") or (active_scalp_sym and sym == active_scalp_sym) or (sym in getattr(quant_bot.executor, "scalp_active_symbols", set())):
+                        bot_tag = "LIGHTNING"
+                    elif pd.get("is_neon") or sym in getattr(quant_bot.executor, "neon_active_symbols", set()) or sym in getattr(quant_bot.executor, "bot_positions", {}):
+                        bot_tag = getattr(quant_bot.executor, "bot_positions", {}).get(sym, "NEON")
+                    else:
+                        bot_tag = "MACRO"
+                pd["bot_tag"] = bot_tag
+                pd["trade_type"] = bot_tag
+                pd["is_scalp"] = (bot_tag == "LIGHTNING")
+                pd["is_neon"] = (bot_tag == "NEON")
+                pd["is_macro"] = (bot_tag == "MACRO")
                 enriched_pos.append(pd)
             live_account["positions"] = enriched_pos
 
@@ -2971,11 +2982,38 @@ def health_check():
 def get_live_status():
     """Return real Binance Futures account summary, positions, and live autopilot state."""
     try:
+        def _enrich_positions(pos_list):
+            active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
+            bot_reg = getattr(quant_bot.executor, "bot_positions", {})
+            out = []
+            for p in pos_list:
+                pd = dict(p)
+                sym = pd.get("symbol")
+                bot_tag = pd.get("bot_tag") or pd.get("trade_type")
+                if not bot_tag or bot_tag in ("SCALP", "MACRO"):
+                    if pd.get("is_scalp") or (active_scalp_sym and sym == active_scalp_sym) or (sym in getattr(quant_bot.executor, "scalp_active_symbols", set())):
+                        bot_tag = "LIGHTNING"
+                    elif pd.get("is_neon") or sym in getattr(quant_bot.executor, "neon_active_symbols", set()) or sym in bot_reg:
+                        bot_tag = bot_reg.get(sym, "NEON")
+                    else:
+                        bot_tag = "MACRO"
+                pd["bot_tag"] = bot_tag
+                pd["trade_type"] = bot_tag
+                pd["is_scalp"] = (bot_tag == "LIGHTNING")
+                pd["is_neon"] = (bot_tag == "NEON")
+                pd["is_macro"] = (bot_tag == "MACRO")
+                out.append(pd)
+            return out
+
         # Zero-Whitelist Tap: Prioritize direct remote telemetry from AWS EC2
         if aws_bridge and aws_bridge.is_connected():
             cached = aws_bridge._cached_live_status
             if cached and cached.get("success"):
                 res = dict(cached)
+                if "live_account" in res and isinstance(res["live_account"], dict) and "positions" in res["live_account"]:
+                    res["live_account"]["positions"] = _enrich_positions(res["live_account"]["positions"])
+                if "positions" in res:
+                    res["positions"] = _enrich_positions(res["positions"])
                 res["aws_tap_active"] = True
                 res["aws_ip"] = "13.63.158.94"
                 res["whitelist_bypassed"] = True
@@ -2983,6 +3021,10 @@ def get_live_status():
             remote_data = aws_bridge.fetch_remote_json('/api/live/status', timeout=2.5)
             if remote_data and remote_data.get("success"):
                 res = dict(remote_data)
+                if "live_account" in res and isinstance(res["live_account"], dict) and "positions" in res["live_account"]:
+                    res["live_account"]["positions"] = _enrich_positions(res["live_account"]["positions"])
+                if "positions" in res:
+                    res["positions"] = _enrich_positions(res["positions"])
                 res["aws_tap_active"] = True
                 res["aws_ip"] = "13.63.158.94"
                 res["whitelist_bypassed"] = True
@@ -2998,14 +3040,25 @@ def get_live_status():
             now_u = datetime.datetime.now(datetime.timezone.utc)
             next_sec = max(0, int((live_trading_next_scan_time - now_u).total_seconds()))
 
-        # Enrich live positions and trade history with is_scalp flag for institutional bold blue styling
+        # Enrich live positions and trade history with distinct bot identities (MACRO / NEON / LIGHTNING)
         active_scalp_sym = apex_scalper.active_scalp.symbol if (apex_scalper and apex_scalper.active_scalp) else None
         enriched_positions = []
         for p in live_account.get("positions", []):
             p_dict = dict(p)
-            is_sc = bool(p_dict.get("is_scalp")) or (active_scalp_sym is not None and p_dict.get("symbol") == active_scalp_sym)
-            p_dict["is_scalp"] = is_sc
-            p_dict["trade_type"] = "SCALP" if is_sc else "MACRO"
+            sym = p_dict.get("symbol")
+            bot_tag = p_dict.get("bot_tag") or p_dict.get("trade_type")
+            if not bot_tag or bot_tag in ("SCALP", "MACRO"):
+                if p_dict.get("is_scalp") or (active_scalp_sym and sym == active_scalp_sym) or (sym in getattr(quant_bot.executor, "scalp_active_symbols", set())):
+                    bot_tag = "LIGHTNING"
+                elif p_dict.get("is_neon") or sym in getattr(quant_bot.executor, "neon_active_symbols", set()) or sym in getattr(quant_bot.executor, "bot_positions", {}):
+                    bot_tag = getattr(quant_bot.executor, "bot_positions", {}).get(sym, "NEON")
+                else:
+                    bot_tag = "MACRO"
+            p_dict["bot_tag"] = bot_tag
+            p_dict["trade_type"] = bot_tag
+            p_dict["is_scalp"] = (bot_tag == "LIGHTNING")
+            p_dict["is_neon"] = (bot_tag == "NEON")
+            p_dict["is_macro"] = (bot_tag == "MACRO")
             enriched_positions.append(p_dict)
 
         enriched_trades = []
@@ -3014,9 +3067,20 @@ def get_live_status():
             t_dict = dict(t)
             oid = str(t_dict.get("order_id") or t_dict.get("orderId") or "")
             tid = str(t_dict.get("trade_id") or t_dict.get("id") or "")
-            is_sc = bool(t_dict.get("is_scalp")) or (oid in scalp_oids) or (tid in scalp_oids)
-            t_dict["is_scalp"] = is_sc
-            t_dict["trade_type"] = "SCALP" if is_sc else "MACRO"
+            sym = t_dict.get("symbol")
+            bot_tag = t_dict.get("bot_tag") or t_dict.get("trade_type")
+            if not bot_tag or bot_tag in ("SCALP", "MACRO"):
+                if t_dict.get("is_scalp") or (oid in scalp_oids) or (tid in scalp_oids):
+                    bot_tag = "LIGHTNING"
+                elif t_dict.get("is_neon") or (oid in getattr(quant_bot.executor, "bot_order_tags", {})) or sym in getattr(quant_bot.executor, "bot_positions", {}):
+                    bot_tag = getattr(quant_bot.executor, "bot_order_tags", {}).get(oid) or getattr(quant_bot.executor, "bot_positions", {}).get(sym, "NEON")
+                else:
+                    bot_tag = "MACRO"
+            t_dict["bot_tag"] = bot_tag
+            t_dict["trade_type"] = bot_tag
+            t_dict["is_scalp"] = (bot_tag == "LIGHTNING")
+            t_dict["is_neon"] = (bot_tag == "NEON")
+            t_dict["is_macro"] = (bot_tag == "MACRO")
             enriched_trades.append(t_dict)
 
         return jsonify({

@@ -45,6 +45,7 @@ class TradeTicket:
     net_expected_gain_pct: Decimal
     is_scalp: bool = False
     forecast_confidence: Decimal = Decimal("0.65")
+    bot_source: str = "MACRO"
 
 
 @dataclass(frozen=True)

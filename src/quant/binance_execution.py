@@ -72,6 +72,7 @@ class ActiveBracketPosition:
     funding_fee_usd: Decimal = Decimal("0.0")
     close_reason: Optional[str] = None
     forecast_confidence: Decimal = Decimal("0.65")
+    bot_source: str = "MACRO"
 
 
 class BinanceAtomicExecutor:
@@ -140,6 +141,13 @@ class BinanceAtomicExecutor:
         self.scalp_active_symbols: Set[str] = set()
         self._load_scalp_orders()
 
+        # Bot & strategy position registry for clean UI tagging (MACRO / NEON / LIGHTNING)
+        self.bot_registry_file = os.path.join(workspace_root, "data", "bot_positions_registry.json")
+        self.bot_positions: Dict[str, str] = {}
+        self.bot_order_tags: Dict[str, str] = {}
+        self.neon_active_symbols: Set[str] = set()
+        self._load_bot_registry()
+
     def _load_scalp_orders(self):
         """Restore registered scalp order IDs across restarts."""
         try:
@@ -165,6 +173,85 @@ class BinanceAtomicExecutor:
                     json.dump(list(self.scalp_order_ids), f, indent=2)
         except Exception as e:
             logger.debug("Failed saving scalp orders: %s", e)
+
+    def _load_bot_registry(self):
+        """Restore bot positions and order tags across restarts."""
+        try:
+            if hasattr(self, "bot_registry_file") and os.path.exists(self.bot_registry_file):
+                with open(self.bot_registry_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.bot_positions = dict(data.get("positions", {}))
+                        self.bot_order_tags = dict(data.get("orders", {}))
+                        self.neon_active_symbols = {
+                            sym for sym, tag in self.bot_positions.items()
+                            if tag == "NEON"
+                        }
+        except Exception:
+            self.bot_positions = {}
+            self.bot_order_tags = {}
+            self.neon_active_symbols = set()
+
+    def record_bot_position(self, symbol: str, bot_type: str, order_id: Optional[Any] = None):
+        """Register a symbol and optional order ID as belonging to MACRO, NEON, or LIGHTNING."""
+        if not symbol:
+            return
+        bot_type = str(bot_type).upper()
+        if "NEON" in bot_type:
+            bot_type = "NEON"
+            self.neon_active_symbols.add(symbol)
+        elif "LIGHTNING" in bot_type or "SCALP" in bot_type:
+            bot_type = "LIGHTNING"
+            self.scalp_active_symbols.add(symbol)
+        else:
+            bot_type = "MACRO"
+
+        self.bot_positions[symbol] = bot_type
+        if order_id:
+            oid = str(order_id)
+            self.bot_order_tags[oid] = bot_type
+            if bot_type == "LIGHTNING":
+                self.record_scalp_order(oid, symbol)
+        self._save_bot_registry()
+
+    def _save_bot_registry(self):
+        """Persist bot positions and order tags to disk."""
+        try:
+            if hasattr(self, "bot_registry_file"):
+                os.makedirs(os.path.dirname(self.bot_registry_file), exist_ok=True)
+                payload = {
+                    "positions": self.bot_positions,
+                    "orders": self.bot_order_tags
+                }
+                tmp = self.bot_registry_file + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2)
+                os.replace(tmp, self.bot_registry_file)
+        except Exception as e:
+            logger.debug("Failed saving bot registry: %s", e)
+
+    def get_bot_for_symbol(self, symbol: str) -> str:
+        """Resolve the bot identity (NEON, LIGHTNING, or MACRO) owning a position."""
+        if not symbol:
+            return "MACRO"
+        if symbol in self.bot_positions:
+            return self.bot_positions[symbol]
+        if symbol in getattr(self, "neon_active_symbols", set()):
+            return "NEON"
+        if symbol in getattr(self, "scalp_active_symbols", set()):
+            return "LIGHTNING"
+        return "MACRO"
+
+    def get_bot_for_order(self, order_id: Any) -> Optional[str]:
+        """Resolve the bot identity for an order or trade ID."""
+        if not order_id:
+            return None
+        oid = str(order_id)
+        if oid in self.bot_order_tags:
+            return self.bot_order_tags[oid]
+        if oid in self.scalp_order_ids:
+            return "LIGHTNING"
+        return None
 
     def _refresh_credentials(self, api_key: Optional[str] = None, secret_key: Optional[str] = None):
         """Dynamically resolve Binance API credentials from arguments or environment (.env)."""
@@ -217,7 +304,8 @@ class BinanceAtomicExecutor:
             "slippage_usd": str(pos.slippage_usd),
             "funding_fee_usd": str(pos.funding_fee_usd),
             "close_reason": pos.close_reason,
-            "forecast_confidence": str(pos.forecast_confidence)
+            "forecast_confidence": str(pos.forecast_confidence),
+            "bot_source": getattr(pos, "bot_source", "MACRO")
         }
 
     def _dict_to_pos(self, d: Dict[str, Any]) -> ActiveBracketPosition:
@@ -257,7 +345,8 @@ class BinanceAtomicExecutor:
             slippage_usd=Decimal(str(d.get("slippage_usd", "0.0"))),
             funding_fee_usd=Decimal(str(d.get("funding_fee_usd", "0.0"))),
             close_reason=d.get("close_reason"),
-            forecast_confidence=Decimal(str(d.get("forecast_confidence", "0.65")))
+            forecast_confidence=Decimal(str(d.get("forecast_confidence", "0.65"))),
+            bot_source=d.get("bot_source", "MACRO")
         )
 
     def _load_paper_state(self) -> None:
@@ -757,7 +846,10 @@ class BinanceAtomicExecutor:
                     net_roi_pct = ((net_pnl_usd / margin) * Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if margin > Decimal("0") else Decimal("0.00")
                     net_price_gain_pct = (price_gain_pct - (rt_fee_rate * Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-                    is_scalp = (sym in getattr(self, "scalp_active_symbols", set()))
+                    bot_tag = self.get_bot_for_symbol(sym)
+                    is_scalp = (bot_tag == "LIGHTNING")
+                    is_neon = (bot_tag == "NEON")
+                    is_macro = (bot_tag == "MACRO")
                     active_live_positions.append({
                         "symbol": sym,
                         "position_amt": str(amt),
@@ -777,8 +869,21 @@ class BinanceAtomicExecutor:
                         "gross_roi_pct": str(gross_roi_pct),
                         "net_roi_pct": str(net_roi_pct),
                         "is_scalp": is_scalp,
-                        "trade_type": "SCALP" if is_scalp else "MACRO"
+                        "is_neon": is_neon,
+                        "is_macro": is_macro,
+                        "bot_tag": bot_tag,
+                        "trade_type": bot_tag
                     })
+                    
+            # Prune exited symbols from bot_positions
+            current_active_syms = {p["symbol"] for p in active_live_positions}
+            pruned = False
+            for tracked_sym in list(self.bot_positions.keys()):
+                if tracked_sym not in current_active_syms:
+                    del self.bot_positions[tracked_sym]
+                    pruned = True
+            if pruned:
+                self._save_bot_registry()
                     
             summary = {
                 "connected": True,
@@ -1176,10 +1281,14 @@ class BinanceAtomicExecutor:
             
         pos_id = f"LIVE_{ticket.symbol}-{int(time.time()*1000)}"
         entry_order_id_str = str(entry_resp.get("orderId"))
+        bot_source = getattr(ticket, "bot_source", "MACRO")
         if getattr(ticket, "is_scalp", False):
+            bot_source = "LIGHTNING"
             self.scalp_active_symbols.add(ticket.symbol)
             if entry_order_id_str:
                 self.record_scalp_order(entry_order_id_str, ticket.symbol)
+
+        self.record_bot_position(ticket.symbol, bot_source, entry_order_id_str)
 
         pos = ActiveBracketPosition(
             position_id=pos_id,
@@ -1192,7 +1301,8 @@ class BinanceAtomicExecutor:
             state=PositionState.ENTRY_FILLED,
             entry_order_id=entry_order_id_str,
             entry_fill_time_utc=datetime.datetime.now(datetime.timezone.utc),
-            forecast_confidence=getattr(ticket, "forecast_confidence", Decimal("0.65"))
+            forecast_confidence=getattr(ticket, "forecast_confidence", Decimal("0.65")),
+            bot_source=bot_source
         )
         
         # 2. Dispatch Stop-Loss & Take-Profit Brackets via Binance Algo Order Service
@@ -1228,6 +1338,11 @@ class BinanceAtomicExecutor:
                     self.record_scalp_order(pos.sl_order_id)
                 if pos.tp_order_id:
                     self.record_scalp_order(pos.tp_order_id)
+            if pos.sl_order_id:
+                self.bot_order_tags[pos.sl_order_id] = bot_source
+            if pos.tp_order_id:
+                self.bot_order_tags[pos.tp_order_id] = bot_source
+            self._save_bot_registry()
             
             # Invalidate cached account summary and trade history immediately after live execution
             self._cached_account_summary = None
@@ -1451,7 +1566,16 @@ class BinanceAtomicExecutor:
 
                     order_id_str = str(t.get("orderId"))
                     trade_id_str = str(t.get("id"))
-                    is_scalp = (order_id_str in self.scalp_order_ids) or (trade_id_str in self.scalp_order_ids)
+                    bot_tag = self.get_bot_for_order(order_id_str) or self.get_bot_for_order(trade_id_str)
+                    if not bot_tag:
+                        if (order_id_str in self.scalp_order_ids) or (trade_id_str in self.scalp_order_ids):
+                            bot_tag = "LIGHTNING"
+                        elif t.get("symbol") in self.bot_positions:
+                            bot_tag = self.bot_positions[t.get("symbol")]
+                        else:
+                            bot_tag = "MACRO"
+                    is_scalp = (bot_tag == "LIGHTNING")
+                    is_neon = (bot_tag == "NEON")
 
                     trades.append({
                         "trade_id": trade_id_str,
@@ -1465,7 +1589,9 @@ class BinanceAtomicExecutor:
                         "fee_usd": str(fee_usd),
                         "fee_asset": fee_asset,
                         "is_scalp": is_scalp,
-                        "trade_type": "SCALP" if is_scalp else "MACRO",
+                        "is_neon": is_neon,
+                        "bot_tag": bot_tag,
+                        "trade_type": bot_tag,
                         "time": datetime.datetime.fromtimestamp(t.get("time", 0) / 1000, tz=datetime.timezone.utc).isoformat()
                     })
             except Exception as e:

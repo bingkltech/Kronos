@@ -209,6 +209,10 @@ def _record_live_trade_dispatch(symbol: str, source: str) -> None:
         live_session_trades += 1
         cap_str = f"{live_session_trades}/{live_trade_cap}" if live_trade_cap is not None else f"{live_session_trades}/unlimited"
         logger.info("[LIVE TRADE QUOTA] Dispatched %s (%s) -> Count: %s", symbol, source, cap_str)
+        try:
+            quant_bot.executor.record_bot_position(symbol, source)
+        except Exception as reg_err:
+            logger.debug("Failed to record bot position in executor: %s", reg_err)
         if live_trade_cap is not None and live_session_trades >= live_trade_cap:
             live_trading_enabled = False
             live_cap_reached_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -927,7 +931,8 @@ def execute_neon_cycle():
                 reward_risk_ratio=Decimal("2.0"),
                 net_expected_gain_pct=Decimal("0.02"),
                 is_scalp=False,
-                forecast_confidence=conviction_dec
+                forecast_confidence=conviction_dec,
+                bot_source="NEON"
             )
 
             p_state, m_snap = quant_bot.executor.fetch_live_risk_snapshots(

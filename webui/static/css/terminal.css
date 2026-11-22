@@ -916,6 +916,37 @@ code {
     border: 1px solid rgba(167, 139, 250, 0.32);
 }
 
+/* Multi-Bot Distinct Semantic Badges & Row Highlighting (MACRO / NEON / LIGHTNING) */
+.badge-bot-neon {
+    background: rgba(236, 72, 153, 0.16) !important;
+    color: #f472b6 !important;
+    border: 1px solid rgba(236, 72, 153, 0.5) !important;
+    box-shadow: 0 0 8px rgba(236, 72, 153, 0.25);
+}
+.badge-bot-lightning {
+    background: rgba(56, 189, 248, 0.16) !important;
+    color: #38bdf8 !important;
+    border: 1px solid rgba(56, 189, 248, 0.5) !important;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+.badge-bot-macro {
+    background: rgba(163, 113, 247, 0.15) !important;
+    color: #c084fc !important;
+    border: 1px solid rgba(163, 113, 247, 0.45) !important;
+}
+.trade-row-neon {
+    background: rgba(236, 72, 153, 0.04) !important;
+}
+.trade-row-neon:hover {
+    background: rgba(236, 72, 153, 0.09) !important;
+}
+.trade-row-scalp {
+    background: rgba(56, 189, 248, 0.04) !important;
+}
+.trade-row-scalp:hover {
+    background: rgba(56, 189, 248, 0.09) !important;
+}
+
 /* Info / Alert Banners */
 .info-banner {
     background: var(--bg-subtle);

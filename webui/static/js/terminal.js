@@ -43,6 +43,30 @@
             return Number(val).toFixed(prec);
         }
 
+        // Universal Multi-Bot Asset Identifier & Semantic Badge Renderer (MACRO / NEON / LIGHTNING)
+        window._neonActiveSymbols = new Set(['BTCUSDT', 'ETHUSDT', 'LINKUSDT']);
+
+        function renderBotAssetBadge(symbol, item) {
+            if (!item) item = {};
+            const rawTag = (item.bot_tag || item.trade_type || '').toUpperCase();
+            let bot = 'MACRO';
+            if (rawTag.includes('NEON') || item.is_neon || (window._neonActiveSymbols && window._neonActiveSymbols.has(symbol))) {
+                bot = 'NEON';
+            } else if (rawTag.includes('LIGHTNING') || rawTag.includes('SCALP') || item.is_scalp || (window._currentActiveScalpSymbol && symbol === window._currentActiveScalpSymbol)) {
+                bot = 'LIGHTNING';
+            } else if (rawTag.includes('MACRO') || item.is_macro) {
+                bot = 'MACRO';
+            }
+
+            if (bot === 'NEON') {
+                return `<strong class="pos-symbol" style="color: #f472b6; font-weight: 800;">${symbol}</strong><span class="badge-bot-neon" style="background: rgba(236, 72, 153, 0.16); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.5); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.5px; box-shadow: 0 0 8px rgba(236, 72, 153, 0.25); vertical-align: middle;">🤖 NEON</span>`;
+            } else if (bot === 'LIGHTNING') {
+                return `<strong class="pos-symbol" style="color: #38bdf8; font-weight: 800;">${symbol}</strong><span class="badge-bot-lightning" style="background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.5px; box-shadow: 0 0 8px rgba(56, 189, 248, 0.25); vertical-align: middle;">⚡ LIGHTNING</span>`;
+            } else {
+                return `<strong class="pos-symbol" style="color: #c084fc; font-weight: 800;">${symbol}</strong><span class="badge-bot-macro" style="background: rgba(163, 113, 247, 0.15); color: #c084fc; border: 1px solid rgba(163, 113, 247, 0.45); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.5px; vertical-align: middle;">🌐 MACRO</span>`;
+            }
+        }
+
         // View Navigation Switcher
         function switchAppView(viewName) {
             currentActiveView = viewName;
@@ -275,12 +299,12 @@
                             tr.setAttribute('data-side', side);
                             tr.setAttribute('data-leverage', lev);
 
-                            const isScalp = Boolean(p.is_scalp === true || p.trade_type === 'SCALP' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                            const isScalp = Boolean(p.is_scalp === true || p.trade_type === 'SCALP' || p.trade_type === 'LIGHTNING' || p.bot_tag === 'LIGHTNING' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                            const isNeon = Boolean(p.is_neon === true || p.trade_type === 'NEON' || p.bot_tag === 'NEON' || (window._neonActiveSymbols && window._neonActiveSymbols.has(p.symbol)));
                             if (isScalp) tr.className = 'trade-row-scalp';
+                            else if (isNeon) tr.className = 'trade-row-neon';
 
-                            const symbolHtml = isScalp
-                                ? `<strong class="scalp-symbol-bold-blue">${p.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
-                                : `<strong class="pos-symbol">${p.symbol}</strong><span class="badge-regime" style="background: rgba(163, 113, 247, 0.15); color: #a371f7; border: 1px solid rgba(163, 113, 247, 0.4); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">🌐 MACRO</span>`;
+                            const symbolHtml = renderBotAssetBadge(p.symbol, p);
 
                             const priceGain = p.price_gain_pct !== undefined ? Number(p.price_gain_pct) : (
                                 entry > 0 ? (side === 'BUY' || side === 'LONG' ? ((mark - entry) / entry * 100) : ((entry - mark) / entry * 100)) : 0
@@ -351,9 +375,7 @@
                                 timeStr = d.toISOString().replace('T', ' ').slice(11, 19);
                             }
 
-                            const symbolHtml = isScalp
-                                ? `<strong class="scalp-symbol-bold-blue">${t.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
-                                : `<strong>${t.symbol}</strong>`;
+                            const symbolHtml = renderBotAssetBadge(t.symbol, t);
 
                             tr.innerHTML = `
                                 <td style="font-family: var(--font-mono); font-size: 11px;">${timeStr}</td>
@@ -592,7 +614,7 @@
 
                         tr.innerHTML = `
                             <td><code style="color: #58a6ff;">${p.position_id}</code></td>
-                            <td><strong>${p.symbol}</strong></td>
+                            <td>${renderBotAssetBadge(p.symbol, p)}</td>
                             <td><strong style="color: ${sideColor};">${p.side}</strong></td>
                             <td>${p.quantity}</td>
                             <td>${formatAssetPrice(p.entry_price, prec)}</td>
@@ -1069,12 +1091,12 @@
                                 tr.setAttribute('data-side', side);
                                 tr.setAttribute('data-leverage', lev);
 
-                                const isScalp = Boolean(p.is_scalp === true || p.trade_type === 'SCALP' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                                const isScalp = Boolean(p.is_scalp === true || p.trade_type === 'SCALP' || p.trade_type === 'LIGHTNING' || p.bot_tag === 'LIGHTNING' || (window._currentActiveScalpSymbol && p.symbol === window._currentActiveScalpSymbol));
+                                const isNeon = Boolean(p.is_neon === true || p.trade_type === 'NEON' || p.bot_tag === 'NEON' || (window._neonActiveSymbols && window._neonActiveSymbols.has(p.symbol)));
                                 if (isScalp) tr.className = 'trade-row-scalp';
+                                else if (isNeon) tr.className = 'trade-row-neon';
 
-                                const symbolHtml = isScalp
-                                    ? `<strong class="scalp-symbol-bold-blue">${p.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
-                                    : `<strong class="pos-symbol">${p.symbol}</strong><span class="badge-regime" style="background: rgba(163, 113, 247, 0.15); color: #a371f7; border: 1px solid rgba(163, 113, 247, 0.4); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">🌐 MACRO</span>`;
+                                const symbolHtml = renderBotAssetBadge(p.symbol, p);
                                 const priceGain = p.price_gain_pct !== undefined ? Number(p.price_gain_pct) : (
                                     entry > 0 ? (side === 'BUY' || side === 'LONG' ? ((mark - entry) / entry * 100) : ((entry - mark) / entry * 100)) : 0
                                 );
@@ -1150,9 +1172,7 @@
                                     const feeText = feeAsset === 'BNB' 
                                         ? `${t.fee_amount || t.commission || '0'} BNB (~$${Number(t.fee_usd || 0).toFixed(4)})` 
                                         : `$${Number(t.fee_usd || t.commission || 0).toFixed(4)} USDT`;
-                                    const symbolHtml = isScalp
-                                        ? `<strong class="scalp-symbol-bold-blue">${t.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
-                                        : `<strong>${t.symbol}</strong>`;
+                                    const symbolHtml = renderBotAssetBadge(t.symbol, t);
                                     const orderIdHtml = isScalp
                                         ? `<code style="color: #388bfd; font-weight: 800;">${t.order_id || t.trade_id} (SCALP)</code>`
                                         : `<code style="color: #58a6ff;">${t.order_id || t.trade_id}</code>`;
@@ -2212,9 +2232,7 @@
 
                     const isScalp = Boolean(t.is_scalp || t.trade_type === 'SCALP' || (t.position_id && String(t.position_id).startsWith('SCALP')));
                     const rowClass = isScalp ? ' class="trade-row-scalp"' : '';
-                    const symHtml = isScalp
-                        ? `<strong class="scalp-symbol-bold-blue">${t.symbol}</strong><span class="scalp-badge-bold-blue">⚡ SCALP</span>`
-                        : `<strong>${t.symbol}</strong>`;
+                    const symHtml = renderBotAssetBadge(t.symbol, t);
                     rowsHtml += `
                         <tr${rowClass}>
                             <td style="font-family: var(--font-mono); color: var(--text-muted);">${timeStr}</td>
