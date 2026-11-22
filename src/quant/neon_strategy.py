@@ -507,8 +507,18 @@ def evaluate_neon_universe(
         curr_c = candles[last_idx]
         prev_c = candles[prev_idx]
 
-        bull_pull = (curr_c["low"] <= e9[last_idx] * 1.002 or prev_c["low"] <= e21[prev_idx] * 1.002) and (curr_c["close"] > curr_c["open"]) and (curr_c["close"] > prev_c["high"])
-        bear_pull = (curr_c["high"] >= e9[last_idx] * 0.998 or prev_c["high"] >= e21[prev_idx] * 0.998) and (curr_c["close"] < curr_c["open"]) and (curr_c["close"] < prev_c["low"])
+        # Pullback touch: either current bar dipped to EMA9/EMA21 zone, OR previous bar dipped to EMA9/EMA21 zone
+        bull_touched = (
+            curr_c["low"] <= e9[last_idx] * 1.004 or curr_c["low"] <= e21[last_idx] * 1.004 or
+            prev_c["low"] <= e9[prev_idx] * 1.004 or prev_c["low"] <= e21[prev_idx] * 1.004
+        )
+        bear_touched = (
+            curr_c["high"] >= e9[last_idx] * 0.996 or curr_c["high"] >= e21[last_idx] * 0.996 or
+            prev_c["high"] >= e9[prev_idx] * 0.996 or prev_c["high"] >= e21[prev_idx] * 0.996
+        )
+
+        bull_pull = bull_touched and (curr_c["close"] > curr_c["open"]) and (curr_c["close"] >= prev_c["close"])
+        bear_pull = bear_touched and (curr_c["close"] < curr_c["open"]) and (curr_c["close"] <= prev_c["close"])
 
         cand_side = "LONG" if trend_up else ("SHORT" if trend_dn else "FLAT")
 
