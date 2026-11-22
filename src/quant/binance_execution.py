@@ -581,6 +581,12 @@ class BinanceAtomicExecutor:
         if not self.api_key or not self.secret_key:
             raise ValueError("BINANCE_FUTURES_API_KEY and BINANCE_FUTURES_SECRET_KEY are required for live execution.")
         
+        # Rate Limit Circuit Breaker: do not send request if IP is in backoff
+        ban_until = getattr(self, "_ban_until", 0.0)
+        if time.time() < ban_until:
+            wait_sec = int(ban_until - time.time())
+            raise RuntimeError(f"Binance Rate Limit Circuit Breaker Active: IP in backoff for {wait_sec}s.")
+
         url = f"{self.base_url}{path}"
         payload = params.copy() if params else {}
         is_retry = bool(payload.pop("_is_retry", False))
@@ -615,6 +621,20 @@ class BinanceAtomicExecutor:
             
         if resp.status_code != 200:
             error_msg = resp.text
+            # Handle rate limit ban (418 / 429) with proactive backoff
+            if resp.status_code in (418, 429):
+                import re
+                m = re.search(r"banned until (\d+)", error_msg)
+                if m:
+                    ban_ts_ms = int(m.group(1))
+                    ban_sec = (ban_ts_ms / 1000.0) + 5.0
+                    self._ban_until = max(getattr(self, "_ban_until", 0.0), ban_sec)
+                    logger.error("[BINANCE 418/429] Rate limit hit. Backoff armed until timestamp %s (%ds remaining).", ban_ts_ms, int(ban_sec - time.time()))
+                else:
+                    self._ban_until = time.time() + 180.0
+                    logger.error("[BINANCE 418/429] Rate limit hit. Default backoff armed for 180s.")
+                raise RuntimeError(f"Binance Futures API Error ({resp.status_code}): {error_msg}")
+
             try:
                 error_data = resp.json()
                 code = error_data.get("code")
@@ -655,11 +675,11 @@ class BinanceAtomicExecutor:
         return fallback
 
     def get_live_account_summary(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Query real USD(S)-M Futures balance, BNB fee buffer, margin ratio, and position risk from Binance (cached 3s)."""
+        """Query real USD(S)-M Futures balance, BNB fee buffer, margin ratio, and position risk from Binance (cached 15s)."""
         now = time.time()
         cached = getattr(self, "_cached_account_summary", None)
         cached_time = getattr(self, "_cached_account_summary_time", 0)
-        if not force_refresh and cached is not None and (now - cached_time) < 3:
+        if not force_refresh and cached is not None and (now - cached_time) < 15:
             return cached
 
         if not self.api_key or not self.secret_key:

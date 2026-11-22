@@ -781,7 +781,7 @@ def execute_neon_cycle():
     try:
         live_summary = quant_bot.executor.get_live_account_summary()
         if not live_summary.get("connected"):
-            logger.debug("[NEON] Binance connection unavailable for NEON scan: %s", live_summary.get("error"))
+            logger.warning("[NEON] Binance connection unavailable for NEON scan: %s", live_summary.get("error"))
             return
 
         equity = Decimal(str(live_summary.get("total_wallet_balance_usd", 191.89)))
@@ -928,14 +928,22 @@ def daemon_loop():
             logger.debug("Heartbeat record error: %s", hb_err)
 
         if live_trading_enabled:
-            # High-frequency scalper step (PAPER)
-            try:
-                execute_apex_scalp_step()
-            except Exception as e:
-                logger.debug("Scalper step exception: %s", e)
+            # Check if NEON is designated as the sole live trading engine
+            q_state = _load_trade_quota()
+            is_neon_sole = (q_state.get("sole_live_engine") == "NEON_V1")
 
-            # Macro scan cycle (PAPER)
-            if now_ts - last_macro_time >= scan_interval_sec:
+            # High-frequency scalper step (PAPER):
+            # Paused when NEON is sole live trader to conserve 100% of Binance API weight
+            if not is_neon_sole:
+                try:
+                    execute_apex_scalp_step()
+                except Exception as e:
+                    logger.debug("Scalper step exception: %s", e)
+
+            # Macro scan cycle (PAPER):
+            # Throttled to 300s (5m) when NEON is sole trader to eliminate API contention
+            macro_interval = 300 if is_neon_sole else scan_interval_sec
+            if now_ts - last_macro_time >= macro_interval:
                 try:
                     execute_live_cycle()
                     last_macro_time = time.time()
