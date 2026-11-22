@@ -23,7 +23,7 @@ import subprocess
 import logging
 import datetime
 import threading
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Dict, Any, Set, Tuple, List
 
 # Ensure workspace root is in sys.path
@@ -150,6 +150,7 @@ raw_trade_cap = os.getenv("KRONOS_LIVE_TRADE_CAP", "8").strip()
 live_trade_cap: Optional[int] = int(raw_trade_cap) if raw_trade_cap.isdigit() else 8
 live_session_trades: int = 0
 live_cap_reached_utc: Optional[datetime.datetime] = None
+sole_live_engine: str = "NEON_V1"
 scan_interval_sec = int(os.getenv("KRONOS_SCAN_INTERVAL", "60"))
 last_scan_utc: Optional[datetime.datetime] = None
 next_scan_utc: Optional[datetime.datetime] = None
@@ -178,12 +179,14 @@ def _save_quota_state() -> None:
 
 
 def _load_quota_state() -> None:
-    global live_trading_enabled, live_trade_cap, live_session_trades, live_cap_reached_utc
+    global live_trading_enabled, live_trade_cap, live_session_trades, live_cap_reached_utc, sole_live_engine
     if not os.path.exists(QUOTA_STATE_PATH):
         return
     try:
         with open(QUOTA_STATE_PATH, "r", encoding="utf-8") as f:
             d = json.load(f)
+        if "sole_live_engine" in d:
+            sole_live_engine = str(d["sole_live_engine"])
         if "live_trading_enabled" in d:
             live_trading_enabled = bool(d["live_trading_enabled"])
         if "live_trade_cap" in d:
@@ -797,9 +800,10 @@ def execute_neon_cycle():
                 if klines and len(klines) >= 30:
                     live_candles[sym] = klines
                     last_k = klines[-1]
+                    ref_k = klines[-24] if len(klines) >= 24 else klines[0]
                     live_tickers[sym] = {
                         "lastPrice": str(last_k["close"]),
-                        "priceChangePercent": str(((last_k["close"] - klines[0]["close"]) / klines[0]["close"]) * Decimal("100"))
+                        "priceChangePercent": str(((last_k["close"] - ref_k["close"]) / ref_k["close"]) * Decimal("100"))
                     }
             except Exception as kerr:
                 logger.debug("[NEON] Failed to fetch 1h klines for %s: %s", sym, kerr)
@@ -858,9 +862,31 @@ def execute_neon_cycle():
             entry_px = Decimal(str(t_info.get("entry_price", cand.get("price", 60000.0))))
             sl_px = Decimal(str(t_info.get("stop_loss", entry_px * Decimal("0.985"))))
             tp_px = Decimal(str(t_info.get("take_profit", entry_px * Decimal("1.03"))))
-            qty = Decimal(str(t_info.get("quantity", Decimal("0.001"))))
-            notional = Decimal(str(t_info.get("notional_usd", entry_px * qty)))
+            raw_qty = Decimal(str(t_info.get("quantity", Decimal("0.001"))))
+            raw_notional = Decimal(str(t_info.get("notional_usd", entry_px * raw_qty)))
             lev = int(Decimal(str(neon_cfg.get("max_leverage", 3.5))))
+
+            # Resolve exchange symbol precision & lot sizing constraints
+            price_prec, qty_prec = quant_bot.executor._resolve_symbol_precision(sym)
+            fmt_qty = Decimal("10") ** -qty_prec
+
+            # Query risk engine's scale-aware fat-finger cap and single-asset exposure ceiling
+            re_cfg = getattr(quant_bot.executor.risk_engine, "config", None)
+            if re_cfg and hasattr(re_cfg, "effective_fat_finger_notional_usd"):
+                fat_finger_cap = re_cfg.effective_fat_finger_notional_usd(equity)
+            else:
+                fat_finger_cap = max(Decimal("120.00"), equity * Decimal("0.50")) if equity <= Decimal("2500.00") else Decimal("25000.00")
+
+            if equity <= Decimal("2500.00") and sym != "BTCUSDT" and re_cfg is not None:
+                max_asset_cap = equity * getattr(re_cfg, "max_single_asset_exposure_pct", Decimal("0.25"))
+                target_notional = min(raw_notional, fat_finger_cap, max_asset_cap)
+            else:
+                target_notional = min(raw_notional, fat_finger_cap)
+
+            qty = (target_notional / entry_px).quantize(fmt_qty, rounding=ROUND_HALF_UP)
+            if qty < fmt_qty:
+                qty = fmt_qty
+            notional = qty * entry_px
 
             from src.quant.kev_risk_arbiter import TradeTicket
             ticket = TradeTicket(
@@ -895,9 +921,10 @@ def execute_neon_cycle():
                 continue
 
             _record_live_trade_dispatch(sym, "NEON")
+            dispatched_qty = live_res.quantity if getattr(live_res, "quantity", Decimal("0")) > Decimal("0") else qty
             logger.info(
                 "[NEON-LIVE] *** DISPATCHED REAL MONEY TRADE *** %s %s @ %s | SL: %s | TP: %s | Qty: %s | Progress: %d/%d",
-                sym, side, entry_px, sl_px, tp_px, qty, live_session_trades, live_trade_cap
+                sym, side, entry_px, sl_px, tp_px, dispatched_qty, live_session_trades, live_trade_cap
             )
     except Exception as e:
         logger.warning("[NEON-CYCLE-ERROR] %s", e)
@@ -929,8 +956,8 @@ def daemon_loop():
 
         if live_trading_enabled:
             # Check if NEON is designated as the sole live trading engine
-            q_state = _load_trade_quota()
-            is_neon_sole = (q_state.get("sole_live_engine") == "NEON_V1")
+            _load_quota_state()
+            is_neon_sole = (sole_live_engine == "NEON_V1")
 
             # High-frequency scalper step (PAPER):
             # Paused when NEON is sole live trader to conserve 100% of Binance API weight

@@ -83,8 +83,8 @@ class RiskConfig:
 
     # --- 6. Layer 2: Pre-Trade OMS Defense (Mandatory SL, Stop Geometry, Scale-Aware Fat-Finger) ---
     max_single_order_notional_usd: Decimal = Decimal("25000.00")   # Institutional hard cap
-    small_account_fat_finger_floor_usd: Decimal = Decimal("100.00") # Scale-aware small-account floor (covers 0.001 BTC)
-    fat_finger_equity_multiple: Decimal = Decimal("0.50")     # Small-account fat-finger = max($100, 0.50 * equity)
+    small_account_fat_finger_floor_usd: Decimal = Decimal("120.00") # Scale-aware small-account floor (covers 0.001 BTC up to $120k BTC)
+    fat_finger_equity_multiple: Decimal = Decimal("0.50")     # Small-account fat-finger = max($120, 0.50 * equity)
     fat_finger_hard_veto: bool = True
     max_order_book_depth_pct: Decimal = Decimal("0.10")
     max_price_collar_pct: Decimal = Decimal("0.015")

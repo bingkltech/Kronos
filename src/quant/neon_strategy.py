@@ -539,7 +539,8 @@ def evaluate_neon_universe(
         risk_usd_d = account_equity * Decimal(str(float(cfg.get("risk_per_trade_pct", 1.5)) / 100.0))
         raw_notional_d = risk_usd_d / Decimal(str(sl_pct_val))
         max_notional_d = account_equity * Decimal(str(cfg.get("max_leverage", 3.5)))
-        notional_d = min(max_notional_d, raw_notional_d)
+        fat_finger_ceiling = max(Decimal("120.00"), account_equity * Decimal("0.50")) if account_equity <= Decimal("2500.00") else Decimal("25000.00")
+        notional_d = min(max_notional_d, raw_notional_d, fat_finger_ceiling)
         qty_d = (notional_d / entry_d).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
         est_maker_fee_d = notional_d * Decimal(str(float(cfg.get("maker_fee_rate", 0.0002)) * 2))
